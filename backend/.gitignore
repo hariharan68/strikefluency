@@ -1,0 +1,56 @@
+# ══════════════════════════════════════════════════
+# StrikeFluency Backend — Python / FastAPI
+# ══════════════════════════════════════════════════
+
+# ── Secrets (NEVER commit) ────────────────────────
+.env
+.env.*
+!.env.example
+
+# Fyers tokens
+fyers_logs/
+fyers_token.json
+access_token.txt
+
+# ── Python bytecode ───────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyw
+
+# ── Virtual environments ──────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Testing ───────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+.hypothesis/
+
+# ── Type checkers ─────────────────────────────────
+.mypy_cache/
+.pytype/
+
+# ── Packaging ─────────────────────────────────────
+*.egg-info/
+dist/
+build/
+
+# ── Logs ──────────────────────────────────────────
+*.log
+logs/
+
+# ── OS ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDE ───────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.swp

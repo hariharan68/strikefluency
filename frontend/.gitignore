@@ -1,0 +1,39 @@
+# ══════════════════════════════════════════════════
+# StrikeFluency Frontend — Vite + React
+# ══════════════════════════════════════════════════
+
+# ── Dependencies ──────────────────────────────────
+node_modules/
+
+# ── Build output ──────────────────────────────────
+dist/
+dist-ssr/
+.vite/
+coverage/
+
+# ── Local env files ───────────────────────────────
+.env
+.env.*
+!.env.example
+*.local
+
+# ── Logs ──────────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# ── OS ────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDE ───────────────────────────────────────────
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.suo
+*.swp
+
+# ── TypeScript (if added later) ───────────────────
+*.tsbuildinfo

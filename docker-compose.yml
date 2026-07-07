@@ -1,0 +1,22 @@
+# docker-compose.yml
+# ──────────────────
+# Since Postgres is already running locally on your machine,
+# this only starts pgAdmin — a browser UI to inspect your database.
+#
+# Run:  docker-compose up -d
+# Open: http://localhost:5050
+# Login: admin@strikefluency.com / admin
+# Then add a server: host=host.docker.internal port=5432
+
+version: '3.8'
+ 
+services:
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: strikefluency_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@strikefluency.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    restart: unless-stopped
