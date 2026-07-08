@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, Check, Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
-import { useRegister } from '../../hooks/useAuth'
+import { AlertCircle, Check, Eye, EyeOff, Lock, Mail } from 'lucide-react'
+import { useLogin } from '../hooks/useAuth'
 
 function StatCard({ color, value, label }) {
   return (
@@ -17,47 +17,32 @@ function StatCard({ color, value, label }) {
   )
 }
 
-export default function RegisterPage() {
-  const [fullName, setFullName] = useState('')
+export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [errors, setErrors] = useState({
-    fullName: '',
-    email: '',
-    password: '',
-    confirmPassword: ''
-  })
-  const { submit, error, loading } = useRegister()
+  const [rememberMe, setRememberMe] = useState(false)
+  const [errors, setErrors] = useState({ email: '', password: '' })
+  const { submit, error, loading } = useLogin()
 
   const validate = () => {
-    const nextErrors = {
-      fullName: '',
-      email: '',
-      password: '',
-      confirmPassword: ''
-    }
+    const nextErrors = { email: '', password: '' }
     const emailRegex = /^\S+@\S+\.\S+$/
 
-    if (!fullName.trim()) nextErrors.fullName = 'Full name is required'
     if (!email.trim()) nextErrors.email = 'Email is required'
     else if (!emailRegex.test(email)) nextErrors.email = 'Enter a valid email address'
+
     if (!password) nextErrors.password = 'Password is required'
-    else if (password.length < 8) nextErrors.password = 'Use at least 8 characters'
-    if (!confirmPassword) nextErrors.confirmPassword = 'Confirm your password'
-    else if (confirmPassword !== password) nextErrors.confirmPassword = 'Passwords do not match'
 
     setErrors(nextErrors)
-    return !nextErrors.fullName && !nextErrors.email && !nextErrors.password && !nextErrors.confirmPassword
+    return !nextErrors.email && !nextErrors.password
   }
 
   const handleSubmit = (event) => {
     event.preventDefault()
     if (!validate()) return
 
-    submit(fullName.trim(), email.trim(), password)
+    submit(email.trim(), password)
   }
 
   return (
@@ -71,9 +56,9 @@ export default function RegisterPage() {
         </div>
 
         <div className="relative z-10 mt-28 max-w-md">
-          <h1 className="text-4xl font-bold leading-tight text-white">Start trading with discipline</h1>
+          <h1 className="text-4xl font-bold leading-tight text-white">Trade with clarity</h1>
           <p className="mt-4 text-base leading-7 text-gray-400">
-            Build a virtual trading practice, track every setup, and turn discipline into a measurable edge.
+            Review performance, track discipline, and sharpen every trading decision from one focused dashboard.
           </p>
         </div>
 
@@ -90,32 +75,11 @@ export default function RegisterPage() {
       <section className="flex flex-1 items-center justify-center p-6 md:w-[55%]">
         <div className="w-full max-w-[400px]">
           <div className="mb-8">
-            <h2 className="text-[28px] font-bold leading-tight text-[#1F2233]">Create your account</h2>
-            <p className="mt-2 text-sm text-[#8A8DA0]">Start your virtual trading dashboard</p>
+            <h2 className="text-[28px] font-bold leading-tight text-[#1F2233]">Welcome back</h2>
+            <p className="mt-2 text-sm text-[#8A8DA0]">Log in to continue to your dashboard</p>
           </div>
 
           <form noValidate onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label htmlFor="fullName" className="mb-2 block text-sm font-medium text-[#1F2233]">
-                Full name
-              </label>
-              <div className="relative">
-                <User className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8A8DA0]" size={18} />
-                <input
-                  id="fullName"
-                  type="text"
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
-                  autoComplete="name"
-                  aria-invalid={!!errors.fullName}
-                  aria-describedby={errors.fullName ? 'fullName-error' : undefined}
-                  className={`min-h-[44px] w-full rounded-lg border bg-[#FFFFFF] py-3 pl-10 pr-3 text-sm text-[#1F2233] transition-colors placeholder:text-[#8A8DA0] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7] ${errors.fullName ? 'border-[#F0616D]' : 'border-[#E4E6EE]'}`}
-                  placeholder="Your full name"
-                />
-              </div>
-              {errors.fullName && <p id="fullName-error" className="mt-1.5 text-xs text-[#F0616D]">{errors.fullName}</p>}
-            </div>
-
             <div>
               <label htmlFor="email" className="mb-2 block text-sm font-medium text-[#1F2233]">
                 Email
@@ -148,11 +112,11 @@ export default function RegisterPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  autoComplete="new-password"
+                  autoComplete="current-password"
                   aria-invalid={!!errors.password}
                   aria-describedby={errors.password ? 'password-error' : undefined}
                   className={`min-h-[44px] w-full rounded-lg border bg-[#FFFFFF] py-3 pl-10 pr-11 text-sm text-[#1F2233] transition-colors placeholder:text-[#8A8DA0] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7] ${errors.password ? 'border-[#F0616D]' : 'border-[#E4E6EE]'}`}
-                  placeholder="Create a password"
+                  placeholder="Enter your password"
                 />
                 <button
                   type="button"
@@ -166,33 +130,20 @@ export default function RegisterPage() {
               {errors.password && <p id="password-error" className="mt-1.5 text-xs text-[#F0616D]">{errors.password}</p>}
             </div>
 
-            <div>
-              <label htmlFor="confirmPassword" className="mb-2 block text-sm font-medium text-[#1F2233]">
-                Confirm password
-              </label>
-              <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8A8DA0]" size={18} />
+            <div className="flex items-center justify-between gap-4">
+              <label htmlFor="rememberMe" className="flex cursor-pointer items-center gap-2 text-sm text-[#8A8DA0]">
                 <input
-                  id="confirmPassword"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  autoComplete="new-password"
-                  aria-invalid={!!errors.confirmPassword}
-                  aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
-                  className={`min-h-[44px] w-full rounded-lg border bg-[#FFFFFF] py-3 pl-10 pr-11 text-sm text-[#1F2233] transition-colors placeholder:text-[#8A8DA0] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7] ${errors.confirmPassword ? 'border-[#F0616D]' : 'border-[#E4E6EE]'}`}
-                  placeholder="Confirm your password"
+                  id="rememberMe"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(event) => setRememberMe(event.target.checked)}
+                  className="h-4 w-4 rounded border-[#E4E6EE] accent-[#6C5CE7] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7]"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword((current) => !current)}
-                  aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
-                  className="absolute right-3 top-1/2 flex min-h-[44px] -translate-y-1/2 items-center justify-center rounded-lg text-[#8A8DA0] transition-colors hover:text-[#1F2233] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7]"
-                >
-                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              {errors.confirmPassword && <p id="confirmPassword-error" className="mt-1.5 text-xs text-[#F0616D]">{errors.confirmPassword}</p>}
+                Remember me
+              </label>
+              <a href="#forgot-password" className="rounded-lg text-sm font-medium text-[#6C5CE7] hover:text-[#5A4BD4] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7]">
+                Forgot password?
+              </a>
             </div>
 
             {error && (
@@ -207,14 +158,30 @@ export default function RegisterPage() {
               disabled={loading}
               className="min-h-[44px] w-full rounded-lg bg-[#6C5CE7] py-3 text-sm font-medium text-white transition-colors hover:bg-[#5A4BD4] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {loading ? 'Creating account...' : 'Create account'}
+              {loading ? 'Logging in...' : 'Log in'}
             </button>
           </form>
 
+          <div className="my-6 flex items-center gap-4">
+            <div className="h-px flex-1 bg-[#E4E6EE]" />
+            <span className="text-sm text-[#8A8DA0]">or</span>
+            <div className="h-px flex-1 bg-[#E4E6EE]" />
+          </div>
+
+          <button
+            type="button"
+            className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-[#E4E6EE] bg-[#FFFFFF] py-3 text-sm font-medium text-[#1F2233] transition-colors hover:bg-[#F7F8FA] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7] focus:ring-offset-2"
+          >
+            <span className="flex h-5 w-5 items-center justify-center rounded-full border border-[#E4E6EE] text-xs font-bold text-[#1F2233]">
+              G
+            </span>
+            Continue with Google
+          </button>
+
           <p className="mt-8 text-center text-sm text-[#8A8DA0]">
-            Already have an account?{' '}
-            <Link to="/login" className="rounded-lg font-medium text-[#6C5CE7] hover:text-[#5A4BD4] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7]">
-              Log in
+            Don&apos;t have an account?{' '}
+            <Link to="/register" className="rounded-lg font-medium text-[#6C5CE7] hover:text-[#5A4BD4] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7]">
+              Sign up
             </Link>
           </p>
         </div>

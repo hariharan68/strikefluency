@@ -11,7 +11,10 @@ client.interceptors.request.use(config => {
 client.interceptors.response.use(
   r => r,
   err => {
-    if (err.response?.status === 401) {
+    const requestUrl = err.config?.url || ''
+    const isAuthRequest = requestUrl.startsWith('/auth/login') || requestUrl.startsWith('/auth/register')
+
+    if (err.response?.status === 401 && !isAuthRequest) {
       localStorage.removeItem('sf_access_token')
       localStorage.removeItem('sf_user')
       window.location.href = '/login'
