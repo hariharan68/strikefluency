@@ -75,6 +75,11 @@ logs/
 *.log
 log/
 
+
+.codex
+.claude
+.agents
+
 # ── IDE / Editor ──────────────────────────────────
 .vscode/
 !.vscode/extensions.json
