@@ -13,8 +13,8 @@ export default function JournalEntryCard({ entry, onSaveReview }) {
 
   return (
     <div style={{
-      background: '#0e121b',
-      border: '1px solid #2b303b',
+      background: '#FFFFFF',
+      border: '1px solid #E5E7EB',
       borderRadius: 12,
       overflow: 'hidden'
     }}>
@@ -50,7 +50,7 @@ export default function JournalEntryCard({ entry, onSaveReview }) {
             <span style={{
               fontSize: 11, padding: '2px 8px', borderRadius: 12,
               background: entry.action === 'BUY' ? 'rgba(51,92,255,0.2)' : 'rgba(233,53,68,0.2)',
-              color: entry.action === 'BUY' ? '#335cff' : '#ff6875'
+              color: entry.action === 'BUY' ? '#714B67' : '#ff6875'
             }}>
               {entry.action}
             </span>
@@ -85,15 +85,15 @@ export default function JournalEntryCard({ entry, onSaveReview }) {
       {/* Expanded content */}
       {expanded && (
         <div style={{
-          borderTop: '1px solid #2b303b',
+          borderTop: '1px solid #E5E7EB',
           padding: '16px',
-          background: '#181b25'
+          background: '#F3F4F6'
         }}>
           <TradeDetailPanel entry={entry} />
           {entry.review_notes && (
-            <div style={{ marginTop: 12, padding: '10px 14px', background: '#0e121b', borderRadius: 8 }}>
+            <div style={{ marginTop: 12, padding: '10px 14px', background: '#FFFFFF', borderRadius: 8 }}>
               <div style={{ color: '#717784', fontSize: 12, marginBottom: 4 }}>Review Notes</div>
-              <div style={{ color: '#99a0ae', fontSize: 13 }}>{entry.review_notes}</div>
+              <div style={{ color: '#6B7280', fontSize: 13 }}>{entry.review_notes}</div>
             </div>
           )}
           {onSaveReview && (

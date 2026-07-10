@@ -22,8 +22,8 @@ export default function OpenPositionCard({ position, onClose }) {
 
   return (
     <div style={{
-      background: '#181b25',
-      border: '1px solid #2b303b',
+      background: '#F3F4F6',
+      border: '1px solid #E5E7EB',
       borderRadius: 12,
       padding: 16,
       display: 'flex',
@@ -62,16 +62,16 @@ export default function OpenPositionCard({ position, onClose }) {
 
       {/* Details */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <span style={{ color: '#99a0ae', fontSize: 12 }}>
+        <span style={{ color: '#6B7280', fontSize: 12 }}>
           Entry: <span style={{ color: '#fff' }}>₹{position.entry_price}</span>
         </span>
         {position.stop_loss && (
-          <span style={{ color: '#99a0ae', fontSize: 12 }}>
+          <span style={{ color: '#6B7280', fontSize: 12 }}>
             SL: <span style={{ color: '#ff6875' }}>₹{position.stop_loss}</span>
           </span>
         )}
         {position.target_price && (
-          <span style={{ color: '#99a0ae', fontSize: 12 }}>
+          <span style={{ color: '#6B7280', fontSize: 12 }}>
             Target: <span style={{ color: '#3ee089' }}>₹{position.target_price}</span>
           </span>
         )}

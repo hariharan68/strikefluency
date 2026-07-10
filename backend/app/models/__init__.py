@@ -1,4 +1,4 @@
-from app.models.tenant import Tenant
+﻿from app.models.tenant import Tenant
 from app.models.user import User
 from app.models.refresh_token import RefreshToken
 from app.models.virtual_account import VirtualAccount
@@ -9,6 +9,7 @@ from app.models.discipline_violation import DisciplineViolation
 from app.models.discipline_score import DisciplineScore
 from app.models.trading_session import TradingSession
 from app.models.journal_entry import JournalEntry
+from app.models.broker_connection import BrokerConnection
 
 __all__ = [
     "Tenant",
@@ -21,5 +22,6 @@ __all__ = [
     "DisciplineViolation",
     "DisciplineScore",
     "TradingSession",
-    "JournalEntry",
+    'JournalEntry',
+    'BrokerConnection',
 ]

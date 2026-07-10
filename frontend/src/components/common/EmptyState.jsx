@@ -9,7 +9,7 @@ export default function EmptyState({ icon, title, subtitle, action }) {
           {icon}
         </div>
       )}
-      <p style={{ color: '#99a0ae', fontSize: 15, fontWeight: 500, margin: 0 }}>
+      <p style={{ color: '#6B7280', fontSize: 15, fontWeight: 500, margin: 0 }}>
         {title || 'No data'}
       </p>
       {subtitle && (

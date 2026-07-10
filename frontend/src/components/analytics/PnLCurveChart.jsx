@@ -7,7 +7,7 @@ function CustomTooltip({ active, payload, label }) {
   const val = payload[0]?.value ?? 0
   return (
     <div style={{
-      background: '#181b25', border: '1px solid #2b303b',
+      background: '#F3F4F6', border: '1px solid #E5E7EB',
       borderRadius: 8, padding: '10px 14px'
     }}>
       <div style={{ color: '#717784', fontSize: 12, marginBottom: 4 }}>{label}</div>
@@ -22,7 +22,7 @@ export default function PnLCurveChart({ data = [] }) {
   if (!data || data.length === 0) {
     return (
       <EmptyState
-        icon={<TrendingUp size={28} color="#335cff" />}
+        icon={<TrendingUp size={28} color="#714B67" />}
         title="No P&L data yet"
         subtitle="Place trades to see your equity curve"
       />
@@ -40,16 +40,16 @@ export default function PnLCurveChart({ data = [] }) {
             <stop offset="95%" stopColor={isPositive ? '#3ee089' : '#e93544'} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#2b303b" />
+        <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
         <XAxis
           dataKey="date"
           tick={{ fill: '#717784', fontSize: 11 }}
-          axisLine={{ stroke: '#2b303b' }}
+          axisLine={{ stroke: '#E5E7EB' }}
           tickLine={false}
         />
         <YAxis
           tick={{ fill: '#717784', fontSize: 11 }}
-          axisLine={{ stroke: '#2b303b' }}
+          axisLine={{ stroke: '#E5E7EB' }}
           tickLine={false}
           tickFormatter={v => `₹${v}`}
         />

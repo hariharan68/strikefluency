@@ -3,7 +3,7 @@ import { MISTAKE_LABELS } from '../../utils/constants'
 export default function MistakeCategoryPicker({ value, onChange }) {
   return (
     <div>
-      <label style={{ color: '#99a0ae', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
+      <label style={{ color: '#6B7280', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
         Mistake Category
       </label>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -21,7 +21,7 @@ export default function MistakeCategoryPicker({ value, onChange }) {
                 fontWeight: 500,
                 fontFamily: 'Inter,sans-serif',
                 cursor: 'pointer',
-                border: `1px solid ${isSelected ? color : '#2b303b'}`,
+                border: `1px solid ${isSelected ? color : '#E5E7EB'}`,
                 background: isSelected ? color + '20' : 'transparent',
                 color: isSelected ? color : '#717784',
                 transition: 'all 0.15s'

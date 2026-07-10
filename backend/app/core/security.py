@@ -12,6 +12,7 @@ Four responsibilities:
 """
 
 import hashlib
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -121,7 +122,8 @@ def create_refresh_token(
     The "type": "refresh" claim prevents a refresh token from being
     used as an access token (verified in verify_token).
     """
-    expire = datetime.now(timezone.utc) + timedelta(
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(
         days=settings.REFRESH_TOKEN_EXPIRE_DAYS
     )
 
@@ -129,6 +131,8 @@ def create_refresh_token(
         "sub": str(user_id),
         "tenant": str(tenant_id),
         "type": "refresh",
+        "iat": now,
+        "jti": uuid.uuid4().hex,
         "exp": expire,
     }
 

@@ -1,6 +1,16 @@
+import { useEffect } from 'react'
 import { X } from 'lucide-react'
 
 export default function Modal({ isOpen, onClose, title, children, maxWidth = 480 }) {
+  useEffect(() => {
+    if (!isOpen) return undefined
+    const onKey = (event) => {
+      if (event.key === 'Escape') onClose?.()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isOpen, onClose])
+
   if (!isOpen) return null
 
   return (
@@ -12,34 +22,41 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth = 480
       <div
         style={{
           position: 'absolute', inset: 0,
-          background: 'rgba(0,0,0,0.7)',
-          backdropFilter: 'blur(4px)'
+          background: 'rgba(17,24,39,0.42)',
+          backdropFilter: 'blur(5px)'
         }}
         onClick={onClose}
       />
-      <div style={{
+      <div className="animate-in" style={{
         position: 'relative', zIndex: 1,
-        background: '#0e121b',
-        border: '1px solid #2b303b',
-        borderRadius: 16,
+        background: 'var(--color-surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 18,
         width: '100%', maxWidth,
-        boxShadow: '0 24px 64px rgba(0,0,0,0.6)'
+        maxHeight: '90vh', overflow: 'auto',
+        boxShadow: 'var(--shadow-pop)'
       }}>
         {title && (
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '20px 24px',
-            borderBottom: '1px solid #2b303b'
+            padding: '18px 22px',
+            borderBottom: '1px solid var(--border-light)'
           }}>
-            <h3 style={{ color: '#fff', fontSize: 16, fontWeight: 500, margin: 0 }}>{title}</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ width: 3, height: 18, borderRadius: 99, background: 'var(--primary)' }} />
+              <h3 style={{ color: 'var(--text)', fontSize: 14, fontWeight: 700, margin: 0 }}>{title}</h3>
+            </div>
             <button
               onClick={onClose}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}>
-              <X size={18} color="#99a0ae" />
+              aria-label="Close modal"
+              className="sf-icon-button"
+              style={{ width: 32, height: 32 }}
+            >
+              <X size={16} />
             </button>
           </div>
         )}
-        <div style={{ padding: 24 }}>
+        <div style={{ padding: 22 }}>
           {children}
         </div>
       </div>

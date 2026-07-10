@@ -1,17 +1,17 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, Check, Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
+import { AlertCircle, Archive, Check, Eye, EyeOff, Folder, Lock, Mail, Star, TrendingUp, User } from 'lucide-react'
 import { useRegister } from '../../hooks/useAuth'
 
-function StatCard({ color, value, label }) {
+function Step({ icon: Icon, title, text }) {
   return (
-    <div className="flex items-center gap-4 rounded-xl bg-[#FFFFFF] p-4 shadow-lg shadow-black/10">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#E4E6EE]">
-        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
+    <div className="flex gap-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#714B67]/22 text-[#E9D6E4]">
+        <Icon size={17} />
       </div>
       <div>
-        <p className="text-lg font-bold leading-tight text-[#1F2233]">{value}</p>
-        <p className="text-sm text-[#8A8DA0]">{label}</p>
+        <p className="text-sm font-semibold text-white">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-[#B7BAC8]">{text}</p>
       </div>
     </div>
   )
@@ -24,23 +24,12 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [errors, setErrors] = useState({
-    fullName: '',
-    email: '',
-    password: '',
-    confirmPassword: ''
-  })
+  const [errors, setErrors] = useState({ fullName: '', email: '', password: '', confirmPassword: '' })
   const { submit, error, loading } = useRegister()
 
   const validate = () => {
-    const nextErrors = {
-      fullName: '',
-      email: '',
-      password: '',
-      confirmPassword: ''
-    }
+    const nextErrors = { fullName: '', email: '', password: '', confirmPassword: '' }
     const emailRegex = /^\S+@\S+\.\S+$/
-
     if (!fullName.trim()) nextErrors.fullName = 'Full name is required'
     if (!email.trim()) nextErrors.email = 'Email is required'
     else if (!emailRegex.test(email)) nextErrors.email = 'Enter a valid email address'
@@ -48,7 +37,6 @@ export default function RegisterPage() {
     else if (password.length < 8) nextErrors.password = 'Use at least 8 characters'
     if (!confirmPassword) nextErrors.confirmPassword = 'Confirm your password'
     else if (confirmPassword !== password) nextErrors.confirmPassword = 'Passwords do not match'
-
     setErrors(nextErrors)
     return !nextErrors.fullName && !nextErrors.email && !nextErrors.password && !nextErrors.confirmPassword
   }
@@ -56,166 +44,106 @@ export default function RegisterPage() {
   const handleSubmit = (event) => {
     event.preventDefault()
     if (!validate()) return
-
     submit(fullName.trim(), email.trim(), password)
   }
 
   return (
-    <main className="flex min-h-screen bg-[#F7F8FA] font-['Inter',sans-serif]">
-      <aside className="relative hidden min-h-screen w-[45%] flex-col overflow-hidden bg-[#1A1A2E] px-12 py-10 md:flex">
+    <main className="flex min-h-screen bg-[var(--color-bg)] text-[var(--text)]">
+      <aside className="relative hidden min-h-screen w-[46%] flex-col overflow-hidden bg-[#252733] px-12 py-10 lg:flex xl:w-[42%]">
         <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#6C5CE7] text-white">
-            <Check size={18} strokeWidth={3} />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#714B67] text-white shadow-[0_8px_20px_rgba(113,75,103,0.35)]">
+            <TrendingUp size={17} strokeWidth={2.5} />
           </div>
-          <span className="text-xl font-bold text-white">StrikeFluency</span>
+          <span className="sf-serif text-xl font-bold text-white">StrikeFluency</span>
         </div>
 
         <div className="relative z-10 mt-28 max-w-md">
-          <h1 className="text-4xl font-bold leading-tight text-white">Start trading with discipline</h1>
-          <p className="mt-4 text-base leading-7 text-gray-400">
-            Build a virtual trading practice, track every setup, and turn discipline into a measurable edge.
+          <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#C4A0BA]">Start disciplined practice</p>
+          <h1 className="sf-serif text-4xl font-bold leading-tight text-white">Build your virtual trading desk today.</h1>
+          <p className="mt-5 text-base leading-7 text-[#B7BAC8]">
+            Create an account, start with virtual capital, and let every order pass through your rule system.
           </p>
         </div>
 
-        <div className="relative z-10 mt-auto flex max-w-sm flex-col gap-4 pb-8">
-          <StatCard color="#2ECC87" value="63%" label="Win Rate" />
-          <StatCard color="#6C5CE7" value="$7,674.45" label="Net P&L" />
-          <StatCard color="#6C5CE7" value="30" label="Trades Logged" />
+        <div className="relative z-10 mt-auto flex flex-col gap-5 pb-8">
+          <Step icon={Archive} title="Practice safely" text="Trade NIFTY, BANKNIFTY, and SENSEX options with simulated capital." />
+          <Step icon={Folder} title="Organize every session" text="Keep your journal, violations, and daily performance in one workspace." />
+          <Step icon={Star} title="Improve the process" text="Use discipline score and analytics to find repeatable habits." />
         </div>
-
-        <div className="pointer-events-none absolute -right-28 -top-28 z-0 h-72 w-72 rounded-full bg-[#211F3D]" />
-        <div className="pointer-events-none absolute -bottom-24 left-10 z-0 h-56 w-56 rounded-full bg-[#211F3D]" />
       </aside>
 
-      <section className="flex flex-1 items-center justify-center p-6 md:w-[55%]">
-        <div className="w-full max-w-[400px]">
+      <section className="flex flex-1 items-center justify-center p-6 lg:p-16">
+        <div className="w-full max-w-[360px] animate-in">
+          <div className="mb-8 lg:hidden">
+            <div className="mb-5 flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#714B67] text-white"><TrendingUp size={17} /></div>
+              <span className="sf-serif text-xl font-bold text-[var(--text)]">StrikeFluency</span>
+            </div>
+          </div>
+
           <div className="mb-8">
-            <h2 className="text-[28px] font-bold leading-tight text-[#1F2233]">Create your account</h2>
-            <p className="mt-2 text-sm text-[#8A8DA0]">Start your virtual trading dashboard</p>
+            <h2 className="sf-serif text-3xl font-bold leading-tight text-[var(--text)]">Create your account</h2>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">Start your virtual trading dashboard</p>
           </div>
 
           <form noValidate onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="fullName" className="mb-2 block text-sm font-medium text-[#1F2233]">
-                Full name
-              </label>
+              <label htmlFor="fullName" className="sf-label">Full name</label>
               <div className="relative">
-                <User className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8A8DA0]" size={18} />
-                <input
-                  id="fullName"
-                  type="text"
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
-                  autoComplete="name"
-                  aria-invalid={!!errors.fullName}
-                  aria-describedby={errors.fullName ? 'fullName-error' : undefined}
-                  className={`min-h-[44px] w-full rounded-lg border bg-[#FFFFFF] py-3 pl-10 pr-3 text-sm text-[#1F2233] transition-colors placeholder:text-[#8A8DA0] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7] ${errors.fullName ? 'border-[#F0616D]' : 'border-[#E4E6EE]'}`}
-                  placeholder="Your full name"
-                />
+                <User className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={17} />
+                <input id="fullName" type="text" value={fullName} onChange={(event) => setFullName(event.target.value)} autoComplete="name" aria-invalid={!!errors.fullName} aria-describedby={errors.fullName ? 'fullName-error' : undefined} className="sf-input pl-10" placeholder="Your full name" />
               </div>
-              {errors.fullName && <p id="fullName-error" className="mt-1.5 text-xs text-[#F0616D]">{errors.fullName}</p>}
+              {errors.fullName && <p id="fullName-error" className="mt-1.5 text-xs text-[#dc2626]">{errors.fullName}</p>}
             </div>
 
             <div>
-              <label htmlFor="email" className="mb-2 block text-sm font-medium text-[#1F2233]">
-                Email
-              </label>
+              <label htmlFor="email" className="sf-label">Email</label>
               <div className="relative">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8A8DA0]" size={18} />
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  autoComplete="email"
-                  aria-invalid={!!errors.email}
-                  aria-describedby={errors.email ? 'email-error' : undefined}
-                  className={`min-h-[44px] w-full rounded-lg border bg-[#FFFFFF] py-3 pl-10 pr-3 text-sm text-[#1F2233] transition-colors placeholder:text-[#8A8DA0] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7] ${errors.email ? 'border-[#F0616D]' : 'border-[#E4E6EE]'}`}
-                  placeholder="name@example.com"
-                />
+                <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={17} />
+                <input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-error' : undefined} className="sf-input pl-10" placeholder="name@example.com" />
               </div>
-              {errors.email && <p id="email-error" className="mt-1.5 text-xs text-[#F0616D]">{errors.email}</p>}
+              {errors.email && <p id="email-error" className="mt-1.5 text-xs text-[#dc2626]">{errors.email}</p>}
             </div>
 
             <div>
-              <label htmlFor="password" className="mb-2 block text-sm font-medium text-[#1F2233]">
-                Password
-              </label>
+              <label htmlFor="password" className="sf-label">Password</label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8A8DA0]" size={18} />
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  autoComplete="new-password"
-                  aria-invalid={!!errors.password}
-                  aria-describedby={errors.password ? 'password-error' : undefined}
-                  className={`min-h-[44px] w-full rounded-lg border bg-[#FFFFFF] py-3 pl-10 pr-11 text-sm text-[#1F2233] transition-colors placeholder:text-[#8A8DA0] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7] ${errors.password ? 'border-[#F0616D]' : 'border-[#E4E6EE]'}`}
-                  placeholder="Create a password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((current) => !current)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-3 top-1/2 flex min-h-[44px] -translate-y-1/2 items-center justify-center rounded-lg text-[#8A8DA0] transition-colors hover:text-[#1F2233] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7]"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                <Lock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={17} />
+                <input id="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" aria-invalid={!!errors.password} aria-describedby={errors.password ? 'password-error' : undefined} className="sf-input pl-10 pr-11" placeholder="Create a password" />
+                <button type="button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? 'Hide password' : 'Show password'} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--primary)]">
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
               </div>
-              {errors.password && <p id="password-error" className="mt-1.5 text-xs text-[#F0616D]">{errors.password}</p>}
+              {errors.password && <p id="password-error" className="mt-1.5 text-xs text-[#dc2626]">{errors.password}</p>}
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="mb-2 block text-sm font-medium text-[#1F2233]">
-                Confirm password
-              </label>
+              <label htmlFor="confirmPassword" className="sf-label">Confirm password</label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#8A8DA0]" size={18} />
-                <input
-                  id="confirmPassword"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  autoComplete="new-password"
-                  aria-invalid={!!errors.confirmPassword}
-                  aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
-                  className={`min-h-[44px] w-full rounded-lg border bg-[#FFFFFF] py-3 pl-10 pr-11 text-sm text-[#1F2233] transition-colors placeholder:text-[#8A8DA0] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7] ${errors.confirmPassword ? 'border-[#F0616D]' : 'border-[#E4E6EE]'}`}
-                  placeholder="Confirm your password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword((current) => !current)}
-                  aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
-                  className="absolute right-3 top-1/2 flex min-h-[44px] -translate-y-1/2 items-center justify-center rounded-lg text-[#8A8DA0] transition-colors hover:text-[#1F2233] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7]"
-                >
-                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                <Lock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" size={17} />
+                <input id="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" aria-invalid={!!errors.confirmPassword} aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined} className="sf-input pl-10 pr-11" placeholder="Confirm your password" />
+                <button type="button" onClick={() => setShowConfirmPassword((current) => !current)} aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--primary)]">
+                  {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
               </div>
-              {errors.confirmPassword && <p id="confirmPassword-error" className="mt-1.5 text-xs text-[#F0616D]">{errors.confirmPassword}</p>}
+              {errors.confirmPassword && <p id="confirmPassword-error" className="mt-1.5 text-xs text-[#dc2626]">{errors.confirmPassword}</p>}
             </div>
 
             {error && (
-              <div className="flex items-start gap-2 rounded-lg border border-[#F0616D]/30 bg-[#F0616D]/10 px-3 py-2 text-xs leading-5 text-[#F0616D]">
+              <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">
                 <AlertCircle size={15} className="mt-0.5 shrink-0" />
                 <span>{error}</span>
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="min-h-[44px] w-full rounded-lg bg-[#6C5CE7] py-3 text-sm font-medium text-white transition-colors hover:bg-[#5A4BD4] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
-            >
+            <button type="submit" disabled={loading} className="sf-btn-primary min-h-10 w-full">
               {loading ? 'Creating account...' : 'Create account'}
             </button>
           </form>
 
-          <p className="mt-8 text-center text-sm text-[#8A8DA0]">
+          <p className="mt-8 text-center text-sm text-[var(--text-muted)]">
             Already have an account?{' '}
-            <Link to="/login" className="rounded-lg font-medium text-[#6C5CE7] hover:text-[#5A4BD4] focus:outline-none focus:ring-2 focus:ring-[#6C5CE7]">
-              Log in
-            </Link>
+            <Link to="/login" className="font-semibold text-[var(--primary)] hover:text-[var(--primary-dark)]">Log in</Link>
           </p>
         </div>
       </section>

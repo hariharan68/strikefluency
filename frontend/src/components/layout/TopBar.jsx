@@ -1,79 +1,81 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, Link } from 'react-router-dom'
 import useMarketStore from '../../store/marketStore'
-import { ChevronDown } from 'lucide-react'
+import { Bell, Mail, Moon, Search, Settings, Sun } from 'lucide-react'
 
-const PAGE_TITLES = {
-  '/dashboard':  'Overview',
-  '/trading':    'Trading Desk',
-  '/journal':    'Trade Journal',
-  '/analytics':  'Analytics',
-  '/discipline': 'Discipline Center',
-  '/settings':   'Settings',
+const PAGE_META = {
+  '/dashboard': { title: 'Dashboard', subtitle: 'Track performance, risk, and today\'s trading discipline.' },
+  '/trading': { title: 'Trading Desk', subtitle: 'Scan the option chain, place virtual orders, and manage positions.' },
+  '/journal': { title: 'Trade Journal', subtitle: 'Review setups, emotions, mistakes, and lessons from each trade.' },
+  '/analytics': { title: 'Analytics', subtitle: 'Measure P&L, discipline trends, and execution quality over time.' },
+  '/discipline': { title: 'Reports', subtitle: 'Monitor rule compliance, violations, and discipline score health.' },
+  '/settings': { title: 'Settings', subtitle: 'Manage profile, broker integration, preferences, and account controls.' },
+}
+
+function getInitialTheme() {
+  if (typeof window === 'undefined') return 'light'
+  return localStorage.getItem('sf-theme') || 'light'
 }
 
 export default function TopBar() {
   const location = useLocation()
   const isMarketOpen = useMarketStore(s => s.isMarketOpen)
-  const title = PAGE_TITLES[location.pathname] || 'StrikeFluency'
-
+  const meta = PAGE_META[location.pathname] || { title: 'StrikeFluency', subtitle: 'Virtual options trading dashboard.' }
+  const [theme, setTheme] = useState(getInitialTheme)
   const [time, setTime] = useState('')
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    localStorage.setItem('sf-theme', theme)
+  }, [theme])
+
   useEffect(() => {
     const tick = () => setTime(new Date().toLocaleTimeString('en-IN', {
       hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Asia/Kolkata'
-    }) + ' IST')
+    }))
     tick()
     const t = setInterval(tick, 1000)
     return () => clearInterval(t)
   }, [])
 
   return (
-    <header style={{
-      height: 52, background: '#ffffff',
-      borderBottom: '1px solid #e2e8f0',
-      display: 'flex', alignItems: 'center',
-      padding: '0 20px', gap: 16,
-      position: 'sticky', top: 0, zIndex: 30, flexShrink: 0
-    }}>
-      {/* Page title dropdown — like "Custom Dashboard List ↕" in reference */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-        <span style={{ color: '#1e293b', fontSize: 14, fontWeight: 600 }}>{title}</span>
-        <ChevronDown size={14} color="#94a3b8" />
+    <header className="sf-topbar">
+      <div className="sf-page-title-block">
+        <h1>{meta.title}</h1>
+        <p>{meta.subtitle}</p>
       </div>
 
-      {/* Divider */}
-      <div style={{ width: 1, height: 20, background: '#e2e8f0' }} />
+      <div className="sf-topbar-actions">
+        <div className="sf-market-pill">
+          <span className={isMarketOpen ? 'sf-market-dot open blink' : 'sf-market-dot'} />
+          <span>{isMarketOpen ? 'Market Open' : 'Market Closed'}</span>
+          <strong>{time} IST</strong>
+        </div>
 
-      {/* Overview Type — secondary selector like in reference */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', color: '#64748b', fontSize: 13 }}>
-        Overview Type
-        <ChevronDown size={13} color="#94a3b8" />
-      </div>
+        <label className="sf-search-box">
+          <Search size={16} />
+          <input type="search" placeholder="Search trades, reports..." />
+        </label>
 
-      <div style={{ flex: 1 }} />
-
-      {/* Market status */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 6,
-        padding: '4px 10px', borderRadius: 20,
-        background: isMarketOpen ? '#dcfce7' : '#fee2e2',
-        border: `1px solid ${isMarketOpen ? '#bbf7d0' : '#fecaca'}`,
-      }}>
-        <div className={isMarketOpen ? 'blink' : ''} style={{
-          width: 6, height: 6, borderRadius: '50%',
-          background: isMarketOpen ? '#16a34a' : '#dc2626'
-        }} />
-        <span style={{
-          color: isMarketOpen ? '#15803d' : '#b91c1c',
-          fontSize: 11, fontWeight: 600, letterSpacing: '0.04em'
-        }}>
-          {isMarketOpen ? 'Market Open' : 'Market Closed'}
-        </span>
-      </div>
-
-      {/* IST Clock */}
-      <div className="num" style={{ color: '#94a3b8', fontSize: 12, minWidth: 80, textAlign: 'right' }}>
-        {time}
+        <button
+          type="button"
+          className="sf-icon-button"
+          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')}
+          title={theme === 'dark' ? 'Light theme' : 'Dark theme'}
+        >
+          {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+        </button>
+        <Link to="/settings" className="sf-icon-button" aria-label="Settings" title="Settings">
+          <Settings size={17} />
+        </Link>
+        <button type="button" className="sf-icon-button" aria-label="Notifications" title="Notifications">
+          <Bell size={18} />
+        </button>
+        <button type="button" className="sf-icon-button has-badge" aria-label="Messages" title="Messages">
+          <Mail size={18} />
+          <span>4</span>
+        </button>
       </div>
     </header>
   )

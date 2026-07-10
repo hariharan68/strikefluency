@@ -13,7 +13,7 @@ import {
 
 const Card = ({ children, style = {} }) => (
   <div style={{
-    background: '#ffffff', border: '1px solid #e2e8f0',
+    background: '#ffffff', border: '1px solid #E5E7EB',
     borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
     ...style
   }}>
@@ -22,26 +22,26 @@ const Card = ({ children, style = {} }) => (
 )
 
 const CardHeader = ({ title }) => (
-  <div style={{ padding: '14px 18px', borderBottom: '1px solid #f1f5f9' }}>
-    <span style={{ color: '#64748b', fontSize: 12, fontWeight: 500 }}>{title}</span>
+  <div style={{ padding: '14px 18px', borderBottom: '1px solid #F0EDF1' }}>
+    <span style={{ color: '#6B7280', fontSize: 12, fontWeight: 500 }}>{title}</span>
   </div>
 )
 
 const chartTooltip = {
   contentStyle: {
-    background: '#fff', border: '1px solid #e2e8f0',
+    background: '#fff', border: '1px solid #E5E7EB',
     borderRadius: 8, fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
   },
-  labelStyle: { color: '#64748b', fontWeight: 500 },
-  itemStyle: { color: '#1e293b' }
+  labelStyle: { color: '#6B7280', fontWeight: 500 },
+  itemStyle: { color: '#111827' }
 }
 
 function CustomBarTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
   const val = payload[0].value
   return (
-    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 12px', fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-      <div style={{ color: '#64748b', marginBottom: 4 }}>{label}</div>
+    <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 12px', fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+      <div style={{ color: '#6B7280', marginBottom: 4 }}>{label}</div>
       <div style={{ color: val >= 0 ? '#16a34a' : '#dc2626', fontWeight: 600, fontFamily: "'JetBrains Mono',monospace" }}>
         {val >= 0 ? '+' : ''}{formatCurrency(val)}
       </div>
@@ -102,21 +102,21 @@ export default function DashboardPage() {
       <Card>
         <div style={{ display: 'flex', minHeight: 90 }}>
           {/* Avg PnL/Day */}
-          <div style={{ flex: 1, padding: '20px 24px', borderRight: '1px solid #f1f5f9' }}>
-            <div style={{ color: '#64748b', fontSize: 12, marginBottom: 6 }}>Avg. PnL/Day</div>
-            <div className="num" style={{ color: '#1e293b', fontSize: 26, fontWeight: 600, lineHeight: 1 }}>
+          <div style={{ flex: 1, padding: '20px 24px', borderRight: '1px solid #F0EDF1' }}>
+            <div style={{ color: '#6B7280', fontSize: 12, marginBottom: 6 }}>Avg. PnL/Day</div>
+            <div className="num" style={{ color: '#111827', fontSize: 26, fontWeight: 600, lineHeight: 1 }}>
               {formatCurrency(avgPnlDay)}
             </div>
           </div>
 
           {/* Win / Loss Days */}
-          <div style={{ flex: 1, padding: '20px 24px', borderRight: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}>
+          <div style={{ flex: 1, padding: '20px 24px', borderRight: '1px solid #F0EDF1', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: '#64748b', fontSize: 13 }}>Win Days:</span>
+              <span style={{ color: '#6B7280', fontSize: 13 }}>Win Days:</span>
               <span className="num" style={{ color: '#16a34a', fontSize: 16, fontWeight: 600 }}>{winDays}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: '#64748b', fontSize: 13 }}>Loss Days:</span>
+              <span style={{ color: '#6B7280', fontSize: 13 }}>Loss Days:</span>
               <span className="num" style={{ color: '#dc2626', fontSize: 16, fontWeight: 600 }}>{lossDays}</span>
             </div>
           </div>
@@ -124,33 +124,33 @@ export default function DashboardPage() {
           {/* Total PnL — with % badge like reference */}
           <div style={{ flex: 1.5, padding: '20px 24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span style={{ color: '#64748b', fontSize: 12 }}>Total PnL</span>
+              <span style={{ color: '#6B7280', fontSize: 12 }}>Total PnL</span>
               <span className={isGain ? 'badge-gain' : 'badge-loss'}>
                 {isGain && <ArrowUpRight size={11} />}
                 {isGain ? '+' : ''}{pnlPct}%
               </span>
             </div>
-            <div className="num" style={{ color: '#1e293b', fontSize: 26, fontWeight: 600, lineHeight: 1, marginBottom: 4 }}>
+            <div className="num" style={{ color: '#111827', fontSize: 26, fontWeight: 600, lineHeight: 1, marginBottom: 4 }}>
               {formatCurrency(Math.abs(totalPnl))}
             </div>
-            <div style={{ color: '#94a3b8', fontSize: 11 }}>
+            <div style={{ color: '#9CA3AF', fontSize: 11 }}>
               from {formatCurrency(initial)}
             </div>
           </div>
 
           {/* Extra quick stats */}
           <div style={{
-            padding: '20px 24px', borderLeft: '1px solid #f1f5f9',
+            padding: '20px 24px', borderLeft: '1px solid #F0EDF1',
             display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', alignContent: 'center'
           }}>
             {[
-              { label: 'Balance', value: formatCurrency(acc?.balance ?? 0), color: '#1e293b' },
+              { label: 'Balance', value: formatCurrency(acc?.balance ?? 0), color: '#111827' },
               { label: 'Discipline', value: `${Math.round(Number(disciplineScore))}%`, color: Number(disciplineScore) >= 70 ? '#16a34a' : '#d97706' },
               { label: "Today's P&L", value: (pnl >= 0 ? '+' : '') + formatCurrency(pnl), color: pnl >= 0 ? '#16a34a' : '#dc2626' },
-              { label: 'Streak', value: `${streak} trades`, color: '#64748b' },
+              { label: 'Streak', value: `${streak} trades`, color: '#6B7280' },
             ].map(item => (
               <div key={item.label}>
-                <div style={{ color: '#94a3b8', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{item.label}</div>
+                <div style={{ color: '#9CA3AF', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{item.label}</div>
                 <div className="num" style={{ color: item.color, fontSize: 13, fontWeight: 600 }}>{item.value}</div>
               </div>
             ))}
@@ -164,25 +164,25 @@ export default function DashboardPage() {
         {/* Aggregate PnL (bar chart, green/red) */}
         <Card>
           <div style={{ padding: '16px 18px 6px' }}>
-            <div style={{ textAlign: 'center', color: '#374151', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>
+            <div style={{ textAlign: 'center', color: '#111827', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>
               Aggregate PnL vs Date
             </div>
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginBottom: 8 }}>
               <div style={{ width: 10, height: 10, background: '#22c55e', borderRadius: 2 }} />
-              <span style={{ color: '#64748b', fontSize: 11 }}>Daily PnL</span>
+              <span style={{ color: '#6B7280', fontSize: 11 }}>Daily PnL</span>
             </div>
           </div>
           {barData.length === 0 ? (
-            <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 12 }}>
+            <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', fontSize: 12 }}>
               Place trades to see your daily P&L chart
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={barData} margin={{ left: 0, right: 8, bottom: 4 }}>
-                <CartesianGrid stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} interval="preserveStartEnd" />
-                <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `₹${(v/1000).toFixed(0)}K`} />
-                <ReferenceLine y={0} stroke="#e2e8f0" />
+                <CartesianGrid stroke="#F0EDF1" vertical={false} />
+                <XAxis dataKey="date" tick={{ fill: '#9CA3AF', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#E5E7EB' }} interval="preserveStartEnd" />
+                <YAxis tick={{ fill: '#9CA3AF', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `₹${(v/1000).toFixed(0)}K`} />
+                <ReferenceLine y={0} stroke="#E5E7EB" />
                 <Tooltip content={<CustomBarTooltip />} />
                 <Bar dataKey="pnl" radius={[2, 2, 0, 0]}>
                   {barData.map((entry, i) => (
@@ -197,16 +197,16 @@ export default function DashboardPage() {
         {/* Cumulative PnL (area chart, green line + fill) */}
         <Card>
           <div style={{ padding: '16px 18px 6px' }}>
-            <div style={{ textAlign: 'center', color: '#374151', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>
+            <div style={{ textAlign: 'center', color: '#111827', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>
               Cumulative PnL vs Date
             </div>
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginBottom: 8 }}>
               <div style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid #22c55e', background: '#fff' }} />
-              <span style={{ color: '#64748b', fontSize: 11 }}>Daily PnL</span>
+              <span style={{ color: '#6B7280', fontSize: 11 }}>Daily PnL</span>
             </div>
           </div>
           {areaData.length === 0 ? (
-            <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 12 }}>
+            <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', fontSize: 12 }}>
               Place trades to see your cumulative curve
             </div>
           ) : (
@@ -222,12 +222,12 @@ export default function DashboardPage() {
                     <stop offset="100%" stopColor="#ef4444" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="#f1f5f9" vertical={false} />
-                <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} interval="preserveStartEnd" />
-                <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `₹${(v/1000).toFixed(0)}K`} />
-                <ReferenceLine y={0} stroke="#e2e8f0" />
-                <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }}
-                  formatter={v => formatCurrency(v)} labelStyle={{ color: '#64748b' }} />
+                <CartesianGrid stroke="#F0EDF1" vertical={false} />
+                <XAxis dataKey="date" tick={{ fill: '#9CA3AF', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#E5E7EB' }} interval="preserveStartEnd" />
+                <YAxis tick={{ fill: '#9CA3AF', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `₹${(v/1000).toFixed(0)}K`} />
+                <ReferenceLine y={0} stroke="#E5E7EB" />
+                <Tooltip contentStyle={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 12 }}
+                  formatter={v => formatCurrency(v)} labelStyle={{ color: '#6B7280' }} />
                 <Area type="monotone" dataKey="cumulative" stroke="#22c55e" strokeWidth={1.5}
                   fill="url(#cumGrad)" dot={{ r: 2, fill: '#22c55e', strokeWidth: 0 }} activeDot={{ r: 4 }} />
               </AreaChart>
@@ -261,15 +261,15 @@ export default function DashboardPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {[
                 { label: "Today's P&L", value: (pnl >= 0 ? '+' : '') + formatCurrency(pnl), color: pnl >= 0 ? '#16a34a' : '#dc2626' },
-                { label: 'Trades Today', value: `${account?.today_trades ?? 0} / ${session?.max_trades ?? 3}`, color: '#1e293b' },
+                { label: 'Trades Today', value: `${account?.today_trades ?? 0} / ${session?.max_trades ?? 3}`, color: '#111827' },
                 { label: 'Discipline Score', value: `${Math.round(Number(disciplineScore))}%`, color: Number(disciplineScore) >= 70 ? '#16a34a' : '#d97706' },
                 { label: 'Violations', value: violations.length, color: violations.length > 0 ? '#dc2626' : '#16a34a' },
               ].map(item => (
                 <div key={item.label} style={{
-                  background: '#f8fafc', border: '1px solid #f1f5f9',
+                  background: '#F8F7F9', border: '1px solid #F0EDF1',
                   borderRadius: 8, padding: '10px 12px'
                 }}>
-                  <div style={{ color: '#94a3b8', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{item.label}</div>
+                  <div style={{ color: '#9CA3AF', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{item.label}</div>
                   <div className="num" style={{ color: item.color, fontSize: 15, fontWeight: 600 }}>{item.value}</div>
                 </div>
               ))}
@@ -290,7 +290,7 @@ export default function DashboardPage() {
           {violations.length === 0 ? (
             <div style={{ padding: '32px 18px', textAlign: 'center' }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
-              <div style={{ color: '#64748b', fontSize: 13 }}>No violations today — excellent discipline!</div>
+              <div style={{ color: '#6B7280', fontSize: 13 }}>No violations today — excellent discipline!</div>
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
@@ -300,17 +300,17 @@ export default function DashboardPage() {
                     {['Rule', 'Status', 'Time'].map(h => (
                       <th key={h} style={{
                         padding: '8px 18px', textAlign: 'left',
-                        color: '#94a3b8', fontSize: 11, fontWeight: 500,
+                        color: '#9CA3AF', fontSize: 11, fontWeight: 500,
                         textTransform: 'uppercase', letterSpacing: '0.05em',
-                        borderBottom: '1px solid #f1f5f9', background: '#f8fafc'
+                        borderBottom: '1px solid #F0EDF1', background: '#F8F7F9'
                       }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {violations.map((v, i) => (
-                    <tr key={i} className="chain-row" style={{ borderBottom: '1px solid #f8fafc' }}>
-                      <td style={{ padding: '9px 18px', color: '#374151', fontSize: 12 }}>
+                    <tr key={i} className="chain-row" style={{ borderBottom: '1px solid #F8F7F9' }}>
+                      <td style={{ padding: '9px 18px', color: '#111827', fontSize: 12 }}>
                         {RULE_LABELS[v.rule_code] || v.rule_code}
                       </td>
                       <td style={{ padding: '9px 18px' }}>
@@ -322,7 +322,7 @@ export default function DashboardPage() {
                           {v.was_blocked ? 'BLOCKED' : 'WARNED'}
                         </span>
                       </td>
-                      <td className="num" style={{ padding: '9px 18px', color: '#94a3b8', fontSize: 11 }}>
+                      <td className="num" style={{ padding: '9px 18px', color: '#9CA3AF', fontSize: 11 }}>
                         {formatDate(v.created_at)}
                       </td>
                     </tr>

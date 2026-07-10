@@ -2,7 +2,7 @@ export default function Select({ label, value, onChange, options = [], error, ..
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {label && (
-        <label style={{ color: '#99a0ae', fontSize: 13, fontWeight: 500 }}>
+        <label style={{ color: '#6B7280', fontSize: 13, fontWeight: 500 }}>
           {label}
         </label>
       )}
@@ -11,8 +11,8 @@ export default function Select({ label, value, onChange, options = [], error, ..
         onChange={onChange}
         {...rest}
         style={{
-          background: '#181b25',
-          border: `1px solid ${error ? '#e93544' : '#2b303b'}`,
+          background: '#F3F4F6',
+          border: `1px solid ${error ? '#e93544' : '#E5E7EB'}`,
           borderRadius: 10,
           padding: '10px 14px',
           color: value ? '#fff' : '#717784',
@@ -29,7 +29,7 @@ export default function Select({ label, value, onChange, options = [], error, ..
         }}
       >
         {options.map(opt => (
-          <option key={opt.value} value={opt.value} style={{ background: '#181b25', color: '#fff' }}>
+          <option key={opt.value} value={opt.value} style={{ background: '#F3F4F6', color: '#fff' }}>
             {opt.label}
           </option>
         ))}

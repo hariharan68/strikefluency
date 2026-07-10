@@ -14,10 +14,10 @@ export function useLogin() {
     setError(null)
     try {
       const res = await authApi.login(email, password)
-      setAuth(res.data.user, res.data.access_token)
+      setAuth(res.data.user, res.data.access_token, res.data.refresh_token)
       navigate('/dashboard')
     } catch (e) {
-      setError(e.response?.data?.detail || 'Login failed')
+      setError(e.response?.data?.detail || e.response?.data?.message || 'Login failed')
     } finally {
       setLoading(false)
     }
@@ -37,10 +37,10 @@ export function useRegister() {
     setError(null)
     try {
       const res = await authApi.register(fullName, email, password)
-      setAuth(res.data.user, res.data.access_token)
+      setAuth(res.data.user, res.data.access_token, res.data.refresh_token)
       navigate('/dashboard')
     } catch (e) {
-      setError(e.response?.data?.detail || 'Registration failed')
+      setError(e.response?.data?.detail || e.response?.data?.message || 'Registration failed')
     } finally {
       setLoading(false)
     }

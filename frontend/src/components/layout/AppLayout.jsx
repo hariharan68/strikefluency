@@ -16,11 +16,11 @@ export default function AppLayout() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#f1f5f9' }}>
+    <div className="sf-app-shell">
       <Sidebar />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, marginLeft: 220 }}>
+      <div className="sf-main-shell">
         <TopBar />
-        <main style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+        <main className="sf-page-content">
           <Outlet />
         </main>
       </div>

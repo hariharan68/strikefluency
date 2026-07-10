@@ -11,16 +11,16 @@ export default function Pagination({ page, totalPages, onPageChange }) {
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: 32, height: 32, borderRadius: 8,
-          background: page <= 1 ? 'transparent' : '#181b25',
-          border: '1px solid #2b303b',
+          background: page <= 1 ? 'transparent' : '#F3F4F6',
+          border: '1px solid #E5E7EB',
           cursor: page <= 1 ? 'not-allowed' : 'pointer',
           opacity: page <= 1 ? 0.4 : 1
         }}
       >
-        <ChevronLeft size={16} color="#99a0ae" />
+        <ChevronLeft size={16} color="#6B7280" />
       </button>
 
-      <span style={{ color: '#99a0ae', fontSize: 13 }}>
+      <span style={{ color: '#6B7280', fontSize: 13 }}>
         Page {page} of {totalPages}
       </span>
 
@@ -30,13 +30,13 @@ export default function Pagination({ page, totalPages, onPageChange }) {
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: 32, height: 32, borderRadius: 8,
-          background: page >= totalPages ? 'transparent' : '#181b25',
-          border: '1px solid #2b303b',
+          background: page >= totalPages ? 'transparent' : '#F3F4F6',
+          border: '1px solid #E5E7EB',
           cursor: page >= totalPages ? 'not-allowed' : 'pointer',
           opacity: page >= totalPages ? 0.4 : 1
         }}
       >
-        <ChevronRight size={16} color="#99a0ae" />
+        <ChevronRight size={16} color="#6B7280" />
       </button>
     </div>
   )

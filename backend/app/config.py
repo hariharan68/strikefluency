@@ -25,6 +25,7 @@ class Settings(BaseSettings):
 
     # App
     ENVIRONMENT: str = "development"
+    SQL_ECHO: bool = False
 
     # Market data provider: mock | fyers | truedata
     MARKET_DATA_PROVIDER: str = "mock"
@@ -36,6 +37,10 @@ class Settings(BaseSettings):
     FYERS_SECRET_ID: str = ""
     FYERS_REDIRECT_URI: str = ""
     FYERS_ACCESS_TOKEN: str = ""
+    FYERS_TOKEN_FILE: str = "fyers_token.json"
+    FYERS_ACCESS_TOKEN_FILE: str = "access_token.txt"
+    BROKER_TOKEN_ENC_KEY: str = ""
+    FRONTEND_URL: str = "http://localhost:5173"
 
     # Discipline defaults
     DEFAULT_MAX_TRADES_PER_DAY: int = 3

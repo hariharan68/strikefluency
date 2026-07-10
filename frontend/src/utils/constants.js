@@ -8,7 +8,7 @@ export const SETUP_TAG_LABELS = {
 export const SETUP_TAGS = Object.keys(SETUP_TAG_LABELS)
 
 export const EMOTION_LABELS = {
-  CONFIDENT: { label: 'Confident', color: '#335cff' },
+  CONFIDENT: { label: 'Confident', color: '#714B67' },
   FEARFUL: { label: 'Fearful', color: '#e97d35' },
   GREEDY: { label: 'Greedy', color: '#e93544' },
   CALM: { label: 'Calm', color: '#1daf61' },

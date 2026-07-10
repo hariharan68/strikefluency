@@ -20,7 +20,7 @@ export default function TradeDetailPanel({ entry }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', marginTop: 12 }}>
       {rows.map(([label, value]) => (
-        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #181b25' }}>
+        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F3F4F6' }}>
           <span style={{ color: '#717784', fontSize: 12 }}>{label}</span>
           <span style={{ color: '#fff', fontSize: 12 }}>{value}</span>
         </div>

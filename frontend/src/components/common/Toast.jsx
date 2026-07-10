@@ -37,8 +37,8 @@ export function ToastProvider({ children }) {
               boxShadow: '0 4px 16px rgba(0,0,0,0.10)'
             }}>
               <span style={{ color: c.color, flexShrink: 0 }}>{c.icon}</span>
-              <span style={{ color: '#1e293b', fontSize: 13, flex: 1 }}>{t.message}</span>
-              <button onClick={() => remove(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#94a3b8', flexShrink: 0 }}>
+              <span style={{ color: '#111827', fontSize: 13, flex: 1 }}>{t.message}</span>
+              <button onClick={() => remove(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#9CA3AF', flexShrink: 0 }}>
                 <X size={14} />
               </button>
             </div>

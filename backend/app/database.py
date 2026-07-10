@@ -25,7 +25,7 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_size=10,       # max persistent connections in the pool
     max_overflow=20,    # extra connections allowed when pool is full
-    echo=settings.is_development,  # log all SQL in dev, silent in prod
+    echo=settings.SQL_ECHO,
 )
 
 
