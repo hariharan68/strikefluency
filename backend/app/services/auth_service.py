@@ -15,6 +15,7 @@ authenticate_user() verifies email + password and returns the User.
 """
 
 import uuid
+import unicodedata
 from datetime import date, datetime, timezone
 from sqlalchemy.orm import Session
 
@@ -31,6 +32,10 @@ from app.models.trading_session import TradingSession
 from app.models.user import User
 from app.models.virtual_account import VirtualAccount
 from app.schemas.auth import RegisterRequest
+
+# Precomputed once so the "unknown email" login path can still run a bcrypt
+# verify (constant-time defence against user-enumeration via response timing).
+_DUMMY_PASSWORD_HASH = hash_password("dummy-password-for-timing-equalization")
 
 
 def register_user(db: Session, data: RegisterRequest) -> User:
@@ -63,10 +68,12 @@ def register_user(db: Session, data: RegisterRequest) -> User:
         db.flush()  # flush to get tenant.id without committing
         user_role = UserRole.TENANT_ADMIN
 
-    # ── Step 2: Check email not already taken in this tenant ──
+    # ── Step 2: Check email not already taken (globally) ──
+    # Email is unique across the whole app, not per-tenant — login and OAuth
+    # resolve users by email alone, so a collision must be rejected here.
+    normalized_email = normalize_email(data.email)
     existing = db.query(User).filter(
-        User.tenant_id == tenant.id,
-        User.email == data.email.lower(),
+        User.email == normalized_email,
     ).first()
     if existing:
         raise UserAlreadyExistsError(
@@ -76,7 +83,7 @@ def register_user(db: Session, data: RegisterRequest) -> User:
     # ── Step 3: Create User ────────────────────────────────
     user = User(
         tenant_id=tenant.id,
-        email=data.email.lower(),
+        email=normalized_email,
         hashed_password=hash_password(data.password),
         full_name=data.full_name.strip(),
         role=user_role,
@@ -123,17 +130,25 @@ def authenticate_user(db: Session, email: str, password: str) -> User:
     never tell attackers whether the email exists.
     """
     user = db.query(User).filter(
-        User.email == email.lower(),
+        User.email == normalize_email(email),
         User.is_active == True,
     ).first()
 
     if not user:
+        # Run a bcrypt verify against a throwaway hash so the "no such user"
+        # path takes the same time as the "wrong password" path — otherwise
+        # response timing leaks whether an email is registered.
+        verify_password(password, _DUMMY_PASSWORD_HASH)
         raise InvalidCredentialsError("Invalid email or password")
 
     if not verify_password(password, user.hashed_password):
         raise InvalidCredentialsError("Invalid email or password")
 
     return user
+
+
+def normalize_email(email: str) -> str:
+    return unicodedata.normalize("NFC", email).strip().lower()
 
 
 # ── Private helpers ───────────────────────────────────────────

@@ -1,169 +1,138 @@
-"""
-app/routers/auth.py
-────────────────────
-Auth endpoints — 5 routes:
+"""Authentication endpoints with memory-only access tokens and cookie refresh."""
 
-  POST /auth/register  → create account, return tokens
-  POST /auth/login     → verify credentials, return tokens
-  POST /auth/refresh   → exchange refresh token for new access token
-  POST /auth/logout    → revoke refresh token
-  GET  /auth/me        → return current user profile
-
-Routers are thin — they validate input, call services, return responses.
-Business logic lives in services/, not here.
-"""
-
-from fastapi import APIRouter, Depends, Request
-from fastapi.security import OAuth2PasswordRequestForm
-from jose import JWTError
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
-from app.core.exceptions import InvalidCredentialsError, TokenInvalidError
-from app.core.security import create_access_token, create_refresh_token, verify_token
+from app.config import settings
+from app.core.exceptions import InvalidCredentialsError, UserAlreadyExistsError
+from app.core.security import create_access_token
 from app.database import get_db
-from app.dependencies import CurrentUser
-from app.schemas.auth import RegisterRequest, UserProfile
-from app.schemas.common import SuccessResponse
-from app.schemas.token import AccessTokenResponse, RefreshTokenRequest, TokenResponse
-from app.services.auth_service import authenticate_user, register_user
-from app.services.token_service import (
-    create_refresh_token_record,
-    revoke_refresh_token,
-    verify_refresh_token_record,
-)
+from app.dependencies import CurrentUser, get_current_auth
+from app.models.refresh_token import RefreshToken
+from app.schemas.session import SessionSummary
 from app.models.user import User
+from app.schemas.auth import LoginRequest, RegisterRequest, UserProfile
+from app.schemas.common import SuccessResponse
+from app.schemas.token import AccessTokenResponse, TokenResponse
+from app.services.auth_service import authenticate_user, register_user
+from app.services.jti_store import deny_jti
+from app.services.token_service import create_refresh_token_record, revoke_all_user_tokens, revoke_family, revoke_refresh_token, rotate_refresh_token
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+COOKIE_NAME = "refresh_token"
+COOKIE_PATH = "/api/v1/auth"
+
+
+def _check_origin(request: Request) -> None:
+    origin = request.headers.get("origin") or request.headers.get("referer")
+    if not origin or not any(origin.rstrip("/").startswith(value) for value in settings.trusted_origins):
+        raise HTTPException(status_code=403, detail="Untrusted origin")
+
+
+def _set_refresh_cookie(response: Response, raw_token: str, remember_me: bool) -> None:
+    response.set_cookie(
+        COOKIE_NAME, raw_token,
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400 if remember_me else None,
+        httponly=True, secure=settings.COOKIE_SECURE, samesite="lax", path=COOKIE_PATH,
+    )
+
+
+def _access(user: User, session_id) -> str:
+    return create_access_token(
+        str(user.id), str(user.tenant_id), user.role,
+        session_id=str(session_id), token_version=user.token_version,
+    )
+
+
+def _token_response(response: Response, user: User, record, raw_refresh: str, remember_me: bool) -> TokenResponse:
+    _set_refresh_cookie(response, raw_refresh, remember_me)
+    return TokenResponse(access_token=_access(user, record.family_id), user=UserProfile.model_validate(user))
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
-def register(
-    data: RegisterRequest,
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    """
-    Register a new user.
-
-    - If tenant_code is provided → joins that team as a trader
-    - If tenant_code is omitted  → creates a new team, becomes admin
-
-    On success: returns access + refresh tokens immediately
-    (user is logged in right after registration — no extra login step).
-    """
-    user = register_user(db, data)
-
-    # Create tokens
-    access_token  = create_access_token(str(user.id), str(user.tenant_id), user.role)
-    refresh_token = create_refresh_token(str(user.id), str(user.tenant_id))
-
-    # Save refresh token hash to DB
-    device_info = request.headers.get("user-agent", "unknown")
-    create_refresh_token_record(db, user, refresh_token, device_info)
-
-    db.commit()
-
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        user=UserProfile.model_validate(user),
-    )
+def register(data: RegisterRequest, request: Request, response: Response, db: Session = Depends(get_db)):
+    try:
+        user = register_user(db, data)
+        record, raw_refresh = create_refresh_token_record(db, user, request.headers.get("user-agent"), data.remember_me)
+        db.commit()
+    except (IntegrityError, UserAlreadyExistsError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="An account could not be created with these details") from exc
+    return _token_response(response, user, record, raw_refresh, data.remember_me)
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(
-    request: Request,
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db),
-):
-    """
-    Login with email + password.
-
-    Uses OAuth2PasswordRequestForm — the Swagger UI /docs will show
-    a username/password form. Enter your email in the username field.
-
-    Returns access token (24h) + refresh token (7d).
-    """
-    # OAuth2PasswordRequestForm uses `username` field — we treat it as email
-    user = authenticate_user(db, email=form_data.username, password=form_data.password)
-
-    access_token  = create_access_token(str(user.id), str(user.tenant_id), user.role)
-    refresh_token = create_refresh_token(str(user.id), str(user.tenant_id))
-
-    device_info = request.headers.get("user-agent", "unknown")
-    create_refresh_token_record(db, user, refresh_token, device_info)
-
+def login(data: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
+    _check_origin(request)
+    user = authenticate_user(db, email=data.email, password=data.password)
+    record, raw_refresh = create_refresh_token_record(db, user, request.headers.get("user-agent"), data.remember_me)
     db.commit()
-
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        user=UserProfile.model_validate(user),
-    )
+    return _token_response(response, user, record, raw_refresh, data.remember_me)
 
 
 @router.post("/refresh", response_model=AccessTokenResponse)
-def refresh_token(
-    data: RefreshTokenRequest,
-    db: Session = Depends(get_db),
-):
-    """
-    Exchange a valid refresh token for a new access token.
-
-    Flow:
-      1. Verify the JWT signature and expiry
-      2. Check the token record in DB (not revoked, not expired)
-      3. Look up the user
-      4. Issue a new access token
-
-    The refresh token itself is NOT rotated here (Phase 1 simplification).
-    In production you'd issue a new refresh token and revoke the old one.
-    """
-    # Step 1: Verify JWT signature
-    try:
-        payload = verify_token(data.refresh_token, expected_type="refresh")
-    except JWTError:
+def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
+    _check_origin(request)
+    raw_refresh = request.cookies.get(COOKIE_NAME)
+    if not raw_refresh:
         raise InvalidCredentialsError("Invalid or expired refresh token")
-
-    # Step 2: Check DB record
-    verify_refresh_token_record(db, data.refresh_token)
-
-    # Step 3: Get user
-    user_id = payload.get("sub")
-    user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
-    if not user:
-        raise InvalidCredentialsError("User not found")
-
-    # Step 4: Issue new access token
-    new_access_token = create_access_token(
-        str(user.id), str(user.tenant_id), user.role
-    )
-
-    return AccessTokenResponse(access_token=new_access_token)
+    user, record, new_raw = rotate_refresh_token(db, raw_refresh, request.headers.get("user-agent"))
+    _set_refresh_cookie(response, new_raw, record.session_policy == "persistent")
+    return AccessTokenResponse(access_token=_access(user, record.family_id))
 
 
 @router.post("/logout", response_model=SuccessResponse)
-def logout(
-    data: RefreshTokenRequest,
-    current_user: CurrentUser,
-    db: Session = Depends(get_db),
-):
-    """
-    Logout — revoke the refresh token.
-
-    After this, the refresh token cannot be used to get new access tokens.
-    The access token remains valid until it expires (24h) — this is
-    acceptable for Phase 1. In production you'd use a short TTL or blocklist.
-    """
-    revoke_refresh_token(db, data.refresh_token)
-    db.commit()
+def logout(request: Request, response: Response, db: Session = Depends(get_db)):
+    _check_origin(request)
+    raw_refresh = request.cookies.get(COOKIE_NAME)
+    if raw_refresh:
+        revoke_refresh_token(db, raw_refresh)
+        db.commit()
+    response.delete_cookie(COOKIE_NAME, path=COOKIE_PATH, secure=settings.COOKIE_SECURE, httponly=True, samesite="lax")
     return SuccessResponse(message="Logged out successfully")
 
 
 @router.get("/me", response_model=UserProfile)
 def get_me(current_user: CurrentUser):
-    """
-    Return the current authenticated user's profile.
-    No DB query needed — get_current_user() already loaded the user.
-    """
     return UserProfile.model_validate(current_user)
+
+
+@router.get("/sessions", response_model=list[SessionSummary])
+def list_sessions(auth=Depends(get_current_auth), db: Session = Depends(get_db)):
+    user, payload = auth
+    current_family = payload.get("sid")
+    records = db.query(RefreshToken).filter(
+        RefreshToken.user_id == user.id,
+        RefreshToken.is_revoked == False,
+        RefreshToken.replaced_at.is_(None),
+    ).order_by(RefreshToken.last_used_at.desc()).all()
+    return [SessionSummary(
+        family_id=record.family_id,
+        device_info=record.device_info,
+        session_policy=record.session_policy,
+        created_at=record.created_at,
+        last_used_at=record.last_used_at,
+        expires_at=record.expires_at,
+        current=str(record.family_id) == str(current_family),
+    ) for record in records]
+
+
+@router.delete("/sessions/{family_id}", response_model=SuccessResponse)
+def revoke_session(family_id: str, current_user: CurrentUser, db: Session = Depends(get_db)):
+    db.query(RefreshToken).filter(RefreshToken.user_id == current_user.id, RefreshToken.family_id == family_id).update({"is_revoked": True, "revoked_at": datetime.now(timezone.utc), "revoke_reason": "session_revoke"}, synchronize_session=False)
+    db.commit()
+    return SuccessResponse(message="Session revoked")
+
+
+@router.post("/logout-all", response_model=SuccessResponse)
+def logout_all(response: Response, auth=Depends(get_current_auth), db: Session = Depends(get_db)):
+    current_user, payload = auth
+    revoke_all_user_tokens(db, current_user.id)
+    current_user.token_version += 1
+    db.commit()
+    if payload.get("jti") and payload.get("exp"):
+        deny_jti(payload["jti"], int(payload["exp"]))
+    response.delete_cookie(COOKIE_NAME, path=COOKIE_PATH, secure=settings.COOKIE_SECURE, httponly=True, samesite="lax")
+    return SuccessResponse(message="All sessions signed out")

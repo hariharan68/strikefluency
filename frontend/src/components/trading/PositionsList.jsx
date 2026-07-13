@@ -10,7 +10,7 @@ export default function PositionsList({ onClose }) {
   if (openPositions.length === 0) {
     return (
       <EmptyState
-        icon={<TrendingUp size={28} color="#714B67" />}
+        icon={<TrendingUp size={28} color="var(--primary)" />}
         title="No open positions"
         subtitle="Place a trade from the option chain"
       />

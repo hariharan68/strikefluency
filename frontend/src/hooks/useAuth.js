@@ -9,12 +9,12 @@ export function useLogin() {
   const setAuth = useAuthStore(s => s.setAuth)
   const navigate = useNavigate()
 
-  const submit = async (email, password) => {
+  const submit = async (email, password, rememberMe) => {
     setLoading(true)
     setError(null)
     try {
-      const res = await authApi.login(email, password)
-      setAuth(res.data.user, res.data.access_token, res.data.refresh_token)
+      const res = await authApi.login(email, password, rememberMe)
+      setAuth(res.data.user, res.data.access_token)
       navigate('/dashboard')
     } catch (e) {
       setError(e.response?.data?.detail || e.response?.data?.message || 'Login failed')
@@ -32,12 +32,12 @@ export function useRegister() {
   const setAuth = useAuthStore(s => s.setAuth)
   const navigate = useNavigate()
 
-  const submit = async (fullName, email, password) => {
+  const submit = async (fullName, email, password, rememberMe) => {
     setLoading(true)
     setError(null)
     try {
-      const res = await authApi.register(fullName, email, password)
-      setAuth(res.data.user, res.data.access_token, res.data.refresh_token)
+      const res = await authApi.register(fullName, email, password, rememberMe)
+      setAuth(res.data.user, res.data.access_token)
       navigate('/dashboard')
     } catch (e) {
       setError(e.response?.data?.detail || e.response?.data?.message || 'Registration failed')

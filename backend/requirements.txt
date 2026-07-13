@@ -21,6 +21,7 @@ python-multipart==0.0.9
 
 # HTTP client — for Google OAuth API calls
 httpx==0.27.0
+redis==5.0.4
 
 # Scheduler — market data ticks + EOD square-off
 apscheduler==3.10.4

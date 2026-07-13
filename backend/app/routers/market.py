@@ -16,10 +16,12 @@ import logging
 
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 
+from app.core.security_kernel import get_ws_user, require_dev_environment
 from app.core.utils import get_ist_now, is_market_open
 from app.dependencies import CurrentUser
 from app.market.provider_factory import get_market_provider
 from app.market.websocket_manager import manager
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -75,12 +77,15 @@ def get_market_status():
 
 
 @router.websocket("/ws")
-async def websocket_market(websocket: WebSocket):
+async def websocket_market(websocket: WebSocket, user: User = Depends(get_ws_user)):
     """
     WebSocket endpoint for live market data streaming.
 
     Connection flow:
-      1. Client connects to ws://localhost:8001/api/v1/market/ws
+      1. Client connects to ws://…/api/v1/market/ws?token=<access JWT>
+         (browsers cannot send Authorization headers on WS upgrade,
+         so the kernel's get_ws_user dependency authenticates the
+         token from the query string BEFORE the connection is accepted)
       2. Server accepts + sends latest cached data immediately
       3. Every 3 seconds: scheduler broadcasts new option chain data
       4. Client disconnects → server removes from active connections
@@ -91,8 +96,6 @@ async def websocket_market(websocket: WebSocket):
         "instrument": "NIFTY",
         "data": { ...canonical option chain format... }
       }
-
-    Note: No auth on WebSocket for Phase 1 (token in query param in Phase 2)
     """
     await manager.connect(websocket)
     logger.info(f"Market WebSocket connected. Total: {manager.connection_count}")
@@ -112,8 +115,8 @@ async def websocket_market(websocket: WebSocket):
         logger.error(f"WebSocket error: {e}")
         manager.disconnect(websocket)
 
-@router.get("/debug/raw-fyers")
-def debug_raw_fyers():
+@router.get("/debug/raw-fyers", dependencies=[Depends(require_dev_environment)])
+def debug_raw_fyers(current_user: CurrentUser = None):
     """Temporary — see exactly what Fyers returns. Delete after debugging."""
     from app.config import settings
     from fyers_apiv3 import fyersModel

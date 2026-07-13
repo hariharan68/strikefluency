@@ -12,15 +12,15 @@ export default function Pagination({ page, totalPages, onPageChange }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: 32, height: 32, borderRadius: 8,
           background: page <= 1 ? 'transparent' : '#F3F4F6',
-          border: '1px solid #E5E7EB',
+          border: '1px solid var(--border)',
           cursor: page <= 1 ? 'not-allowed' : 'pointer',
           opacity: page <= 1 ? 0.4 : 1
         }}
       >
-        <ChevronLeft size={16} color="#6B7280" />
+        <ChevronLeft size={16} color="var(--text-sub)" />
       </button>
 
-      <span style={{ color: '#6B7280', fontSize: 13 }}>
+      <span style={{ color: 'var(--text-sub)', fontSize: 13 }}>
         Page {page} of {totalPages}
       </span>
 
@@ -31,12 +31,12 @@ export default function Pagination({ page, totalPages, onPageChange }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: 32, height: 32, borderRadius: 8,
           background: page >= totalPages ? 'transparent' : '#F3F4F6',
-          border: '1px solid #E5E7EB',
+          border: '1px solid var(--border)',
           cursor: page >= totalPages ? 'not-allowed' : 'pointer',
           opacity: page >= totalPages ? 0.4 : 1
         }}
       >
-        <ChevronRight size={16} color="#6B7280" />
+        <ChevronRight size={16} color="var(--text-sub)" />
       </button>
     </div>
   )

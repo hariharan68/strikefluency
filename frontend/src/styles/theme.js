@@ -1,15 +1,15 @@
 export const colors = {
-  primary: '#714B67',
-  primaryDark: '#5A3A52',
+  primary: '#2563EB',
+  primaryDark: '#1D4ED8',
   success: '#3ee089',
   error: '#ff6875',
   errorBase: '#e93544',
   warning: '#e97d35',
   textStrong: '#ffffff',
-  textSub: '#6B7280',
-  textSoft: '#717784',
-  border: '#E5E7EB',
+  textSub: '#5A6474',
+  textSoft: '#8B93A7',
+  border: '#DBEAFE',
   surface: '#FFFFFF',
-  weak: '#F3F4F6',
-  soft: '#E5E7EB'
+  weak: '#E8F2FF',
+  soft: '#DBEAFE'
 }

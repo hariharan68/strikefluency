@@ -2,7 +2,7 @@ export default function Select({ label, value, onChange, options = [], error, ..
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {label && (
-        <label style={{ color: '#6B7280', fontSize: 13, fontWeight: 500 }}>
+        <label style={{ color: 'var(--text-sub)', fontSize: 13, fontWeight: 500 }}>
           {label}
         </label>
       )}
@@ -12,7 +12,7 @@ export default function Select({ label, value, onChange, options = [], error, ..
         {...rest}
         style={{
           background: '#F3F4F6',
-          border: `1px solid ${error ? '#e93544' : '#E5E7EB'}`,
+          border: `1px solid ${error ? '#e93544' : 'var(--border)'}`,
           borderRadius: 10,
           padding: '10px 14px',
           color: value ? '#fff' : '#717784',

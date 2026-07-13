@@ -23,7 +23,7 @@ const ToggleGroup = ({ value, options, onChange, fullWidth }) => (
         style={{
           flex: 1,
           background: value === opt.value ? opt.activeColor : 'transparent',
-          color: value === opt.value ? '#fff' : '#6B7280',
+          color: value === opt.value ? '#131313' : 'var(--text-sub)',
         }}
       >
         {opt.label}
@@ -94,14 +94,14 @@ export default function OrderFormPanel({ prefill, instrument = 'NIFTY', onSucces
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* BUY / SELL */}
       <ToggleGroup fullWidth value={action} onChange={setAction} options={[
-        { value: 'BUY', label: 'BUY', activeColor: '#16a34a' },
-        { value: 'SELL', label: 'SELL', activeColor: '#dc2626' },
+        { value: 'BUY', label: 'BUY', activeColor: 'var(--gain)' },
+        { value: 'SELL', label: 'SELL', activeColor: 'var(--loss)' },
       ]} />
 
       {/* CE / PE */}
       <ToggleGroup fullWidth value={optionType} onChange={setOptionType} options={[
-        { value: 'CE', label: 'CALL (CE)', activeColor: '#714B67' },
-        { value: 'PE', label: 'PUT (PE)', activeColor: '#dc2626' },
+        { value: 'CE', label: 'CALL (CE)', activeColor: 'var(--primary)' },
+        { value: 'PE', label: 'PUT (PE)', activeColor: 'var(--loss)' },
       ]} />
 
       {/* Strike + LTP */}
@@ -118,7 +118,7 @@ export default function OrderFormPanel({ prefill, instrument = 'NIFTY', onSucces
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <Field label="Stop Loss ★">
           <input className="sf-input" type="number" step="0.05" placeholder="0.00" value={sl} onChange={e => setSl(e.target.value)}
-            style={{ borderColor: sl && slNum > 0 && action === 'BUY' && slNum >= ltpNum ? '#dc2626' : undefined }} />
+            style={{ borderColor: sl && slNum > 0 && action === 'BUY' && slNum >= ltpNum ? 'var(--loss)' : undefined }} />
         </Field>
         <Field label="Target (optional)">
           <input className="sf-input" type="number" step="0.05" placeholder="0.00" value={target} onChange={e => setTarget(e.target.value)} />
@@ -130,12 +130,12 @@ export default function OrderFormPanel({ prefill, instrument = 'NIFTY', onSucces
         <Field label={`Lots  (1 lot = ${lotSize} qty)`}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <button type="button" onClick={() => setLots(l => Math.max(1, l-1))}
-              style={{ width: 34, height: 38, background: '#F0EDF1', border: '1px solid #E5E7EB', borderRight: 'none', borderRadius: '8px 0 0 8px', cursor: 'pointer', color: '#6B7280', fontSize: 16, fontWeight: 300 }}>−</button>
+              style={{ width: 34, height: 38, background: 'var(--border)', border: '1px solid var(--border)', borderRight: 'none', borderRadius: '8px 0 0 8px', cursor: 'pointer', color: 'var(--text-sub)', fontSize: 16, fontWeight: 300 }}>−</button>
             <input className="sf-input" type="number" min={1} value={lots}
               onChange={e => setLots(Math.max(1, parseInt(e.target.value) || 1))}
               style={{ borderRadius: 0, textAlign: 'center', width: '100%' }} />
             <button type="button" onClick={() => setLots(l => l+1)}
-              style={{ width: 34, height: 38, background: '#F0EDF1', border: '1px solid #E5E7EB', borderLeft: 'none', borderRadius: '0 8px 8px 0', cursor: 'pointer', color: '#6B7280', fontSize: 16, fontWeight: 300 }}>+</button>
+              style={{ width: 34, height: 38, background: 'var(--border)', border: '1px solid var(--border)', borderLeft: 'none', borderRadius: '0 8px 8px 0', cursor: 'pointer', color: 'var(--text-sub)', fontSize: 16, fontWeight: 300 }}>+</button>
           </div>
         </Field>
         <Field label="Expiry Date">
@@ -154,16 +154,16 @@ export default function OrderFormPanel({ prefill, instrument = 'NIFTY', onSucces
       {/* Risk summary */}
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
-        background: '#F8F7F9', border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden'
+        background: 'var(--color-surface2)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden'
       }}>
         {[
           { label: 'QTY', value: qty.toLocaleString('en-IN') },
-          { label: 'RISK', value: risk > 0 ? `₹${risk.toFixed(0)}` : '—', color: '#dc2626' },
-          { label: 'R:R', value: rr ? `1 : ${rr}` : '—', color: '#16a34a' },
+          { label: 'RISK', value: risk > 0 ? `₹${risk.toFixed(0)}` : '—', color: 'var(--loss)' },
+          { label: 'R:R', value: rr ? `1 : ${rr}` : '—', color: 'var(--gain)' },
         ].map((item, i) => (
-          <div key={i} style={{ padding: '8px 0', textAlign: 'center', borderRight: i < 2 ? '1px solid #E5E7EB' : 'none' }}>
-            <div style={{ color: '#9CA3AF', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{item.label}</div>
-            <div className="num" style={{ color: item.color || '#111827', fontSize: 13, fontWeight: 600 }}>{item.value}</div>
+          <div key={i} style={{ padding: '8px 0', textAlign: 'center', borderRight: i < 2 ? '1px solid var(--border)' : 'none' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{item.label}</div>
+            <div className="num" style={{ color: item.color || 'var(--text)', fontSize: 13, fontWeight: 600 }}>{item.value}</div>
           </div>
         ))}
       </div>
@@ -171,19 +171,19 @@ export default function OrderFormPanel({ prefill, instrument = 'NIFTY', onSucces
       {error && (
         <div style={{
           display: 'flex', alignItems: 'flex-start', gap: 8,
-          background: '#fee2e2', border: '1px solid #fecaca',
+          background: '#fee2e2', border: '1px solid var(--loss)',
           borderRadius: 8, padding: '9px 12px'
         }}>
-          <AlertTriangle size={14} color="#dc2626" style={{ flexShrink: 0, marginTop: 1 }} />
-          <span style={{ color: '#b91c1c', fontSize: 12, lineHeight: 1.5 }}>{error}</span>
+          <AlertTriangle size={14} color="var(--loss)" style={{ flexShrink: 0, marginTop: 1 }} />
+          <span style={{ color: 'var(--loss-text)', fontSize: 12, lineHeight: 1.5 }}>{error}</span>
         </div>
       )}
 
       <button type="submit" disabled={loading}
         style={{
           width: '100%', height: 40, borderRadius: 8, border: 'none',
-          background: loading ? '#E5E7EB' : (action === 'BUY' ? '#16a34a' : '#dc2626'),
-          color: loading ? '#9CA3AF' : '#fff',
+          background: loading ? 'var(--border)' : (action === 'BUY' ? 'var(--gain)' : 'var(--loss)'),
+          color: loading ? 'var(--text-muted)' : '#fff',
           fontFamily: 'Inter,sans-serif', fontSize: 13, fontWeight: 600,
           cursor: loading ? 'wait' : 'pointer', transition: 'background 0.15s',
           letterSpacing: '0.02em'
@@ -191,8 +191,8 @@ export default function OrderFormPanel({ prefill, instrument = 'NIFTY', onSucces
         {loading ? 'Placing…' : `${action} ${instrument} ${strike || '——'} ${optionType}`}
       </button>
 
-      <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: 11 }}>
-        Est. margin ≈ <span className="num" style={{ color: '#6B7280' }}>₹{parseInt(margin).toLocaleString('en-IN')}</span>
+      <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 11 }}>
+        Est. margin ≈ <span className="num" style={{ color: 'var(--text-sub)' }}>₹{parseInt(margin).toLocaleString('en-IN')}</span>
       </div>
     </form>
   )

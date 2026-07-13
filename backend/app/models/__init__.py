@@ -10,6 +10,10 @@ from app.models.discipline_score import DisciplineScore
 from app.models.trading_session import TradingSession
 from app.models.journal_entry import JournalEntry
 from app.models.broker_connection import BrokerConnection
+from app.models.oauth_transaction import OAuthTransaction
+from app.models.oauth_identity import OAuthIdentity
+from app.models.link_challenge import LinkChallenge
+from app.models.security_notification import SecurityNotification
 
 __all__ = [
     "Tenant",
@@ -24,4 +28,8 @@ __all__ = [
     "TradingSession",
     'JournalEntry',
     'BrokerConnection',
+    'OAuthTransaction',
+    'OAuthIdentity',
+    'LinkChallenge',
+    'SecurityNotification',
 ]

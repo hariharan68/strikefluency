@@ -1,4 +1,4 @@
-export default function Badge({ children, color = '#714B67', bg, style = {} }) {
+export default function Badge({ children, color = 'var(--primary)', bg, style = {} }) {
   const bgColor = bg || color + '26'
   return (
     <span style={{
@@ -8,7 +8,7 @@ export default function Badge({ children, color = '#714B67', bg, style = {} }) {
       borderRadius: 20,
       fontSize: 12,
       fontWeight: 500,
-      fontFamily: 'Inter,sans-serif',
+      fontFamily: 'Poppins,sans-serif',
       background: bgColor,
       color,
       whiteSpace: 'nowrap',

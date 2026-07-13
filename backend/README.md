@@ -2,8 +2,8 @@
 
 FastAPI backend for the StrikeFluency virtual options trading simulator.
 
-- **Port:** 8001
-- **Docs:** `http://localhost:8001/docs` (Swagger UI)
+- **Port:** 8000
+- **Docs:** `http://localhost:8000/docs` (Swagger UI)
 - **Database:** PostgreSQL 16
 - **Python:** 3.11+
 
@@ -78,7 +78,7 @@ alembic upgrade head
 ## Running the server
 
 ```bash
-uvicorn app.main:app --reload --port 8001
+uvicorn app.main:app --reload --port 8000
 ```
 
 CORS is configured to allow `http://localhost:5173` through `http://localhost:5176` (Vite dev server range).
@@ -136,10 +136,13 @@ app/market/
 | Method | Path | Auth required | Description |
 |---|---|---|---|
 | POST | `/auth/register` | No | Create account with email + password |
-| POST | `/auth/login` | No | Returns `access_token` + `refresh_token` |
+| POST | `/auth/login` | No | Returns an access token and sets an httpOnly refresh cookie |
 | POST | `/auth/refresh` | No | Rotate refresh token, get new access token |
-| POST | `/auth/logout` | Bearer | Revoke refresh token |
+| POST | `/auth/logout` | No | Revoke the current refresh-token family |
 | GET | `/auth/me` | Bearer | Current user profile |
+| GET | `/auth/sessions` | Bearer | List active device sessions |
+| DELETE | `/auth/sessions/{family_id}` | Bearer | Revoke one device session |
+| POST | `/auth/logout-all` | Bearer | Revoke every session and access-token version |
 
 ### Google OAuth (`/oauth`)
 

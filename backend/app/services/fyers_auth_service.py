@@ -7,16 +7,77 @@ import json
 from pathlib import Path
 from typing import Any
 
+import logging
+
 from app.brokers.connections import save_fyers_token_best_effort, revoke_fyers_token_best_effort
 from app.config import settings
 from app.core import token_store
+from app.core.env_file import update_env_file
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _IGNORE_LEGACY_TOKEN = False
 
+# Must match the mounted route exactly: broker.router at /api/v1 + /auth/fyers/callback.
+# This is the URL users paste into the "Redirect URL" field on myapi.fyers.in.
+DEFAULT_FYERS_REDIRECT_URI = "http://127.0.0.1:8000/api/v1/auth/fyers/callback"
+
 
 def get_fyers_client_id() -> str:
     return settings.FYERS_APP_ID or settings.FYERS_CLIENT_ID
+
+
+def effective_redirect_uri() -> str:
+    return settings.FYERS_REDIRECT_URI or DEFAULT_FYERS_REDIRECT_URI
+
+
+def mask_app_id(app_id: str) -> str:
+    if not app_id:
+        return ""
+    head, _, tail = app_id.partition("-")
+    if len(head) <= 4:
+        return f"{head}****"
+    return f"{head[:4]}****" + (f"-{tail}" if tail else "")
+
+
+def save_credentials(app_id: str, secret_id: str) -> dict[str, Any]:
+    """Persist Fyers app credentials to .env AND the live settings object.
+
+    The in-memory assignment is what makes the wizard work without a server
+    restart (uvicorn --reload watches .py files, not .env). The .env write
+    makes it survive restarts. The secret is never returned or logged.
+    """
+    redirect = effective_redirect_uri()
+    update_env_file({
+        "FYERS_APP_ID": app_id,
+        "FYERS_SECRET_ID": secret_id,
+        "FYERS_REDIRECT_URI": redirect,
+    })
+    settings.FYERS_APP_ID = app_id
+    settings.FYERS_SECRET_ID = secret_id
+    settings.FYERS_REDIRECT_URI = redirect
+    return {
+        "configured": has_required_credentials(),
+        "app_id_masked": mask_app_id(app_id),
+        "redirect_uri": redirect,
+    }
+
+
+def activate_fyers_provider() -> None:
+    """Switch market data to the live Fyers provider after a successful connect.
+
+    In-memory first (always works), .env best-effort. Safe even if the token
+    later dies: the provider factory falls back to mock data when credentials
+    or token are missing.
+    """
+    if settings.MARKET_DATA_PROVIDER == "fyers":
+        return
+    settings.MARKET_DATA_PROVIDER = "fyers"
+    try:
+        update_env_file({"MARKET_DATA_PROVIDER": "fyers"})
+    except OSError:
+        logger.warning("Could not persist MARKET_DATA_PROVIDER to .env; live for this run only")
 
 
 def get_token_path() -> Path:
@@ -78,7 +139,12 @@ def mask_token(token: str) -> str:
 
 
 def create_session():
-    from fyers_apiv3.accessToken import SessionModel
+    # fyers-apiv3 >= 3.1 moved SessionModel into fyersModel; older releases
+    # kept it in accessToken. Support both so SDK upgrades don't break login.
+    try:
+        from fyers_apiv3.fyersModel import SessionModel
+    except ImportError:
+        from fyers_apiv3.accessToken import SessionModel
 
     client_id = get_fyers_client_id()
     return SessionModel(

@@ -28,7 +28,7 @@ export default function ReviewNotesForm({ entry, onSave }) {
       <MistakeCategoryPicker value={mistake} onChange={setMistake} />
 
       <div>
-        <label style={{ color: '#6B7280', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
+        <label style={{ color: 'var(--text-sub)', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 8 }}>
           Review Notes
         </label>
         <textarea
@@ -39,7 +39,7 @@ export default function ReviewNotesForm({ entry, onSave }) {
           style={{
             width: '100%',
             background: '#F3F4F6',
-            border: '1px solid #E5E7EB',
+            border: '1px solid var(--border)',
             borderRadius: 10,
             padding: '10px 14px',
             color: '#fff',

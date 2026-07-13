@@ -18,6 +18,8 @@ class RegisterRequest(BaseModel):
     password: str
     tenant_code: Optional[str] = None  # If None → create new tenant
 
+    remember_me: bool = True
+
     @field_validator("password")
     @classmethod
     def password_min_length(cls, v: str) -> str:
@@ -47,3 +49,9 @@ class UserProfile(BaseModel):
     role: str
     tenant_id: uuid.UUID
     is_active: bool
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+    remember_me: bool = True

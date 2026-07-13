@@ -62,7 +62,7 @@ export default function RuleCard({ rule, onUpdate }) {
   return (
     <div style={{
       background: '#F3F4F6',
-      border: '1px solid #E5E7EB',
+      border: '1px solid var(--border)',
       borderRadius: 12,
       padding: '14px 16px',
       display: 'flex',
@@ -73,7 +73,7 @@ export default function RuleCard({ rule, onUpdate }) {
       <div style={{ flex: 1 }}>
         <div style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>{label}</div>
         {!editing && (
-          <div style={{ color: '#6B7280', fontSize: 12, marginTop: 4 }}>{displayValue}</div>
+          <div style={{ color: 'var(--text-sub)', fontSize: 12, marginTop: 4 }}>{displayValue}</div>
         )}
       </div>
 
@@ -84,7 +84,7 @@ export default function RuleCard({ rule, onUpdate }) {
               value={editValue}
               onChange={e => setEditValue(e.target.value)}
               style={{
-                background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 8,
+                background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 8,
                 color: '#fff', padding: '6px 10px', fontSize: 13, fontFamily: 'Inter,sans-serif'
               }}
             >
@@ -97,7 +97,7 @@ export default function RuleCard({ rule, onUpdate }) {
               value={editValue}
               onChange={e => setEditValue(e.target.value)}
               style={{
-                width: 80, background: '#FFFFFF', border: '1px solid #E5E7EB',
+                width: 80, background: 'var(--color-surface)', border: '1px solid var(--border)',
                 borderRadius: 8, color: '#fff', padding: '6px 10px',
                 fontSize: 13, fontFamily: 'Inter,sans-serif', outline: 'none'
               }}
@@ -107,7 +107,7 @@ export default function RuleCard({ rule, onUpdate }) {
             background: 'rgba(51,92,255,0.2)', border: 'none', borderRadius: 6,
             padding: '6px', cursor: 'pointer', display: 'flex'
           }}>
-            <Check size={14} color="#714B67" />
+            <Check size={14} color="var(--primary)" />
           </button>
           <button onClick={() => setEditing(false)} style={{
             background: 'rgba(233,53,68,0.2)', border: 'none', borderRadius: 6,
@@ -118,10 +118,10 @@ export default function RuleCard({ rule, onUpdate }) {
         </div>
       ) : (
         <button onClick={startEdit} style={{
-          background: '#E5E7EB', border: 'none', borderRadius: 6,
+          background: 'var(--border)', border: 'none', borderRadius: 6,
           padding: '6px', cursor: 'pointer', display: 'flex'
         }}>
-          <Edit2 size={14} color="#6B7280" />
+          <Edit2 size={14} color="var(--text-sub)" />
         </button>
       )}
     </div>

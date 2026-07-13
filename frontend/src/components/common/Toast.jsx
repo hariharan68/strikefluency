@@ -18,9 +18,9 @@ export function ToastProvider({ children }) {
   const warning = useCallback((msg) => add('warning', msg), [add])
 
   const configs = {
-    success: { icon: <CheckCircle size={16} />, color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
-    error:   { icon: <XCircle size={16} />, color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
-    warning: { icon: <AlertTriangle size={16} />, color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+    success: { icon: <CheckCircle size={16} />, color: 'var(--gain-text)', bg: '#f0fdf4', border: '#bbf7d0' },
+    error:   { icon: <XCircle size={16} />, color: 'var(--loss)', bg: 'var(--loss-bg)', border: 'var(--loss)' },
+    warning: { icon: <AlertTriangle size={16} />, color: 'var(--warn)', bg: '#fffbeb', border: '#fde68a' },
   }
 
   return (
@@ -37,8 +37,8 @@ export function ToastProvider({ children }) {
               boxShadow: '0 4px 16px rgba(0,0,0,0.10)'
             }}>
               <span style={{ color: c.color, flexShrink: 0 }}>{c.icon}</span>
-              <span style={{ color: '#111827', fontSize: 13, flex: 1 }}>{t.message}</span>
-              <button onClick={() => remove(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#9CA3AF', flexShrink: 0 }}>
+              <span style={{ color: 'var(--text)', fontSize: 13, flex: 1 }}>{t.message}</span>
+              <button onClick={() => remove(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', flexShrink: 0 }}>
                 <X size={14} />
               </button>
             </div>

@@ -1,7 +1,7 @@
-export default function StatCard({ label, value, sub, color = '#714B67', icon: Icon }) {
+export default function StatCard({ label, value, sub, color = 'var(--primary)', icon: Icon }) {
   return (
     <div style={{
-      background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 16,
+      background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 16,
       padding: 20, display: 'flex', flexDirection: 'column', gap: 10
     }}>
       {Icon && (
@@ -14,7 +14,7 @@ export default function StatCard({ label, value, sub, color = '#714B67', icon: I
           <Icon size={18} color={color} />
         </div>
       )}
-      <div style={{ color: '#6B7280', fontSize: 13 }}>{label}</div>
+      <div style={{ color: 'var(--text-sub)', fontSize: 13 }}>{label}</div>
       <div style={{ color: typeof value === 'string' ? '#fff' : color, fontSize: 22, fontWeight: 500 }}>
         {value ?? '-'}
       </div>

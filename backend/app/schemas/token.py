@@ -15,7 +15,7 @@ class TokenResponse(BaseModel):
     refresh_token in localStorage (or httpOnly cookie in production).
     """
     access_token: str
-    refresh_token: str
+    refresh_token: str | None = None
     token_type: str = "bearer"
     user: UserProfile
 

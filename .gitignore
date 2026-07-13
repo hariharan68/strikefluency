@@ -69,6 +69,7 @@ frontend/coverage/
 
 # Local env files (Vite convention)
 *.local
+.claude
 
 # ── Logs ──────────────────────────────────────────
 logs/

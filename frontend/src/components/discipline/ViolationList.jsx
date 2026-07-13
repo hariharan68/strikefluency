@@ -18,7 +18,7 @@ export default function ViolationList({ violations = [] }) {
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
-          <tr style={{ borderBottom: '1px solid #E5E7EB' }}>
+          <tr style={{ borderBottom: '1px solid var(--border)' }}>
             {['Rule', 'Type', 'Time'].map(h => (
               <th key={h} style={{
                 textAlign: 'left', color: '#717784', fontSize: 12,

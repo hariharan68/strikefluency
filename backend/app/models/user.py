@@ -20,6 +20,7 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
     role: Mapped[str] = mapped_column(String(20), default="trader", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    token_version: Mapped[int] = mapped_column(default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), nullable=False
     )
@@ -54,6 +55,9 @@ class User(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("tenant_id", "email", name="uq_users_tenant_email"),
+        # Email is globally unique: one email = one account across all tenants.
+        # Login and OAuth both look users up by email alone, so a per-tenant
+        # constraint would let colliding emails make logins non-deterministic.
+        UniqueConstraint("email", name="uq_users_email"),
         Index("idx_users_tenant_id", "tenant_id"),
     )

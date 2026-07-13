@@ -8,13 +8,13 @@ function CustomTooltip({ active, payload }) {
   const item = payload[0]
   return (
     <div style={{
-      background: '#F3F4F6', border: '1px solid #E5E7EB',
+      background: '#F3F4F6', border: '1px solid var(--border)',
       borderRadius: 8, padding: '10px 14px'
     }}>
       <div style={{ color: item.payload.color, fontSize: 13, fontWeight: 500 }}>
         {item.name}
       </div>
-      <div style={{ color: '#6B7280', fontSize: 12 }}>
+      <div style={{ color: 'var(--text-sub)', fontSize: 12 }}>
         {item.value} occurrence{item.value !== 1 ? 's' : ''}
       </div>
     </div>
@@ -67,7 +67,7 @@ export default function MistakeBreakdownChart({ data = [] }) {
         <Tooltip content={<CustomTooltip />} />
         <Legend
           formatter={(value) => (
-            <span style={{ color: '#6B7280', fontSize: 12 }}>{value}</span>
+            <span style={{ color: 'var(--text-sub)', fontSize: 12 }}>{value}</span>
           )}
         />
       </PieChart>

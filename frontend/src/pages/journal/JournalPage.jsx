@@ -7,7 +7,7 @@ import { updateEntry } from '../../api/journal'
 import { useToast } from '../../components/common/Toast'
 
 const Card = ({ children, style = {} }) => (
-  <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden', ...style }}>
+  <div style={{ background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden', ...style }}>
     {children}
   </div>
 )
@@ -34,35 +34,35 @@ function JournalRow({ entry, onSave }) {
 
   return (
     <>
-      <tr onClick={() => setOpen(o => !o)} className="chain-row" style={{ borderBottom: '1px solid #F8F7F9', cursor: 'pointer' }}>
+      <tr onClick={() => setOpen(o => !o)} className="chain-row" style={{ borderBottom: '1px solid var(--color-surface2)', cursor: 'pointer' }}>
         <td style={{ padding: '10px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 12, background: entry.option_type === 'CE' ? '#F3EEF3' : '#fef2f2', color: entry.option_type === 'CE' ? '#5A3A52' : '#dc2626' }}>
+            <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 12, background: entry.option_type === 'CE' ? 'var(--primary-bg)' : 'var(--loss-bg)', color: entry.option_type === 'CE' ? 'var(--primary-dark)' : 'var(--loss)' }}>
               {entry.option_type}
             </span>
-            <span className="num" style={{ color: '#111827', fontSize: 13, fontWeight: 600 }}>{entry.instrument} {entry.strike_price}</span>
-            <span style={{ color: '#9CA3AF', fontSize: 11 }}>{entry.action}</span>
+            <span className="num" style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>{entry.instrument} {entry.strike_price}</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{entry.action}</span>
           </div>
         </td>
-        <td className="num" style={{ padding: '10px 10px', textAlign: 'right', color: '#6B7280', fontSize: 12 }}>{entry.entry_price?.toFixed(2)}</td>
-        <td className="num" style={{ padding: '10px 10px', textAlign: 'right', color: '#6B7280', fontSize: 12 }}>{entry.exit_price?.toFixed(2) || '—'}</td>
-        <td className="num" style={{ padding: '10px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: isGain ? '#16a34a' : pnl < 0 ? '#dc2626' : '#6B7280' }}>
+        <td className="num" style={{ padding: '10px 10px', textAlign: 'right', color: 'var(--text-sub)', fontSize: 12 }}>{entry.entry_price?.toFixed(2)}</td>
+        <td className="num" style={{ padding: '10px 10px', textAlign: 'right', color: 'var(--text-sub)', fontSize: 12 }}>{entry.exit_price?.toFixed(2) || '—'}</td>
+        <td className="num" style={{ padding: '10px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: isGain ? 'var(--gain)' : pnl < 0 ? 'var(--loss)' : 'var(--text-sub)' }}>
           {pnl !== 0 ? (isGain ? '+' : '') + formatCurrency(pnl) : '—'}
         </td>
         <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-          {entry.setup_tag ? <span style={{ fontSize: 10, color: '#6B7280', background: '#F0EDF1', padding: '2px 8px', borderRadius: 12, fontWeight: 500 }}>{SETUP_TAG_LABELS[entry.setup_tag] || entry.setup_tag}</span> : <span style={{ color: '#9CA3AF', fontSize: 11 }}>—</span>}
+          {entry.setup_tag ? <span style={{ fontSize: 10, color: 'var(--text-sub)', background: 'var(--border)', padding: '2px 8px', borderRadius: 12, fontWeight: 500 }}>{SETUP_TAG_LABELS[entry.setup_tag] || entry.setup_tag}</span> : <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>—</span>}
         </td>
         <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-          {emotion ? <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 12, background: '#F0EDF1', color: EMOTION_LABELS[emotion]?.color || '#6B7280', fontWeight: 500 }}>{EMOTION_LABELS[emotion]?.label || emotion}</span> : <span style={{ color: '#9CA3AF', fontSize: 11 }}>—</span>}
+          {emotion ? <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 12, background: 'var(--border)', color: EMOTION_LABELS[emotion]?.color || 'var(--text-sub)', fontWeight: 500 }}>{EMOTION_LABELS[emotion]?.label || emotion}</span> : <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>—</span>}
         </td>
-        <td className="num" style={{ padding: '10px 16px', color: '#9CA3AF', fontSize: 11 }}>{formatDate(entry.created_at)}</td>
+        <td className="num" style={{ padding: '10px 16px', color: 'var(--text-muted)', fontSize: 11 }}>{formatDate(entry.created_at)}</td>
         <td style={{ padding: '10px 16px', textAlign: 'right' }}>
-          {open ? <ChevronUp size={14} color="#9CA3AF" /> : <ChevronDown size={14} color="#9CA3AF" />}
+          {open ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
         </td>
       </tr>
       {open && (
         <tr>
-          <td colSpan={8} style={{ padding: '0 16px 16px', background: '#F8F7F9', borderBottom: '1px solid #E5E7EB' }}>
+          <td colSpan={8} style={{ padding: '0 16px 16px', background: 'var(--color-surface2)', borderBottom: '1px solid var(--border)' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: 12, paddingTop: 14 }}>
               <div>
                 <label className="sf-label">Emotion During Trade</label>
@@ -117,13 +117,13 @@ export default function JournalPage() {
       <Card>
         <div style={{ display: 'flex' }}>
           {[
-            { label: 'Total Entries', value: total, color: '#111827' },
-            { label: 'Winners', value: wins, color: '#16a34a' },
-            { label: 'Losers', value: losses, color: '#dc2626' },
-            { label: 'Net P&L (page)', value: (totalPnl >= 0 ? '+' : '') + formatCurrency(totalPnl), color: totalPnl >= 0 ? '#16a34a' : '#dc2626' },
+            { label: 'Total Entries', value: total, color: 'var(--text)' },
+            { label: 'Winners', value: wins, color: 'var(--gain)' },
+            { label: 'Losers', value: losses, color: 'var(--loss)' },
+            { label: 'Net P&L (page)', value: (totalPnl >= 0 ? '+' : '') + formatCurrency(totalPnl), color: totalPnl >= 0 ? 'var(--gain)' : 'var(--loss)' },
           ].map((item, i) => (
-            <div key={i} style={{ flex: 1, padding: '16px 20px', borderRight: i < 3 ? '1px solid #F0EDF1' : 'none' }}>
-              <div style={{ color: '#9CA3AF', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{item.label}</div>
+            <div key={i} style={{ flex: 1, padding: '16px 20px', borderRight: i < 3 ? '1px solid var(--border)' : 'none' }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{item.label}</div>
               <div className="num" style={{ color: item.color, fontSize: 20, fontWeight: 700 }}>{item.value}</div>
             </div>
           ))}
@@ -132,7 +132,7 @@ export default function JournalPage() {
             {['ALL', 'CLOSED', 'OPEN'].map(f => (
               <button key={f} onClick={() => { setFilter(f); setPage(1) }}
                 className="toggle-btn"
-                style={{ minWidth: 60, fontSize: 11, background: filter === f ? '#714B67' : 'transparent', color: filter === f ? '#fff' : '#6B7280', border: 'none' }}>
+                style={{ minWidth: 60, fontSize: 11, background: filter === f ? 'var(--primary)' : 'transparent', color: filter === f ? '#131313' : 'var(--text-sub)', border: 'none' }}>
                 {f}
               </button>
             ))}
@@ -142,22 +142,22 @@ export default function JournalPage() {
 
       {/* Table */}
       <Card>
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid #F0EDF1', background: '#F8F7F9' }}>
-          <span style={{ color: '#111827', fontSize: 13, fontWeight: 600 }}>Trade Journal — click row to add review</span>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--color-surface2)' }}>
+          <span style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>Trade Journal — click row to add review</span>
         </div>
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 12 }}>Loading…</div>
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>Loading…</div>
         ) : entries.length === 0 ? (
           <div style={{ padding: 40, textAlign: 'center' }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>📔</div>
-            <div style={{ color: '#6B7280', fontSize: 13 }}>No journal entries yet. Place a trade first!</div>
+            <div style={{ color: 'var(--text-sub)', fontSize: 13 }}>No journal entries yet. Place a trade first!</div>
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr style={{ background: '#F8F7F9' }}>
+              <tr style={{ background: 'var(--color-surface2)' }}>
                 {['Position', 'Entry', 'Exit', 'P&L', 'Setup', 'Emotion', 'Date', ''].map((h, i) => (
-                  <th key={i} style={{ padding: '8px 16px', textAlign: i >= 1 && i < 4 ? 'right' : i === 4 || i === 5 ? 'center' : 'left', color: '#9CA3AF', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #E5E7EB' }}>{h}</th>
+                  <th key={i} style={{ padding: '8px 16px', textAlign: i >= 1 && i < 4 ? 'right' : i === 4 || i === 5 ? 'center' : 'left', color: 'var(--text-muted)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -167,8 +167,8 @@ export default function JournalPage() {
           </table>
         )}
         {pages > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderTop: '1px solid #F0EDF1', background: '#F8F7F9' }}>
-            <span style={{ color: '#6B7280', fontSize: 12 }}>Page {page} of {pages}</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderTop: '1px solid var(--border)', background: 'var(--color-surface2)' }}>
+            <span style={{ color: 'var(--text-sub)', fontSize: 12 }}>Page {page} of {pages}</span>
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={() => setPage(p => Math.max(1, p-1))} disabled={page === 1} className="sf-btn-outline">← Prev</button>
               <button onClick={() => setPage(p => Math.min(pages, p+1))} disabled={page === pages} className="sf-btn-outline">Next →</button>

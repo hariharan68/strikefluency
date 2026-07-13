@@ -19,7 +19,7 @@ export default function DisciplineScoreRing({ score = 0, size = 120 }) {
       <circle
         cx={cx} cy={cy} r={r}
         fill="none"
-        stroke="#E5E7EB"
+        stroke="var(--border)"
         strokeWidth="8"
       />
       {/* Score ring */}

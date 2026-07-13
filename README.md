@@ -110,10 +110,10 @@ Run migrations and start the server:
 
 ```bash
 alembic upgrade head
-uvicorn app.main:app --reload --port 8001
+uvicorn app.main:app --reload --port 8000
 ```
 
-API is available at `http://localhost:8001`. Swagger docs at `http://localhost:8001/docs`.
+API is available at `http://localhost:8000`. Swagger docs at `http://localhost:8000/docs`.
 
 ### 4. Frontend setup
 
@@ -122,7 +122,7 @@ cd frontend
 npm install
 
 cp .env.example .env
-# .env.example already has: VITE_API_BASE_URL=http://localhost:8001
+# .env.example already has: VITE_API_BASE_URL=http://localhost:8000
 ```
 
 Start the dev server:
@@ -155,7 +155,7 @@ Copy `backend/.env.example` to `backend/.env` and fill in the values below. **Ne
 | `DEFAULT_INITIAL_CAPITAL` | No | Default: `100000` (₹1L) |
 | `GOOGLE_CLIENT_ID` | OAuth only | Google Cloud Console client ID |
 | `GOOGLE_CLIENT_SECRET` | OAuth only | Google Cloud Console client secret |
-| `GOOGLE_REDIRECT_URI` | OAuth only | `http://localhost:8001/oauth/google/callback` |
+| `GOOGLE_REDIRECT_URI` | OAuth only | `http://localhost:8000/api/v1/oauth/google/callback` |
 
 ---
 
@@ -225,7 +225,7 @@ All rules are configurable per user from the Discipline page.
 | GET | `/analytics/discipline-trend` | Score per day (30d) |
 | GET | `/analytics/mistakes` | Mistake category breakdown |
 
-Full interactive docs at `http://localhost:8001/docs` when the backend is running.
+Full interactive docs at `http://localhost:8000/docs` when the backend is running.
 
 ---
 

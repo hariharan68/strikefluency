@@ -5,6 +5,7 @@ import { Bell, Mail, Moon, Search, Settings, Sun } from 'lucide-react'
 
 const PAGE_META = {
   '/dashboard': { title: 'Dashboard', subtitle: 'Track performance, risk, and today\'s trading discipline.' },
+  '/terminal-1': { title: 'Terminal 1', subtitle: 'Live spot index prices — NIFTY, BANK NIFTY, and SENSEX.' },
   '/trading': { title: 'Trading Desk', subtitle: 'Scan the option chain, place virtual orders, and manage positions.' },
   '/journal': { title: 'Trade Journal', subtitle: 'Review setups, emotions, mistakes, and lessons from each trade.' },
   '/analytics': { title: 'Analytics', subtitle: 'Measure P&L, discipline trends, and execution quality over time.' },

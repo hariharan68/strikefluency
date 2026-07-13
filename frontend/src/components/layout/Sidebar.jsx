@@ -1,12 +1,14 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, Shield, BookOpen, BarChart2, LogOut,
-  TrendingUp, Settings, HelpCircle, Zap
+  TrendingUp, Settings, HelpCircle, Radio
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
+import * as authApi from '../../api/auth'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/terminal-1', icon: Radio, label: 'Terminal 1' },
   { to: '/trading', icon: Activity, label: 'Trade' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },
@@ -15,10 +17,21 @@ const navItems = [
 ]
 
 export default function Sidebar() {
-  const user = useAuthStore(s => s.user)
   const clearAuth = useAuthStore(s => s.clearAuth)
-  const initials = (user?.full_name || user?.email || 'T').charAt(0).toUpperCase()
-  const displayName = user?.full_name || 'Trader'
+
+  const handleSignOut = async () => {
+    // Revoke the server-side refresh-token family and clear the HttpOnly
+    // cookie FIRST — otherwise the session survives and the next page load
+    // silently refreshes straight back into the app. Best-effort: even if the
+    // request fails we still clear local state and leave.
+    try {
+      await authApi.logout()
+    } catch (_) {
+      /* network/offline — local clear below still signs the user out here */
+    }
+    clearAuth()
+    window.location.href = '/login'
+  }
 
   return (
     <aside className="sf-sidebar">
@@ -44,28 +57,15 @@ export default function Sidebar() {
 
       <div className="sf-sidebar-spacer" />
 
-      <section className="sf-upgrade-card" aria-label="Premium features">
-        <div>
-          <h3>Unlock Premium Features</h3>
-          <p>Get advanced analytics, discipline reports and more.</p>
-        </div>
-        <Zap size={16} />
-        <button type="button">Upgrade Now</button>
-      </section>
-
-      <section className="sf-user-card">
-        <div className="sf-user-avatar">{initials}</div>
-        <div className="sf-user-name">{displayName}</div>
-        <div className="sf-user-plan">Virtual Account</div>
-        <button
-          type="button"
-          onClick={() => { clearAuth(); window.location.href = '/login' }}
-          className="sf-signout-button"
-        >
-          <LogOut size={14} />
-          Sign out
-        </button>
-      </section>
+      <button
+        type="button"
+        onClick={handleSignOut}
+        className="sf-nav-link sf-nav-button"
+        style={{ margin: '0 8px 16px', width: 'calc(100% - 16px)' }}
+      >
+        <LogOut size={17} strokeWidth={1.9} />
+        <span>Sign out</span>
+      </button>
     </aside>
   )
 }

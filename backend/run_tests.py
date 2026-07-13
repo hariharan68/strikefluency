@@ -2,7 +2,7 @@
 run_tests.py
 ─────────────
 Automated test suite for StrikeFluency API.
-Runs against the live server on localhost:8001.
+Runs against the live server on localhost:8000.
 
 Usage:
     python run_tests.py
@@ -15,7 +15,7 @@ import sys
 import uuid
 import requests
 
-BASE = "http://localhost:8001/api/v1"
+BASE = "http://localhost:8000/api/v1"
 
 # ── Colours ───────────────────────────────────────────────────
 GREEN  = "\033[92m"
@@ -58,12 +58,12 @@ print(f"Server: {BASE}\n")
 
 # ── Verify server is up ───────────────────────────────────────
 try:
-    r = requests.get("http://localhost:8001/health", timeout=3)
+    r = requests.get("http://localhost:8000/health", timeout=3)
     check("Server health check", r.status_code == 200, r.json().get("status"))
 except Exception as e:
     fail("Server reachable", str(e))
     print(f"\n{RED}Server is not running. Start it first:{RESET}")
-    print("  uvicorn app.main:app --reload --port 8001")
+    print("  uvicorn app.main:app --reload --port 8000")
     sys.exit(1)
 
 

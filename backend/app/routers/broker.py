@@ -1,11 +1,14 @@
 ﻿"""Fyers broker integration endpoints."""
 
+import re
 from html import escape
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
+from app.core.security_kernel import require_dev_environment
+from app.dependencies import CurrentUser
 from app.market.provider_factory import reset_provider
 from app.services import fyers_auth_service as fyers_auth
 
@@ -18,6 +21,14 @@ class FyersAuthCodeRequest(BaseModel):
 
 class FyersAccessTokenRequest(BaseModel):
     access_token: str
+
+
+class FyersCredentialsRequest(BaseModel):
+    app_id: str
+    secret_id: str
+
+
+_APP_ID_RE = re.compile(r"^[A-Z0-9]{4,20}-[0-9]{2,4}$")  # e.g. XC4EODJ5MN-100
 
 
 def _success_html(message: str) -> HTMLResponse:
@@ -45,12 +56,37 @@ def _error_html(message: str) -> HTMLResponse:
     return HTMLResponse(body, status_code=400)
 
 
+@router.get("/auth/fyers/credentials")
+def get_fyers_credentials(current_user: CurrentUser = None):
+    return {
+        "configured": fyers_auth.has_required_credentials(),
+        "app_id_masked": fyers_auth.mask_app_id(fyers_auth.get_fyers_client_id()),
+        "redirect_uri": fyers_auth.effective_redirect_uri(),
+    }
+
+
+@router.post("/auth/fyers/credentials")
+def save_fyers_credentials(payload: FyersCredentialsRequest, current_user: CurrentUser = None):
+    app_id = payload.app_id.strip().upper()
+    secret = payload.secret_id.strip()
+    if not _APP_ID_RE.fullmatch(app_id):
+        raise HTTPException(status_code=400, detail="App ID should look like ABCDE123XY-100 — copy it from the Fyers dashboard")
+    if not (5 <= len(secret) <= 64) or not all(33 <= ord(c) <= 126 for c in secret) or "#" in secret:
+        raise HTTPException(status_code=400, detail="Secret ID looks invalid — copy it exactly from the Fyers dashboard")
+    try:
+        return fyers_auth.save_credentials(app_id, secret)
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=500, detail="Could not save credentials to the server configuration") from exc
+
+
 @router.get("/auth/fyers/login")
-def fyers_login():
+def fyers_login(current_user: CurrentUser = None):
     try:
         return fyers_auth.get_login_payload()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="Fyers SDK is not available on the server") from exc
 
 
 @router.get("/auth/fyers/callback")
@@ -65,6 +101,7 @@ def fyers_callback(
 
     try:
         fyers_auth.exchange_auth_code(received_code)
+        fyers_auth.activate_fyers_provider()
         reset_provider()
         return _success_html("You can close this popup and return to StrikeFluency.")
     except Exception as exc:
@@ -72,19 +109,19 @@ def fyers_callback(
 
 
 @router.get("/auth/fyers/status")
-def fyers_status():
+def fyers_status(current_user: CurrentUser = None):
     return fyers_auth.connection_status()
 
 
 @router.delete("/auth/fyers/token")
-def delete_fyers_token():
+def delete_fyers_token(current_user: CurrentUser = None):
     fyers_auth.clear_saved_token(revoke_db=True)
     reset_provider()
     return {"success": True, "message": "Fyers token cleared"}
 
 
 @router.post("/auth/fyers/token")
-def set_fyers_token(payload: FyersAccessTokenRequest):
+def set_fyers_token(payload: FyersAccessTokenRequest, current_user: CurrentUser):
     try:
         persisted = fyers_auth.store_access_token(payload.access_token, source="manual")
         reset_provider()
@@ -99,9 +136,10 @@ def set_fyers_token(payload: FyersAccessTokenRequest):
 
 
 @router.post("/auth/fyers/exchange")
-def exchange_fyers_auth_code(payload: FyersAuthCodeRequest):
+def exchange_fyers_auth_code(payload: FyersAuthCodeRequest, current_user: CurrentUser = None):
     try:
         response = fyers_auth.exchange_auth_code(payload.auth_code)
+        fyers_auth.activate_fyers_provider()
         reset_provider()
         return {
             "success": True,
@@ -114,8 +152,8 @@ def exchange_fyers_auth_code(payload: FyersAuthCodeRequest):
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
-@router.get("/auth/fyers/debug/chain/{instrument_id}")
-def debug_fyers_chain(instrument_id: str):
+@router.get("/auth/fyers/debug/chain/{instrument_id}", dependencies=[Depends(require_dev_environment)])
+def debug_fyers_chain(instrument_id: str, current_user: CurrentUser = None):
     try:
         from app.market.provider_factory import get_market_provider
 
@@ -127,13 +165,16 @@ def debug_fyers_chain(instrument_id: str):
 
 # Backward-compatible aliases for the older Settings implementation.
 @router.get("/broker/fyers/status")
-def legacy_fyers_status():
-    return fyers_status()
+def legacy_fyers_status(current_user: CurrentUser = None):
+    return fyers_auth.connection_status()
 
 
 @router.get("/broker/fyers/auth-url")
-def legacy_fyers_auth_url():
-    payload = fyers_login()
+def legacy_fyers_auth_url(current_user: CurrentUser = None):
+    try:
+        payload = fyers_auth.get_login_payload()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"auth_url": payload["login_url"], **payload}
 
 
@@ -143,7 +184,7 @@ def legacy_fyers_callback(auth_code: str | None = Query(default=None), code: str
 
 
 @router.get("/broker/fyers/profile")
-def legacy_fyers_profile():
+def legacy_fyers_profile(current_user: CurrentUser = None):
     try:
         return fyers_auth.get_profile()
     except ValueError as exc:
@@ -153,10 +194,10 @@ def legacy_fyers_profile():
 
 
 @router.post("/broker/fyers/token")
-def legacy_fyers_exchange(payload: FyersAuthCodeRequest):
+def legacy_fyers_exchange(payload: FyersAuthCodeRequest, current_user: CurrentUser = None):
     return exchange_fyers_auth_code(payload)
 
 
 @router.post("/broker/fyers/disconnect")
-def legacy_fyers_disconnect():
+def legacy_fyers_disconnect(current_user: CurrentUser = None):
     return delete_fyers_token()

@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import useAuthStore from '../../store/authStore'
 import { useToast } from '../../components/common/Toast'
-import { clearFyersToken, exchangeFyersAuthCode, getFyersLogin, getFyersProfile, getFyersStatus } from '../../api/broker'
+import { clearFyersToken, getFyersProfile, getFyersStatus } from '../../api/broker'
+import FyersSetupWizard from '../../components/broker/FyersSetupWizard'
+import { getSessions, logout, logoutAll, revokeSession } from '../../api/auth'
 import { User, Bell, Shield, Globe, LogOut, ChevronRight, Link as LinkIcon, RefreshCw, Unplug } from 'lucide-react'
 
 const Card = ({ children, style = {} }) => (
   <div style={{
-    background: '#fff', border: '1px solid #E5E7EB',
+    background: 'var(--color-surface)', border: '1px solid var(--border)',
     borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
     overflow: 'hidden', ...style
   }}>
@@ -15,9 +17,9 @@ const Card = ({ children, style = {} }) => (
 )
 
 const SectionHeader = ({ title, subtitle }) => (
-  <div style={{ padding: '14px 20px', borderBottom: '1px solid #F0EDF1', background: '#F8F7F9' }}>
-    <div style={{ color: '#111827', fontSize: 13, fontWeight: 600 }}>{title}</div>
-    {subtitle && <div style={{ color: '#9CA3AF', fontSize: 11, marginTop: 2 }}>{subtitle}</div>}
+  <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', background: 'var(--color-surface2)' }}>
+    <div style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>{title}</div>
+    {subtitle && <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{subtitle}</div>}
   </div>
 )
 
@@ -25,11 +27,11 @@ const SettingRow = ({ label, description, children, noBorder }) => (
   <div style={{
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '14px 20px',
-    borderBottom: noBorder ? 'none' : '1px solid #F8F7F9'
+    borderBottom: noBorder ? 'none' : '1px solid var(--color-surface2)'
   }}>
     <div style={{ flex: 1, paddingRight: 24 }}>
-      <div style={{ color: '#111827', fontSize: 13, fontWeight: 500 }}>{label}</div>
-      {description && <div style={{ color: '#9CA3AF', fontSize: 11, marginTop: 2 }}>{description}</div>}
+      <div style={{ color: 'var(--text)', fontSize: 13, fontWeight: 500 }}>{label}</div>
+      {description && <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{description}</div>}
     </div>
     <div style={{ flexShrink: 0 }}>{children}</div>
   </div>
@@ -41,13 +43,13 @@ function Toggle({ value, onChange }) {
       onClick={() => onChange(!value)}
       style={{
         width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer',
-        background: value ? '#714B67' : '#E5E7EB',
+        background: value ? 'var(--primary)' : 'var(--border)',
         position: 'relative', transition: 'background 0.2s', flexShrink: 0
       }}
     >
       <div style={{
         position: 'absolute', top: 3, left: value ? 21 : 3,
-        width: 16, height: 16, borderRadius: '50%', background: '#fff',
+        width: 16, height: 16, borderRadius: '50%', background: 'var(--color-surface)',
         transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
       }} />
     </button>
@@ -66,17 +68,17 @@ function ProfileSection({ user }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
           <div style={{
             width: 56, height: 56, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #714B67, #5A3A52)',
+            background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0, boxShadow: '0 2px 8px rgba(113,75,103,0.22)'
+            flexShrink: 0, boxShadow: '0 2px 8px rgba(37,99,235,0.22)'
           }}>
             <span style={{ color: '#fff', fontSize: 20, fontWeight: 700 }}>{(user?.full_name || user?.email || 'T').charAt(0).toUpperCase()}</span>
           </div>
           <div>
-            <div style={{ color: '#111827', fontSize: 15, fontWeight: 600 }}>{user?.full_name || 'Trader'}</div>
-            <div style={{ color: '#6B7280', fontSize: 12, marginTop: 2 }}>{user?.email}</div>
+            <div style={{ color: 'var(--text)', fontSize: 15, fontWeight: 600 }}>{user?.full_name || 'Trader'}</div>
+            <div style={{ color: 'var(--text-sub)', fontSize: 12, marginTop: 2 }}>{user?.email}</div>
             <div style={{ marginTop: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 10px', borderRadius: 20, background: '#F3EEF3', color: '#5A3A52' }}>
+              <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 10px', borderRadius: 20, background: 'var(--primary-bg)', color: 'var(--primary-dark)' }}>
                 {user?.tier || 'BRONZE'} TIER
               </span>
             </div>
@@ -90,7 +92,7 @@ function ProfileSection({ user }) {
           </div>
           <div>
             <label className="sf-label">Email Address</label>
-            <input className="sf-input" value={email} readOnly style={{ background: '#F8F7F9', color: '#9CA3AF', cursor: 'not-allowed' }} />
+            <input className="sf-input" value={email} readOnly style={{ background: 'var(--color-surface2)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
           </div>
         </div>
 
@@ -141,7 +143,7 @@ function TradingPreferences() {
         <Toggle value={prefs.autoFillLtp} onChange={v => set('autoFillLtp', v)} />
       </SettingRow>
 
-      <div style={{ padding: '12px 20px', borderTop: '1px solid #F0EDF1', display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
         <button onClick={() => success('Trading preferences saved')} className="sf-btn-primary" style={{ height: 36, padding: '0 20px', fontSize: 13 }}>
           Save Preferences
         </button>
@@ -180,8 +182,8 @@ function NotificationSettings() {
 
 function BrokerIntegrationSection() {
   const [status, setStatus] = useState(null)
-  const [authCode, setAuthCode] = useState('')
   const [loading, setLoading] = useState(false)
+  const [wizardOpen, setWizardOpen] = useState(false)
   const { success, error } = useToast()
 
   const loadStatus = async () => {
@@ -201,68 +203,6 @@ function BrokerIntegrationSection() {
   useEffect(() => {
     loadStatus()
   }, [])
-
-  const openAuthUrl = async () => {
-    setLoading(true)
-    const popup = window.open('', 'fyers-connect', 'width=520,height=720')
-    if (!popup) {
-      setLoading(false)
-      error('Popup blocked. Allow popups for this site and try again.')
-      return
-    }
-
-    let poll = null
-    try {
-      const res = await getFyersLogin()
-      popup.location.href = res.data.login_url || res.data.auth_url
-      success('Fyers login opened')
-
-      const startedAt = Date.now()
-      poll = window.setInterval(async () => {
-        if (Date.now() - startedAt > 180000) {
-          window.clearInterval(poll)
-          setLoading(false)
-          error('Fyers connection timed out')
-          return
-        }
-
-        try {
-          const statusRes = await getFyersStatus()
-          setStatus(statusRes.data)
-          if (statusRes.data?.connected) {
-            window.clearInterval(poll)
-            try { popup.close() } catch (_) {}
-            setLoading(false)
-            success('Fyers connected')
-          }
-        } catch (_) {}
-      }, 3000)
-    } catch (err) {
-      if (poll) window.clearInterval(poll)
-      try { popup.close() } catch (_) {}
-      setLoading(false)
-      error(err.response?.data?.detail || 'Unable to generate Fyers login URL')
-    }
-  }
-  const submitAuthCode = async () => {
-    const trimmed = authCode.trim()
-    if (!trimmed) {
-      error('Paste the Fyers auth code first')
-      return
-    }
-
-    setLoading(true)
-    try {
-      const res = await exchangeFyersAuthCode(trimmed)
-      success(res.data?.message || 'Fyers token saved')
-      setAuthCode('')
-      await loadStatus()
-    } catch (err) {
-      error(err.response?.data?.detail || 'Fyers token exchange failed')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const refreshProfile = async () => {
     setLoading(true)
@@ -288,7 +228,6 @@ function BrokerIntegrationSection() {
     try {
       const res = await clearFyersToken()
       success(res.data?.message || 'Fyers disconnected')
-      setAuthCode('')
       await loadStatus()
     } catch (err) {
       error(err.response?.data?.detail || 'Unable to disconnect Fyers')
@@ -299,18 +238,31 @@ function BrokerIntegrationSection() {
 
   const connected = !!status?.connected
   const badgeLabel = connected ? 'Connected' : status?.has_token ? 'Token saved' : 'Not connected'
-  const badgeColor = connected ? '#15803d' : '#92400e'
-  const badgeBg = connected ? '#f0fdf4' : '#fffbeb'
+  const badgeColor = connected ? 'var(--gain-text)' : status?.has_token ? '#92400e' : 'var(--text-sub)'
+  const badgeBg = connected ? '#f0fdf4' : status?.has_token ? '#fffbeb' : 'var(--color-surface2)'
+  const profileName = status?.profile?.name || status?.profile?.display_name
 
   return (
     <Card>
-      <SectionHeader title="Broker Integration" subtitle="Connect your Fyers account for live market data and broker token management" />
+      <SectionHeader title="Broker Integration" subtitle="Connect your Fyers account for live market data" />
       <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ color: '#111827', fontSize: 14, fontWeight: 600 }}>Fyers</div>
-            <div style={{ color: '#9CA3AF', fontSize: 12, marginTop: 4 }}>
-              {status?.message || 'Generate an auth URL, sign in with Fyers, and paste the auth code here.'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 12, background: 'var(--primary-bg)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+            }}>
+              <LinkIcon size={20} color="var(--primary)" />
+            </div>
+            <div>
+              <div style={{ color: 'var(--text)', fontSize: 14, fontWeight: 600 }}>
+                Fyers{profileName ? ` — ${profileName}` : ''}
+              </div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 3 }}>
+                {connected
+                  ? `Live market data active · token ${status?.token_preview || ''}`
+                  : status?.message || 'Connect your Fyers account in a guided 3-step setup.'}
+              </div>
             </div>
           </div>
           <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: badgeBg, color: badgeColor }}>
@@ -318,44 +270,85 @@ function BrokerIntegrationSection() {
           </span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 14 }}>
-          <div>
-            <label className="sf-label">Fyers auth code</label>
-            <input className="sf-input" value={authCode} onChange={e => setAuthCode(e.target.value)} placeholder="Paste the code returned by Fyers" />
-          </div>
-          <div>
-            <label className="sf-label">Saved token</label>
-            <input className="sf-input" value={status?.token_preview || 'Not available'} readOnly style={{ background: '#F8F7F9', color: '#9CA3AF' }} />
-          </div>
-        </div>
-
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-          <button type="button" className="sf-btn-primary" disabled={loading} onClick={openAuthUrl} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <LinkIcon size={15} />
-            Open Fyers Login
-          </button>
-          <button type="button" className="sf-btn-outline" disabled={loading} onClick={submitAuthCode} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <RefreshCw size={15} />
-            Save Auth Code
-          </button>
-          <button type="button" className="sf-btn-outline" disabled={loading} onClick={refreshProfile} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <RefreshCw size={15} />
-            Refresh Profile
-          </button>
-          <button type="button" className="sf-btn-outline" disabled={loading} onClick={disconnect} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: '#dc2626' }}>
-            <Unplug size={15} />
-            Disconnect
-          </button>
+          {!connected ? (
+            <button type="button" className="sf-btn-primary" onClick={() => setWizardOpen(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <LinkIcon size={15} />
+              Add Fyers Broker
+            </button>
+          ) : (
+            <>
+              <button type="button" className="sf-btn-outline" disabled={loading} onClick={refreshProfile}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <RefreshCw size={15} />
+                Refresh Profile
+              </button>
+              <button type="button" className="sf-btn-outline" onClick={() => setWizardOpen(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <LinkIcon size={15} />
+                Reconfigure
+              </button>
+              <button type="button" className="sf-btn-outline" disabled={loading} onClick={disconnect}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--loss)' }}>
+                <Unplug size={15} />
+                Disconnect
+              </button>
+            </>
+          )}
         </div>
 
-        {status?.profile && (
-          <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, background: '#F8F7F9', padding: 14 }}>
-            <div style={{ color: '#111827', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Profile</div>
-            <pre style={{ margin: 0, color: '#6B7280', fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+        {connected && status?.profile && (
+          <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--color-surface2)', padding: 14 }}>
+            <div style={{ color: 'var(--text)', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Profile</div>
+            <pre style={{ margin: 0, color: 'var(--text-sub)', fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
               {JSON.stringify(status.profile, null, 2)}
             </pre>
           </div>
         )}
+      </div>
+
+      <FyersSetupWizard
+        isOpen={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onConnected={loadStatus}
+      />
+    </Card>
+  )
+}
+
+function SessionsSection({ clearAuth }) {
+  const [sessions, setSessions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const { success, error } = useToast()
+
+  const load = async () => {
+    try { setSessions((await getSessions()).data) } catch (_) { error('Unable to load active sessions') } finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [])
+
+  const revoke = async (familyId) => {
+    try { await revokeSession(familyId); success('Session revoked'); await load() } catch (_) { error('Unable to revoke session') }
+  }
+
+  const revokeAll = async () => {
+    try { await logoutAll(); clearAuth(); window.location.href = '/login' } catch (_) { error('Unable to sign out everywhere') }
+  }
+
+  return (
+    <Card>
+      <SectionHeader title="Active Sessions" subtitle="Review and revoke devices with access to your account" />
+      <div style={{ padding: 20 }}>
+        {loading ? <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Loading sessions...</div> : sessions.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No active sessions found.</div> : sessions.map(session => (
+          <div key={session.family_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F3F4F6' }}>
+            <div>
+              <div style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>{session.current ? 'This device' : 'Active device'}</div>
+              <div style={{ color: 'var(--text-sub)', fontSize: 11, marginTop: 3 }}>{session.device_info || 'Unknown browser'} · {session.session_policy}</div>
+            </div>
+            <button className="sf-btn-outline" onClick={() => revoke(session.family_id)} style={{ height: 30, fontSize: 11 }}>Revoke</button>
+          </div>
+        ))}
+        <button onClick={revokeAll} className="sf-btn-outline" style={{ marginTop: 16, color: 'var(--loss)', borderColor: 'var(--loss)' }}>Sign out everywhere</button>
       </div>
     </Card>
   )
@@ -371,16 +364,16 @@ function AccountSection({ clearAuth }) {
         <span className="badge-primary" style={{ fontSize: 11 }}>Free Beta</span>
       </SettingRow>
       <SettingRow label="Data & Privacy" description="Your trade data is stored locally and on server" noBorder>
-        <span style={{ color: '#9CA3AF', fontSize: 12 }}>Encrypted</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Encrypted</span>
       </SettingRow>
-      <div style={{ padding: '14px 20px', borderTop: '1px solid #F0EDF1', background: '#fef9f9' }}>
+      <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', background: '#fef9f9' }}>
         {!showConfirm ? (
           <button
             onClick={() => setShowConfirm(true)}
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
               background: 'none', border: 'none', cursor: 'pointer',
-              color: '#dc2626', fontSize: 13, fontWeight: 500, fontFamily: 'Inter,sans-serif', padding: 0
+              color: 'var(--loss)', fontSize: 13, fontWeight: 500, fontFamily: 'Inter,sans-serif', padding: 0
             }}
           >
             <LogOut size={15} />
@@ -388,10 +381,10 @@ function AccountSection({ clearAuth }) {
           </button>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ color: '#6B7280', fontSize: 13 }}>Are you sure?</span>
+            <span style={{ color: 'var(--text-sub)', fontSize: 13 }}>Are you sure?</span>
             <button
-              onClick={() => { clearAuth(); window.location.href = '/login' }}
-              style={{ background: '#dc2626', border: 'none', borderRadius: 7, padding: '6px 16px', color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Inter,sans-serif' }}
+              onClick={async () => { clearAuth(); try { await logout() } catch (_) {} window.location.href = '/login' }}
+              style={{ background: 'var(--loss)', border: 'none', borderRadius: 7, padding: '6px 16px', color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'Inter,sans-serif' }}
             >
               Yes, sign out
             </button>
@@ -422,7 +415,7 @@ export default function SettingsPage() {
     <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 20, alignItems: 'start' }}>
       <Card>
         <div style={{ padding: '12px 8px' }}>
-          <div style={{ color: '#9CA3AF', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '4px 12px 8px' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '4px 12px 8px' }}>
             Settings
           </div>
           {SECTIONS.map(({ id, icon: Icon, label }) => (
@@ -432,12 +425,12 @@ export default function SettingsPage() {
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 gap: 10, padding: '9px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                background: active === id ? '#F3EEF3' : 'transparent',
-                color: active === id ? '#5A3A52' : '#6B7280',
+                background: active === id ? 'var(--primary-bg)' : 'transparent',
+                color: active === id ? 'var(--primary-dark)' : 'var(--text-sub)',
                 fontSize: 13, fontFamily: 'Inter,sans-serif', fontWeight: active === id ? 500 : 400,
                 marginBottom: 2, transition: 'all 0.13s', textAlign: 'left'
               }}
-              onMouseEnter={e => active !== id && (e.currentTarget.style.background = '#F8F7F9')}
+              onMouseEnter={e => active !== id && (e.currentTarget.style.background = 'var(--color-surface2)')}
               onMouseLeave={e => active !== id && (e.currentTarget.style.background = 'transparent')}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
@@ -455,6 +448,7 @@ export default function SettingsPage() {
         {active === 'trading' && <TradingPreferences />}
         {active === 'notifications' && <NotificationSettings />}
         {active === 'broker' && <BrokerIntegrationSection />}
+        {active === 'account' && <SessionsSection clearAuth={clearAuth} />}
         {active === 'account' && <AccountSection clearAuth={clearAuth} />}
       </div>
     </div>

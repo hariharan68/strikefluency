@@ -66,6 +66,8 @@ def create_access_token(
     tenant_id: str,
     role: str,
     expires_delta: Optional[timedelta] = None,
+    session_id: Optional[str] = None,
+    token_version: int = 0,
 ) -> str:
     """
     Create a short-lived JWT access token.
@@ -101,6 +103,9 @@ def create_access_token(
         "type": "access",
         "iat": now,
         "exp": expire,
+        "sid": session_id,
+        "tv": token_version,
+        "jti": uuid.uuid4().hex,
     }
 
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)

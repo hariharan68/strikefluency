@@ -15,7 +15,7 @@ export default function RuleViolationToast({ ruleCode, wasBlocked }) {
         <div style={{ color: wasBlocked ? '#ff6875' : '#e97d35', fontSize: 13, fontWeight: 500 }}>
           Rule {wasBlocked ? 'Violated' : 'Warning'}
         </div>
-        <div style={{ color: '#6B7280', fontSize: 12 }}>
+        <div style={{ color: 'var(--text-sub)', fontSize: 12 }}>
           {RULE_LABELS[ruleCode] || ruleCode}
         </div>
       </div>

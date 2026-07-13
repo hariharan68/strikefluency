@@ -24,6 +24,7 @@ from app.core.oauth2_schemes import oauth2_scheme
 from app.core.security import verify_token
 from app.database import get_db
 from app.models.user import User
+from app.services.jti_store import is_denied
 
 
 def get_current_user(
@@ -72,6 +73,9 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
 
+    if is_denied(payload.get("jti")):
+        raise credentials_exception
+
     # ── Step 2: Parse the user_id UUID ────────────────────
     try:
         user_id = uuid.UUID(user_id_str)
@@ -90,7 +94,19 @@ def get_current_user(
             detail="Account is deactivated",
         )
 
+    if payload.get("tv", 0) != user.token_version:
+        raise credentials_exception
+
     return user
+
+
+def get_current_auth(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    db: Session = Depends(get_db),
+) -> tuple[User, dict]:
+    """Return the authenticated user and claims for session-aware endpoints."""
+    user = get_current_user(token, db)
+    return user, verify_token(token, expected_type="access")
 
 
 def get_current_active_admin(

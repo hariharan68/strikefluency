@@ -7,30 +7,30 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Legend
 } from 'recharts'
 
-const COLORS = ['#ef4444','#714B67','#f59e0b','#8b5cf6','#22c55e','#f97316']
+const COLORS = ['var(--loss-bar)','var(--primary)','var(--warn)','var(--primary)','var(--gain-bar)','var(--warn)']
 
 const Card = ({ children, style = {} }) => (
-  <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden', ...style }}>
+  <div style={{ background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden', ...style }}>
     {children}
   </div>
 )
 const CardHeader = ({ title }) => (
-  <div style={{ padding: '12px 18px', borderBottom: '1px solid #F0EDF1', background: '#F8F7F9' }}>
-    <span style={{ color: '#111827', fontSize: 13, fontWeight: 600 }}>{title}</span>
+  <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', background: 'var(--color-surface2)' }}>
+    <span style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>{title}</span>
   </div>
 )
 const tooltipStyle = {
-  contentStyle: { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
-  labelStyle: { color: '#6B7280' }, itemStyle: { color: '#111827' }
+  contentStyle: { background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
+  labelStyle: { color: 'var(--text-sub)' }, itemStyle: { color: 'var(--text)' }
 }
 
 function CustomBarTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
   const val = payload[0].value
   return (
-    <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 12px', fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-      <div style={{ color: '#6B7280', marginBottom: 4 }}>{label}</div>
-      <div style={{ color: val >= 0 ? '#16a34a' : '#dc2626', fontWeight: 600, fontFamily: "'JetBrains Mono',monospace" }}>
+    <div style={{ background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+      <div style={{ color: 'var(--text-sub)', marginBottom: 4 }}>{label}</div>
+      <div style={{ color: val >= 0 ? 'var(--gain)' : 'var(--loss)', fontWeight: 600, fontFamily: "'JetBrains Mono',monospace" }}>
         {val >= 0 ? '+' : ''}{formatCurrency(val)}
       </div>
     </div>
@@ -66,45 +66,45 @@ export default function AnalyticsPage() {
       {/* Stats strip — matching reference */}
       <Card>
         <div style={{ display: 'flex', minHeight: 88 }}>
-          <div style={{ flex: 1, padding: '18px 22px', borderRight: '1px solid #F0EDF1' }}>
-            <div style={{ color: '#6B7280', fontSize: 12, marginBottom: 5 }}>Avg. PnL/Day</div>
-            <div className="num" style={{ color: '#111827', fontSize: 26, fontWeight: 600 }}>
+          <div style={{ flex: 1, padding: '18px 22px', borderRight: '1px solid var(--border)' }}>
+            <div style={{ color: 'var(--text-sub)', fontSize: 12, marginBottom: 5 }}>Avg. PnL/Day</div>
+            <div className="num" style={{ color: 'var(--text)', fontSize: 26, fontWeight: 600 }}>
               {formatCurrency(s?.avg_pnl_per_day ?? s?.avg_pnl_per_trade ?? 0)}
             </div>
           </div>
-          <div style={{ flex: 1, padding: '18px 22px', borderRight: '1px solid #F0EDF1', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}>
+          <div style={{ flex: 1, padding: '18px 22px', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6 }}>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <span style={{ color: '#6B7280', fontSize: 13 }}>Win Trades:</span>
-              <span className="num" style={{ color: '#16a34a', fontWeight: 600, fontSize: 15 }}>{s?.winning_trades ?? s?.win_days ?? 0}</span>
+              <span style={{ color: 'var(--text-sub)', fontSize: 13 }}>Win Trades:</span>
+              <span className="num" style={{ color: 'var(--gain)', fontWeight: 600, fontSize: 15 }}>{s?.winning_trades ?? s?.win_days ?? 0}</span>
             </div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <span style={{ color: '#6B7280', fontSize: 13 }}>Loss Trades:</span>
-              <span className="num" style={{ color: '#dc2626', fontWeight: 600, fontSize: 15 }}>{s?.losing_trades ?? s?.loss_days ?? 0}</span>
+              <span style={{ color: 'var(--text-sub)', fontSize: 13 }}>Loss Trades:</span>
+              <span className="num" style={{ color: 'var(--loss)', fontWeight: 600, fontSize: 15 }}>{s?.losing_trades ?? s?.loss_days ?? 0}</span>
             </div>
           </div>
-          <div style={{ flex: 1.5, padding: '18px 22px', borderRight: '1px solid #F0EDF1' }}>
+          <div style={{ flex: 1.5, padding: '18px 22px', borderRight: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-              <span style={{ color: '#6B7280', fontSize: 12 }}>Total PnL</span>
+              <span style={{ color: 'var(--text-sub)', fontSize: 12 }}>Total PnL</span>
               <span className={isGain ? 'badge-gain' : 'badge-loss'}>
                 {isGain && <ArrowUpRight size={11} />}
                 {isGain ? '+' : ''}{pnlPct}%
               </span>
             </div>
-            <div className="num" style={{ color: '#111827', fontSize: 26, fontWeight: 600, marginBottom: 3 }}>
+            <div className="num" style={{ color: 'var(--text)', fontSize: 26, fontWeight: 600, marginBottom: 3 }}>
               {formatCurrency(Math.abs(totalPnl))}
             </div>
-            <div style={{ color: '#9CA3AF', fontSize: 11 }}>from {formatCurrency(initial)}</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>from {formatCurrency(initial)}</div>
           </div>
           <div style={{ flex: 1, padding: '18px 22px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', alignContent: 'center' }}>
             {[
               { label: 'Total Trades', value: s?.total_trades ?? '—' },
-              { label: 'Win Rate', value: s?.win_rate != null ? `${(s.win_rate*100).toFixed(0)}%` : '—', color: '#16a34a' },
-              { label: 'Best Trade', value: s?.best_trade != null ? formatCurrency(s.best_trade) : '—', color: '#16a34a' },
-              { label: 'Profit Factor', value: s?.profit_factor != null ? Number(s.profit_factor).toFixed(2) : '—', color: (s?.profit_factor ?? 0) >= 1.5 ? '#16a34a' : '#d97706' },
+              { label: 'Win Rate', value: s?.win_rate != null ? `${(s.win_rate*100).toFixed(0)}%` : '—', color: 'var(--gain)' },
+              { label: 'Best Trade', value: s?.best_trade != null ? formatCurrency(s.best_trade) : '—', color: 'var(--gain)' },
+              { label: 'Profit Factor', value: s?.profit_factor != null ? Number(s.profit_factor).toFixed(2) : '—', color: (s?.profit_factor ?? 0) >= 1.5 ? 'var(--gain)' : 'var(--warn)' },
             ].map(item => (
               <div key={item.label}>
-                <div style={{ color: '#9CA3AF', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{item.label}</div>
-                <div className="num" style={{ color: item.color || '#111827', fontSize: 13, fontWeight: 600 }}>{item.value}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{item.label}</div>
+                <div className="num" style={{ color: item.color || 'var(--text)', fontSize: 13, fontWeight: 600 }}>{item.value}</div>
               </div>
             ))}
           </div>
@@ -115,26 +115,26 @@ export default function AnalyticsPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <Card>
           <div style={{ padding: '14px 18px 6px', textAlign: 'center' }}>
-            <div style={{ color: '#111827', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Aggregate PnL vs Date</div>
+            <div style={{ color: 'var(--text)', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Aggregate PnL vs Date</div>
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <div style={{ width: 10, height: 10, background: '#22c55e', borderRadius: 2 }} />
-              <span style={{ color: '#6B7280', fontSize: 11 }}>Daily PnL</span>
+              <div style={{ width: 10, height: 10, background: 'var(--gain-bar)', borderRadius: 2 }} />
+              <span style={{ color: 'var(--text-sub)', fontSize: 11 }}>Daily PnL</span>
             </div>
           </div>
           {barData.length === 0 ? (
-            <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', fontSize: 12 }}>
+            <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
               Place trades to see your daily P&L chart
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={barData} margin={{ left: 0, right: 8, bottom: 4 }}>
-                <CartesianGrid stroke="#F0EDF1" vertical={false} />
-                <XAxis dataKey="date" tick={{ fill: '#9CA3AF', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#E5E7EB' }} interval="preserveStartEnd" />
-                <YAxis tick={{ fill: '#9CA3AF', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `₹${(v/1000).toFixed(0)}K`} />
-                <ReferenceLine y={0} stroke="#E5E7EB" />
+                <CartesianGrid stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={{ stroke: 'var(--border)' }} interval="preserveStartEnd" />
+                <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `₹${(v/1000).toFixed(0)}K`} />
+                <ReferenceLine y={0} stroke="var(--border)" />
                 <Tooltip content={<CustomBarTooltip />} />
                 <Bar dataKey="pnl" radius={[2,2,0,0]}>
-                  {barData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? '#22c55e' : '#ef4444'} />)}
+                  {barData.map((d, i) => <Cell key={i} fill={d.pnl >= 0 ? 'var(--gain-bar)' : 'var(--loss-bar)'} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -143,14 +143,14 @@ export default function AnalyticsPage() {
 
         <Card>
           <div style={{ padding: '14px 18px 6px', textAlign: 'center' }}>
-            <div style={{ color: '#111827', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Cumulative PnL vs Date</div>
+            <div style={{ color: 'var(--text)', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Cumulative PnL vs Date</div>
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid #22c55e', background: '#fff' }} />
-              <span style={{ color: '#6B7280', fontSize: 11 }}>Daily PnL</span>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', border: '2px solid var(--gain-bar)', background: 'var(--color-surface)' }} />
+              <span style={{ color: 'var(--text-sub)', fontSize: 11 }}>Daily PnL</span>
             </div>
           </div>
           {areaData.length === 0 ? (
-            <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', fontSize: 12 }}>
+            <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
               Place trades to see your cumulative curve
             </div>
           ) : (
@@ -158,16 +158,16 @@ export default function AnalyticsPage() {
               <AreaChart data={areaData} margin={{ left: 0, right: 8, bottom: 4 }}>
                 <defs>
                   <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#22c55e" stopOpacity={0.25} />
-                    <stop offset="100%" stopColor="#22c55e" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="var(--gain-bar)" stopOpacity={0.25} />
+                    <stop offset="100%" stopColor="var(--gain-bar)" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="#F0EDF1" vertical={false} />
-                <XAxis dataKey="date" tick={{ fill: '#9CA3AF', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#E5E7EB' }} interval="preserveStartEnd" />
-                <YAxis tick={{ fill: '#9CA3AF', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `₹${(v/1000).toFixed(0)}K`} />
-                <ReferenceLine y={0} stroke="#E5E7EB" />
+                <CartesianGrid stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={{ stroke: 'var(--border)' }} interval="preserveStartEnd" />
+                <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `₹${(v/1000).toFixed(0)}K`} />
+                <ReferenceLine y={0} stroke="var(--border)" />
                 <Tooltip {...tooltipStyle} formatter={v => formatCurrency(v)} />
-                <Area type="monotone" dataKey="cumulative" stroke="#22c55e" strokeWidth={1.5} fill="url(#ag)" dot={{ r: 2, fill: '#22c55e' }} activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="cumulative" stroke="var(--gain-bar)" strokeWidth={1.5} fill="url(#ag)" dot={{ r: 2, fill: 'var(--gain-bar)' }} activeDot={{ r: 4 }} />
               </AreaChart>
             </ResponsiveContainer>
           )}
@@ -180,17 +180,17 @@ export default function AnalyticsPage() {
           <CardHeader title="30-Day Discipline Score Trend" />
           <div style={{ padding: '12px 16px' }}>
             {disciplineTrend.length === 0 ? (
-              <div style={{ height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', fontSize: 12 }}>
+              <div style={{ height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
                 No discipline data yet
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={130}>
                 <BarChart data={disciplineTrend}>
-                  <CartesianGrid stroke="#F0EDF1" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fill: '#9CA3AF', fontSize: 10 }} tickLine={false} axisLine={{ stroke: '#E5E7EB' }} interval="preserveStartEnd" />
-                  <YAxis domain={[0, 100]} tick={{ fill: '#9CA3AF', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} />
+                  <CartesianGrid stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={{ stroke: 'var(--border)' }} interval="preserveStartEnd" />
+                  <YAxis domain={[0, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} />
                   <Tooltip {...tooltipStyle} formatter={v => `${v}%`} />
-                  <Bar dataKey="score" fill="#714B67" radius={[3,3,0,0]} />
+                  <Bar dataKey="score" fill="var(--primary)" radius={[3,3,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -200,7 +200,7 @@ export default function AnalyticsPage() {
           <CardHeader title="Mistake Breakdown" />
           <div style={{ padding: '12px 16px' }}>
             {mistakes.length === 0 ? (
-              <div style={{ height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9CA3AF', fontSize: 12, textAlign: 'center' }}>
+              <div style={{ height: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, textAlign: 'center' }}>
                 No mistake data yet
               </div>
             ) : (
@@ -210,7 +210,7 @@ export default function AnalyticsPage() {
                     {mistakes.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
                   <Tooltip {...tooltipStyle} />
-                  <Legend iconSize={8} iconType="circle" wrapperStyle={{ fontSize: 10, color: '#6B7280' }} />
+                  <Legend iconSize={8} iconType="circle" wrapperStyle={{ fontSize: 10, color: 'var(--text-sub)' }} />
                 </PieChart>
               </ResponsiveContainer>
             )}
