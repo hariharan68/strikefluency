@@ -11,7 +11,6 @@ from decimal import Decimal
 from app.core.constants import (
     MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE,
     MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE,
-    LOT_SIZES,
 )
 
 
@@ -76,8 +75,16 @@ def calculate_pnl(
 
 
 def get_lot_size(instrument: str) -> int:
-    """Return lot size for a given instrument. Defaults to 50."""
-    return LOT_SIZES.get(instrument, 50)
+    """
+    Return lot size for a given instrument.
+
+    Raises UnknownInstrumentError for anything unrecognised. It used to default
+    to 50, which meant a typo'd instrument produced confidently wrong P&L with
+    no error anywhere — far more dangerous than a crash.
+    """
+    from app.core.instruments import get_spec
+
+    return get_spec(instrument).lot_size
 
 
 def round_to_tick(price: Decimal, tick_size: Decimal = Decimal("0.05")) -> Decimal:

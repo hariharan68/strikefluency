@@ -35,9 +35,14 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     SQL_ECHO: bool = False
 
-    # Market data provider: mock | fyers | truedata
+    # Market data provider: mock | fyers
+    # ("truedata" and "kite" are not implemented — provider_factory falls back
+    # to mock for anything that isn't "fyers".)
     MARKET_DATA_PROVIDER: str = "mock"
-    NIFTY_LOT_SIZE: int = 50
+
+    # NIFTY_LOT_SIZE removed: it was never read anywhere, was stale (50 vs the
+    # real 65), and only ever described one instrument. Lot sizes now live in
+    # app/core/instruments.py — see get_spec(symbol).lot_size.
 
     # Fyers (dev/testing)
     FYERS_CLIENT_ID: str = ""

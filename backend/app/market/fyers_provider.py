@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any
 
+from app.core.instruments import get_spec
 from app.market.base import MarketDataProvider
 from app.market.mock_provider import MockMarketDataProvider
 
@@ -15,15 +16,10 @@ FYERS_SYMBOLS = {
     "SENSEX": "BSE:SENSEX-INDEX",
 }
 
-LOT_SIZES = {
-    "NIFTY": 65,
-    "BANKNIFTY": 30,
-    "SENSEX": 20,
-}
-
 SPOT_TTL_SECONDS = 35
 OPTION_CHAIN_TTL_SECONDS = 95
 HISTORY_TTL_SECONDS = 3600
+EXPIRY_TTL_SECONDS = 3600   # the expiry list changes at most once a week
 
 
 class FyersMarketDataProvider(MarketDataProvider):
@@ -171,10 +167,87 @@ class FyersMarketDataProvider(MarketDataProvider):
             return float(response["d"][0]["v"]["lp"])
         raise RuntimeError(f"Fyers LTP error: {response}")
 
+    @staticmethod
+    def _normalise_expiry(entry: dict) -> str | None:
+        """
+        Coerce one Fyers expiryData entry to "YYYY-MM-DD".
+
+        Fyers is inconsistent here: entries carry a `date` (seen as DD-MM-YYYY)
+        and an `expiry` (epoch seconds, as a string). Try both, and return None
+        rather than guessing if neither parses — a wrong expiry silently prices
+        the wrong contract.
+        """
+        raw_date = entry.get("date")
+        if raw_date:
+            for fmt in ("%d-%m-%Y", "%Y-%m-%d", "%d-%b-%Y"):
+                try:
+                    return datetime.strptime(str(raw_date), fmt).date().isoformat()
+                except ValueError:
+                    continue
+
+        raw_expiry = entry.get("expiry")
+        if raw_expiry is not None:
+            try:
+                return datetime.fromtimestamp(int(raw_expiry)).date().isoformat()
+            except (ValueError, OSError, OverflowError):
+                pass
+
+        logger.warning("Unparseable Fyers expiry entry: %s", entry)
+        return None
+
+    def get_expiries(self, instrument: str) -> list[str]:
+        """
+        Fyers' own expiry list — holiday-adjusted, and correct across SEBI
+        expiry-day changes without any code change here.
+        """
+        key = ("expiries", instrument)
+        cached = self._get_cached(key, EXPIRY_TTL_SECONDS)
+        if cached is not None:
+            return list(cached)
+
+        try:
+            value = self._fetch_expiries(instrument)
+            if not value:
+                raise RuntimeError("Fyers returned an empty expiry list")
+            self._store_good(key, value)
+            return value
+        except Exception as e:
+            logger.warning("Fyers expiry fallback for %s: %s", instrument, e)
+            last = self._last_good.get(key)
+            if last is not None:
+                return list(last)
+            return self._mock.get_expiries(instrument)
+
+    def _fetch_expiries(self, instrument: str) -> list[str]:
+        if not self._fyers:
+            raise ConnectionError("Fyers not connected")
+
+        symbol = FYERS_SYMBOLS.get(instrument)
+        if symbol is None:
+            raise ValueError(f"No Fyers symbol mapped for {instrument!r}")
+
+        response = self._fyers.optionchain(
+            data={"symbol": symbol, "strikecount": 1, "timestamp": ""}
+        )
+        if response.get("s") != "ok":
+            raise RuntimeError(f"Fyers option-chain error: {response}")
+
+        entries = response.get("data", {}).get("expiryData", []) or []
+        parsed = [self._normalise_expiry(e) for e in entries]
+        return sorted({p for p in parsed if p})
+
     def _parse_option_chain(self, instrument: str, data: dict) -> dict:
         options_chain = data.get("optionsChain", [])
         expiry_data = data.get("expiryData", [])
-        nearest_expiry = expiry_data[0]["expiry"] if expiry_data else "unknown"
+
+        # Keep the whole list. This previously kept expiry_data[0]["expiry"] and
+        # dropped the rest — which both starved calendar spreads of the other
+        # expiries and put a raw epoch string into a field documented as
+        # "YYYY-MM-DD".
+        expiries = sorted({
+            e for e in (self._normalise_expiry(x) for x in expiry_data) if e
+        })
+        nearest_expiry = expiries[0] if expiries else "unknown"
 
         strikes_map = {}
         for contract in options_chain:
@@ -206,9 +279,10 @@ class FyersMarketDataProvider(MarketDataProvider):
             "spot_price": spot_price,
             "atm_strike": atm_strike,
             "expiry": nearest_expiry,
+            "expiries": expiries,
             "timestamp": datetime.now().isoformat(),
             "pcr": pcr,
-            "lot_size": LOT_SIZES.get(instrument, 50),
+            "lot_size": get_spec(instrument).lot_size,
             "strikes": sorted_strikes,
         }
 

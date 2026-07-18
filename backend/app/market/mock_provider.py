@@ -12,6 +12,8 @@ Swap to FyersProvider by changing one .env line:
 import random
 from datetime import datetime, date
 
+from app.core.expiry_calendar import nearest_expiry, next_expiries
+from app.core.instruments import get_spec
 from app.market.base import MarketDataProvider
 
 # Starting spot prices (realistic as of 2024)
@@ -21,11 +23,9 @@ BASE_PRICES = {
     "SENSEX":    73000.0,
 }
 
-LOT_SIZES = {
-    "NIFTY":     65,
-    "BANKNIFTY": 30,
-    "SENSEX":    20,
-}
+# Lot sizes and strike intervals come from app/core/instruments.py — the single
+# source of truth. They used to be redeclared here, which is how NIFTY ended up
+# as 50 in some code paths and 65 in others.
 
 # Simulate price drift — changes each call
 _current_prices = dict(BASE_PRICES)
@@ -69,7 +69,7 @@ class MockMarketDataProvider(MarketDataProvider):
     def get_option_chain(self, instrument: str, expiry: str = None) -> dict:
         """Generate a full 20-strike mock option chain."""
         spot = self.get_spot_price(instrument)
-        lot_size = LOT_SIZES.get(instrument, 50)
+        lot_size = get_spec(instrument).lot_size
 
         # Round spot to nearest strike interval
         interval = self._get_strike_interval(instrument)
@@ -122,10 +122,11 @@ class MockMarketDataProvider(MarketDataProvider):
             "instrument":  instrument,
             "spot_price":  spot,
             "atm_strike":  atm_strike,
-            "expiry":      expiry or self._nearest_expiry(),
+            "expiry":      expiry or self._nearest_expiry(instrument),
             "timestamp":   datetime.now().isoformat(),
             "pcr":         pcr,
             "lot_size":    lot_size,
+            "source":      "mock",   # lets consumers flag this as non-live data
             "strikes":     strikes,
         }
 
@@ -148,15 +149,21 @@ class MockMarketDataProvider(MarketDataProvider):
 
     def _get_strike_interval(self, instrument: str) -> int:
         """Strike price intervals per instrument."""
-        return {"NIFTY": 50, "BANKNIFTY": 100, "SENSEX": 100}.get(instrument, 50)
+        return get_spec(instrument).strike_interval
 
-    def _nearest_expiry(self) -> str:
-        """Return the nearest Thursday (weekly expiry for NIFTY)."""
-        today = date.today()
-        days_until_thursday = (3 - today.weekday()) % 7
-        if days_until_thursday == 0:
-            days_until_thursday = 7
-        expiry = today.replace(
-            day=today.day + days_until_thursday
-        )
-        return expiry.strftime("%Y-%m-%d")
+    def get_expiries(self, instrument: str) -> list[str]:
+        """
+        Rule-derived expiries. Holiday-blind — see expiry_calendar's docstring.
+        The mock has no broker to ask, so this is the best available answer.
+        """
+        return [d.isoformat() for d in next_expiries(instrument, count=6)]
+
+    def _nearest_expiry(self, instrument: str = "NIFTY") -> str:
+        """
+        Nearest expiry per the instrument's own rule.
+
+        Previously hardcoded Thursday (NIFTY moved to Tuesday, and BANKNIFTY is
+        monthly-only), and computed the date with `today.replace(day=today.day +
+        n)` — which raises ValueError whenever the offset crosses a month end.
+        """
+        return nearest_expiry(instrument).isoformat()

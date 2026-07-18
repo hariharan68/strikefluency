@@ -53,6 +53,9 @@ class User(Base):
     journal_entries: Mapped[list["JournalEntry"]] = relationship(
         "JournalEntry", back_populates="user"
     )
+    strategies: Mapped[list["Strategy"]] = relationship(
+        "Strategy", back_populates="user"
+    )
 
     __table_args__ = (
         # Email is globally unique: one email = one account across all tenants.

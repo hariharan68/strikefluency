@@ -98,6 +98,28 @@ class DisciplineViolationError(StrikeFluencyError):
         super().__init__(message)
 
 
+# ── Strategy Builder errors ───────────────────────────────────
+
+class StrategyValidationError(StrikeFluencyError):
+    """
+    A leg or strategy failed a builder rule (wrong underlying, off-grid strike,
+    non-lot quantity, too many legs, mixed expiries without calendar allowed).
+
+    Carries a `code` so the UI can react to the specific failure, mirroring
+    DisciplineViolationError.
+
+    Usage:
+        raise StrategyValidationError(
+            code="STRIKE_OFF_GRID",
+            message="24075 is not a valid NIFTY strike (interval 50).",
+        )
+    """
+    def __init__(self, code: str, message: str):
+        self.code = code
+        self.message = message
+        super().__init__(message)
+
+
 # ── Tenant errors ─────────────────────────────────────────────
 
 class TenantNotFoundError(StrikeFluencyError):

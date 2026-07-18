@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.core.constants import ExitReason
 from app.core.exceptions import OrderNotFoundError
+from app.core.instruments import get_spec
 from app.database import get_db
 from app.dependencies import CurrentUser
 from app.models.virtual_account import VirtualAccount
@@ -110,8 +111,6 @@ def place_new_order(
         "setup_tag":    "OI_BASED"
     }
     """
-    from app.core.constants import LOT_SIZES
-
     order_dict = {
         "instrument":   data.instrument,
         "expiry_date":  data.expiry_date,
@@ -119,7 +118,9 @@ def place_new_order(
         "option_type":  data.option_type,
         "action":       data.action,
         "quantity":     data.quantity,
-        "lot_size":     LOT_SIZES.get(data.instrument, 65),
+        # Snapshotted onto the order row, never re-read afterwards: a trade
+        # placed today keeps its lot size even after SEBI revises it.
+        "lot_size":     get_spec(data.instrument).lot_size,
         "sl_price":     data.sl_price,
         "target_price": data.target_price,
         "setup_tag":    data.setup_tag,

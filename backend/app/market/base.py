@@ -87,6 +87,22 @@ class MarketDataProvider(ABC):
         pass
 
     @abstractmethod
+    def get_expiries(self, instrument: str) -> list[str]:
+        """
+        List available expiry dates, soonest first, as "YYYY-MM-DD".
+
+        A real broker's list is the source of truth: it is already adjusted for
+        trading holidays, and it self-corrects when SEBI moves an expiry day —
+        no code change on our side. Providers must return the broker's list
+        when they have one, and only fall back to app.core.expiry_calendar
+        (weekday rules, holiday-blind) when offline.
+
+        Needed for: the UI's expiry tabs, calendar/diagonal spreads, and the
+        days-to-expiry that Black-Scholes takes as T.
+        """
+        pass
+
+    @abstractmethod
     def is_connected(self) -> bool:
         """Return True if the provider connection is healthy."""
         pass

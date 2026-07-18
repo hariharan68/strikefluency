@@ -48,7 +48,7 @@ class OrderResponse(BaseModel):
     entry_ltp: Decimal
     entry_price: Decimal
     exit_price: Optional[Decimal] = None
-    sl_price: Decimal
+    sl_price: Optional[Decimal] = None   # None for legs mirrored from a strategy
     target_price: Optional[Decimal] = None
     status: str
     entry_time: datetime

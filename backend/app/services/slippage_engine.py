@@ -34,6 +34,7 @@ def calculate_slippage(
     strike: int,
     atm_strike: int,
     action: str,
+    instrument: str | None = None,
 ) -> tuple[Decimal, Decimal]:
     """
     Calculate slippage and return (fill_price, slippage_points).
@@ -43,6 +44,10 @@ def calculate_slippage(
         strike     : option strike price
         atm_strike : current ATM strike (from option chain)
         action     : "BUY" or "SELL"
+        instrument : "NIFTY" | "BANKNIFTY" | "SENSEX". Optional only for
+                     backward compatibility — always pass it. Without it the
+                     strike interval is guessed from the price level, which
+                     breaks silently once an index crosses 30000.
 
     Returns:
         (fill_price, slippage_points)
@@ -59,8 +64,7 @@ def calculate_slippage(
 
     # Determine if this strike is liquid or illiquid
     strike_distance = abs(strike - atm_strike)
-    # Convert distance to number of strikes (assuming 50-point intervals for NIFTY)
-    strike_interval = _get_strike_interval(atm_strike)
+    strike_interval = _get_strike_interval(atm_strike, instrument)
     strikes_from_atm = strike_distance // strike_interval
 
     if strikes_from_atm <= LIQUID_STRIKE_DISTANCE:
@@ -88,12 +92,18 @@ def _random_decimal(min_val: Decimal, max_val: Decimal) -> Decimal:
     return Decimal(str(round(random_float, 4)))
 
 
-def _get_strike_interval(atm_strike: int) -> int:
+def _get_strike_interval(atm_strike: int, instrument: str | None = None) -> int:
     """
-    Estimate strike interval from ATM strike price.
-    NIFTY ≈ 50-point intervals
-    BANKNIFTY / SENSEX ≈ 100-point intervals
+    Strike interval for an instrument, from app/core/instruments.py.
+
+    Falls back to guessing from the price level when no instrument is given.
+    That guess ("under 30000 must be NIFTY") happens to hold at today's levels,
+    but it is a time bomb: it silently returns 100 for NIFTY once NIFTY trades
+    above 30000, widening every slippage calculation. Pass `instrument`.
     """
-    if atm_strike < 30000:
-        return 50   # NIFTY
-    return 100      # BANKNIFTY or SENSEX
+    if instrument:
+        from app.core.instruments import get_spec
+
+        return get_spec(instrument).strike_interval
+
+    return 50 if atm_strike < 30000 else 100

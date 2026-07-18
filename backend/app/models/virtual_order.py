@@ -23,7 +23,9 @@ class VirtualOrder(Base):
     entry_ltp: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     entry_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     exit_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
-    sl_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    # Nullable since Phase 5: single orders always set it, but a leg mirrored from
+    # a multi-leg Strategy has no per-leg stop — risk is managed at strategy level.
+    sl_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
     target_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="OPEN", nullable=False)
     entry_time: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
@@ -34,8 +36,15 @@ class VirtualOrder(Base):
     setup_tag: Mapped[str] = mapped_column(String(30), nullable=False)
     exit_reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     is_discipline_compliant: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Set when this order is a leg mirrored from a multi-leg Strategy (Phase 5+);
+    # NULL for ordinary single-leg orders. Lets existing analytics/journal treat
+    # strategy legs as normal orders while still being groupable by strategy.
+    strategy_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("strategies.id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     user: Mapped["User"] = relationship("User", back_populates="virtual_orders")
+    strategy: Mapped[Optional["Strategy"]] = relationship("Strategy", back_populates="mirrored_orders")
     account: Mapped["VirtualAccount"] = relationship("VirtualAccount", back_populates="virtual_orders")
     position: Mapped[Optional["VirtualPosition"]] = relationship("VirtualPosition", back_populates="order", uselist=False)
     journal_entry: Mapped[Optional["JournalEntry"]] = relationship("JournalEntry", back_populates="order", uselist=False)

@@ -14,6 +14,7 @@ from app.models.oauth_transaction import OAuthTransaction
 from app.models.oauth_identity import OAuthIdentity
 from app.models.link_challenge import LinkChallenge
 from app.models.security_notification import SecurityNotification
+from app.models.strategy import Strategy, StrategyLeg, StrategyPosition
 
 __all__ = [
     "Tenant",
@@ -32,4 +33,7 @@ __all__ = [
     'OAuthIdentity',
     'LinkChallenge',
     'SecurityNotification',
+    'Strategy',
+    'StrategyLeg',
+    'StrategyPosition',
 ]

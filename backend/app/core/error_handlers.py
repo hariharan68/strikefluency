@@ -23,6 +23,7 @@ from app.core.exceptions import (
     OrderAlreadyClosedError,
     OrderNotFoundError,
     PositionNotFoundError,
+    StrategyValidationError,
     TenantNotFoundError,
     TokenExpiredError,
     TokenInvalidError,
@@ -105,11 +106,40 @@ def register_error_handlers(app):
             },
         )
 
+    @app.exception_handler(StrategyValidationError)
+    async def strategy_validation_handler(request: Request, exc: StrategyValidationError):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "STRATEGY_VALIDATION",
+                "code": exc.code,
+                "message": exc.message,
+            },
+        )
+
     @app.exception_handler(OrderNotFoundError)
     async def order_not_found_handler(request: Request, exc: OrderNotFoundError):
         return JSONResponse(
             status_code=404,
             content={"error": "ORDER_NOT_FOUND", "message": str(exc)},
+        )
+
+    # Pure-layer lookup errors from the Strategy Builder (plain ValueErrors).
+    from app.core.instruments import UnknownInstrumentError
+    from app.strategy.templates import UnknownTemplateError
+
+    @app.exception_handler(UnknownTemplateError)
+    async def unknown_template_handler(request: Request, exc: UnknownTemplateError):
+        return JSONResponse(
+            status_code=404,
+            content={"error": "UNKNOWN_TEMPLATE", "message": str(exc)},
+        )
+
+    @app.exception_handler(UnknownInstrumentError)
+    async def unknown_instrument_handler(request: Request, exc: UnknownInstrumentError):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "UNKNOWN_INSTRUMENT", "message": str(exc)},
         )
 
     @app.exception_handler(OrderAlreadyClosedError)

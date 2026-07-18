@@ -20,6 +20,17 @@ class OptionType:
     PE = "PE"
 
 
+# ── Leg instrument types (Strategy Builder) ───────────────────
+# Superset of OptionType: a strategy leg may also be a futures leg
+# (synthetic futures, range forward, risk reversal).
+class LegInstrumentType:
+    CE = "CE"
+    PE = "PE"
+    FUT = "FUT"
+    ALL = [CE, PE, FUT]
+    OPTIONS = [CE, PE]
+
+
 # ── Order actions ─────────────────────────────────────────────
 class OrderAction:
     BUY = "BUY"
@@ -119,11 +130,19 @@ DEFAULT_DISCIPLINE_RULES = {
 
 
 # ── Lot sizes ─────────────────────────────────────────────────
-LOT_SIZES = {
-    Instrument.NIFTY:     65,
-    Instrument.BANKNIFTY: 30,
-    Instrument.SENSEX:    20,
-}
+# DEPRECATED — derived from app/core/instruments.py, the single source of truth.
+# Kept only so existing imports keep working; new code should call
+# instruments.get_spec(symbol).lot_size instead.
+#
+# Never reintroduce a literal here. This dict previously declared its own values
+# while config.py, fyers_provider.py and mock_provider.py each declared theirs,
+# and they drifted apart (NIFTY was 50 in some paths and 65 in others).
+#
+# Note the behaviour difference: LOT_SIZES.get(x, 50) silently invents a lot
+# size for an unknown instrument; get_spec(x) raises. Prefer get_spec.
+from app.core.instruments import INSTRUMENTS as _INSTRUMENTS
+
+LOT_SIZES = {symbol: spec.lot_size for symbol, spec in _INSTRUMENTS.items()}
 
 
 # ── Market hours (IST) ────────────────────────────────────────
@@ -139,6 +158,45 @@ EOD_SQUAREOFF_MINUTE = 29
 
 # ── Discipline scoring ────────────────────────────────────────
 DISCIPLINE_SCORE_WINDOW = 20   # rolling window of last N trades
+
+
+# ── Strategy Builder ──────────────────────────────────────────
+class StrategyStatus:
+    DRAFT    = "DRAFT"      # editable, no capital committed
+    EXECUTED = "EXECUTED"   # legs filled, margin blocked, position live
+    CLOSED   = "CLOSED"     # all legs squared off, margin released
+    ALL = [DRAFT, EXECUTED, CLOSED]
+
+
+class LegStatus:
+    PENDING = "PENDING"     # part of a draft, never filled
+    OPEN    = "OPEN"        # filled and live
+    CLOSED  = "CLOSED"      # squared off (supports partial exits)
+    ALL = [PENDING, OPEN, CLOSED]
+
+
+# Drives the Bullish / Bearish / Neutral / Other filter tabs in the UI.
+class StrategyCategory:
+    BULLISH = "BULLISH"
+    BEARISH = "BEARISH"
+    NEUTRAL = "NEUTRAL"
+    OTHER   = "OTHER"
+    ALL = [BULLISH, BEARISH, NEUTRAL, OTHER]
+
+
+# A strategy counts as ONE trade against the discipline rules, no matter how
+# many legs it has. Leg-level rules (NO_DIRECTION_FLIP, NO_AVERAGING_DOWN) are
+# meaningless for multi-leg structures — an iron condor is deliberately both
+# directions at once — so they are skipped for strategy execution.
+STRATEGY_DISCIPLINE_RULES = [
+    DisciplineRuleCode.MAX_TRADES_PER_DAY,
+    DisciplineRuleCode.MAX_DAILY_LOSS,
+    DisciplineRuleCode.MANDATORY_SETUP_TAG,
+]
+
+# Hard ceiling on legs per strategy. Configurable, but keep it sane — margin
+# benefit maths and the payoff grid both get expensive past this.
+MAX_STRATEGY_LEGS = 10
 
 
 # ── User roles ────────────────────────────────────────────────

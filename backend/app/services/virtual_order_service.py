@@ -12,7 +12,8 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.core.constants import ExitReason, LOT_SIZES, OrderStatus
+from app.core.constants import ExitReason, OrderStatus
+from app.core.instruments import get_spec
 from app.core.exceptions import (
     InsufficientBalanceError,
     MarketClosedError,
@@ -71,7 +72,7 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
     expiry_date  = order_data["expiry_date"]
     action       = order_data["action"]
     quantity     = int(order_data["quantity"])
-    lot_size     = order_data.get("lot_size", LOT_SIZES.get(instrument, 65))
+    lot_size     = order_data.get("lot_size") or get_spec(instrument).lot_size
 
     chain = provider.get_option_chain(instrument)
     ltp, atm_strike = _get_ltp_from_chain(chain, strike_price, option_type)
@@ -88,6 +89,7 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
         strike=strike_price,
         atm_strike=atm_strike,
         action=action,
+        instrument=instrument,
     )
 
     # ── Calculate margin (5x leverage) ────────────────────
@@ -211,6 +213,7 @@ def close_position(
         strike=int(order.strike_price),
         atm_strike=atm_strike,
         action=exit_action,
+        instrument=order.instrument,
     )
 
     # ── P&L calculation ────────────────────────────────────
