@@ -313,17 +313,20 @@ export default function StrategyBuilderPage() {
               <tbody>
                 {visibleRows.map(row => {
                   const isAtm = row.strike === chain?.atm_strike
+                  // ITM wash: a call is in-the-money below spot, a put above it.
+                  const ceBg = !isAtm && spot > 0 && row.strike < spot ? 'var(--itm-bg)' : undefined
+                  const peBg = !isAtm && spot > 0 && row.strike > spot ? 'var(--itm-bg)' : undefined
                   return (
-                    <tr key={row.strike} className="chain-row" style={{ borderBottom: '1px solid var(--color-surface2)', background: isAtm ? 'rgba(245,196,81,0.06)' : (row.strike < spot ? 'rgba(49,221,106,0.03)' : 'transparent') }}>
-                      <td className="num" style={{ ...td, color: 'var(--text-muted)' }}>{num(row.ce?.delta)}</td>
-                      <td className="num" style={{ ...td, textAlign: 'right', color: 'var(--gain-text)', fontWeight: 600 }}>{num(row.ce?.ltp)}</td>
+                    <tr key={row.strike} className="chain-row" style={{ borderBottom: '1px solid var(--color-surface2)', background: isAtm ? 'rgba(245,196,81,0.06)' : 'transparent' }}>
+                      <td className="num" style={{ ...td, color: 'var(--text-muted)', background: ceBg }}>{num(row.ce?.delta)}</td>
+                      <td className="num" style={{ ...td, textAlign: 'right', color: 'var(--gain-text)', fontWeight: 600, background: ceBg }}>{num(row.ce?.ltp)}</td>
                       <td style={{ ...td, textAlign: 'center' }}>{row.ce && <BSButtons onBuy={() => addLeg(row.strike, 'CE', 'BUY')} onSell={() => addLeg(row.strike, 'CE', 'SELL')} />}</td>
                       <td style={{ ...td, textAlign: 'center', fontWeight: 700, background: isAtm ? 'rgba(245,196,81,0.12)' : 'var(--color-surface2)' }}>
                         <span className="num">{Math.round(row.strike)}</span>{isAtm && <span style={{ marginLeft: 4, fontSize: 8, fontWeight: 800, color: 'var(--warn)' }}>ATM</span>}
                       </td>
                       <td style={{ ...td, textAlign: 'center' }}>{row.pe && <BSButtons onBuy={() => addLeg(row.strike, 'PE', 'BUY')} onSell={() => addLeg(row.strike, 'PE', 'SELL')} />}</td>
-                      <td className="num" style={{ ...td, color: 'var(--loss-text)', fontWeight: 600 }}>{num(row.pe?.ltp)}</td>
-                      <td className="num" style={{ ...td, textAlign: 'right', color: 'var(--text-muted)' }}>{num(row.pe?.delta)}</td>
+                      <td className="num" style={{ ...td, color: 'var(--loss-text)', fontWeight: 600, background: peBg }}>{num(row.pe?.ltp)}</td>
+                      <td className="num" style={{ ...td, textAlign: 'right', color: 'var(--text-muted)', background: peBg }}>{num(row.pe?.delta)}</td>
                     </tr>
                   )
                 })}

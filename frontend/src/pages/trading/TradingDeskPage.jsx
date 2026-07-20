@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import useMarketStore from '../../store/marketStore'
 import useVirtualTrading from '../../hooks/useVirtualTrading'
 import { getOptionChain } from '../../api/market'
@@ -12,6 +12,7 @@ import { X, AlertTriangle } from 'lucide-react'
 import { useToast } from '../../components/common/Toast'
 
 const INSTRUMENTS = ['NIFTY', 'BANKNIFTY', 'SENSEX']
+const WINDOWS = [5, 10, 15, 20, 'All']   // strikes to show each side of ATM
 
 const Card = ({ children, style = {} }) => (
   <div style={{ background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden', ...style }}>
@@ -64,10 +65,24 @@ function PositionRow({ pos, onClose }) {
 
 export default function TradingDeskPage() {
   const [instrument, setInstrument] = useState('NIFTY')
+  const [strikeCount, setStrikeCount] = useState(5)   // ±ATM window, default ±5
   const [prefill, setPrefill] = useState(null)
   const [chainLoading, setChainLoading] = useState(false)
   const [positions, setPositions] = useState([])
-  const optionChain = useMarketStore(s => s.optionChain)
+  // Select only the chain for the active tab — the WS pushes all three instruments.
+  const optionChain = useMarketStore(s => s.chains[instrument]) || null
+
+  // Trim the chain to ±strikeCount rows around ATM (or show all).
+  const viewChain = useMemo(() => {
+    const strikes = optionChain?.strikes
+    if (!strikes?.length || strikeCount === 'All') return optionChain
+    const atm = optionChain.atm_strike
+    const atmIdx = strikes.reduce(
+      (best, r, i) => Math.abs(r.strike - atm) < Math.abs(strikes[best].strike - atm) ? i : best, 0)
+    const sliced = strikes.slice(
+      Math.max(0, atmIdx - strikeCount), Math.min(strikes.length, atmIdx + strikeCount + 1))
+    return { ...optionChain, strikes: sliced }
+  }, [optionChain, strikeCount])
   const { loadAccount } = useVirtualTrading()
   const { mode, loadMode } = useDiscipline()
   const { success } = useToast()
@@ -81,8 +96,11 @@ export default function TradingDeskPage() {
 
   useEffect(() => {
     setChainLoading(true)
+    setPrefill(null)   // a stale prefill from the previous instrument is invalid here
     getOptionChain(instrument)
-      .then(r => useMarketStore.getState().setOptionChain(r.data))
+      // REST wraps the chain as { success, data }; the WS sends it bare. Unwrap
+      // so the store always holds the raw chain the table/prefill expect.
+      .then(r => useMarketStore.getState().setOptionChain(r.data?.data ?? r.data))
       .catch(() => {})
       .finally(() => setChainLoading(false))
   }, [instrument])
@@ -140,10 +158,28 @@ export default function TradingDeskPage() {
         <Card>
           <PanelHead
             title={`Option Chain — ${instrument}`}
-            right={<span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Click LTP to prefill order</span>}
+            right={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="eyebrow" style={{ fontSize: 10 }}>Strikes ±ATM</span>
+                <div style={{ display: 'flex', background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3, gap: 2 }}>
+                  {WINDOWS.map(w => (
+                    <button key={w} onClick={() => setStrikeCount(w)} className="toggle-btn"
+                      style={{ fontSize: 11.5, padding: '3px 9px', minWidth: 0,
+                        background: strikeCount === w ? 'var(--primary)' : 'transparent',
+                        color: strikeCount === w ? 'var(--on-primary)' : 'var(--text-sub)' }}>
+                      {w === 'All' ? 'All' : `±${w}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            }
           />
           <OptionChainTable
-            data={optionChain} onCellClick={(s, t, l) => setPrefill({ strike: s, optionType: t, ltp: l })}
+            data={viewChain}
+            onCellClick={(s, t, l) => setPrefill({
+              strike: s, optionType: t, ltp: l,
+              expiry: optionChain?.expiry, lotSize: optionChain?.lot_size,
+            })}
             instrument={instrument} loading={chainLoading && !optionChain}
           />
         </Card>

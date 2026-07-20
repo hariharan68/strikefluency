@@ -51,12 +51,15 @@ export default function OrderFormPanel({ prefill, instrument = 'NIFTY', discipli
     if (prefill) {
       setStrike(prefill.strike?.toString() || '')
       setOptionType(prefill.optionType || 'CE')
-      setLtp(prefill.ltp?.toFixed(2) || '')
+      setLtp(prefill.ltp != null ? Number(prefill.ltp).toFixed(2) : '')
+      // Use the contract's real expiry (NIFTY=Tue, BANKNIFTY=monthly, SENSEX)
+      // instead of the generic Thursday fallback, so the order matches the chain.
+      if (prefill.expiry) setExpiry(prefill.expiry)
       setError(null)
     }
   }, [prefill])
 
-  const lotSize = LOT_SIZES[instrument] || 65
+  const lotSize = prefill?.lotSize || LOT_SIZES[instrument] || 65
   const qty = lots * lotSize
   const ltpNum = parseFloat(ltp) || 0
   const slNum = parseFloat(sl) || 0

@@ -50,6 +50,8 @@
   --loss-bar: #ff5c5c;
   --warn: #f5c451;
   --warn-bg: rgba(245,196,81,0.12);
+  /* ITM (in-the-money) cell wash — light sandalwood */
+  --itm-bg: rgba(214,182,120,0.13);
 
   --brand-dark: #1a1a1a;
   --brand-dark-soft: #1f1f1f;
@@ -112,6 +114,8 @@
   --loss-bar: #ef4444;
   --warn: #c98a04;
   --warn-bg: rgba(201,138,4,0.14);
+  /* ITM (in-the-money) cell wash — light sandalwood */
+  --itm-bg: rgba(220,192,132,0.38);
 
   --brand-dark: #ffffff;
   --brand-dark-soft: #f0f0f3;

@@ -285,16 +285,20 @@ export default function OptionChainPage() {
                   const isAtm = row.strike === model.atm
                   const isPain = row.strike === model.maxPain
                   const iv = row.ce?.iv ?? row.pe?.iv
+                  // ITM wash: a call is in-the-money below spot, a put above it.
+                  const spot = metrics?.spot ?? model.atm
+                  const ceBg = !isAtm && spot > 0 && row.strike < spot ? 'var(--itm-bg)' : undefined
+                  const peBg = !isAtm && spot > 0 && row.strike > spot ? 'var(--itm-bg)' : undefined
                   return (
                     <tr key={row.strike} className="chain-row" style={{ borderBottom: '1px solid var(--color-surface2)', background: isAtm ? 'rgba(245,196,81,0.07)' : 'transparent' }}>
                       {/* CALL */}
-                      <td style={td}><BuildupPill label={row.ce?.buildup_label} /></td>
-                      <td style={{ ...td, textAlign: 'right' }}><VolCell value={row.ce?.volume} rank={model.ceRank.get(row.strike)} align="right" /></td>
-                      <td style={{ ...td, textAlign: 'right' }}>{row.ce && <ChgPct oi={row.ce.oi} oiChange={row.ce.oi_change} />}</td>
-                      <td style={{ ...td, textAlign: 'right', minWidth: 96 }}>
+                      <td style={{ ...td, background: ceBg }}><BuildupPill label={row.ce?.buildup_label} /></td>
+                      <td style={{ ...td, textAlign: 'right', background: ceBg }}><VolCell value={row.ce?.volume} rank={model.ceRank.get(row.strike)} align="right" /></td>
+                      <td style={{ ...td, textAlign: 'right', background: ceBg }}>{row.ce && <ChgPct oi={row.ce.oi} oiChange={row.ce.oi_change} />}</td>
+                      <td style={{ ...td, textAlign: 'right', minWidth: 96, background: ceBg }}>
                         {row.ce && <><span className="num" style={{ fontSize: 12, color: 'var(--text-sub)' }}>{fmtOI(row.ce.oi)}</span><OIBar value={row.ce.oi} max={model.maxCe} side="ce" /></>}
                       </td>
-                      <td className="num" style={{ ...td, textAlign: 'right', color: 'var(--gain-text)', fontWeight: 600 }}>{fmtNum(row.ce?.ltp)}</td>
+                      <td className="num" style={{ ...td, textAlign: 'right', color: 'var(--gain-text)', fontWeight: 600, background: ceBg }}>{fmtNum(row.ce?.ltp)}</td>
                       {/* STRIKE + IV */}
                       <td style={{ ...td, textAlign: 'center', background: isAtm ? 'rgba(245,196,81,0.13)' : 'var(--color-surface2)' }}>
                         <span className="num" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>{Math.round(row.strike)}</span>
@@ -303,13 +307,13 @@ export default function OptionChainPage() {
                       </td>
                       <td className="num" style={{ ...td, textAlign: 'center', color: 'var(--text-sub)', background: isAtm ? 'rgba(245,196,81,0.13)' : 'var(--color-surface2)' }}>{iv && iv > 0 ? iv.toFixed(1) : '—'}</td>
                       {/* PUT */}
-                      <td className="num" style={{ ...td, textAlign: 'left', color: 'var(--loss-text)', fontWeight: 600 }}>{fmtNum(row.pe?.ltp)}</td>
-                      <td style={{ ...td, textAlign: 'left', minWidth: 96 }}>
+                      <td className="num" style={{ ...td, textAlign: 'left', color: 'var(--loss-text)', fontWeight: 600, background: peBg }}>{fmtNum(row.pe?.ltp)}</td>
+                      <td style={{ ...td, textAlign: 'left', minWidth: 96, background: peBg }}>
                         {row.pe && <><span className="num" style={{ fontSize: 12, color: 'var(--text-sub)' }}>{fmtOI(row.pe.oi)}</span><OIBar value={row.pe.oi} max={model.maxPe} side="pe" /></>}
                       </td>
-                      <td style={{ ...td, textAlign: 'left' }}>{row.pe && <ChgPct oi={row.pe.oi} oiChange={row.pe.oi_change} />}</td>
-                      <td style={{ ...td, textAlign: 'left' }}><VolCell value={row.pe?.volume} rank={model.peRank.get(row.strike)} align="left" /></td>
-                      <td style={{ ...td, textAlign: 'right' }}><BuildupPill label={row.pe?.buildup_label} /></td>
+                      <td style={{ ...td, textAlign: 'left', background: peBg }}>{row.pe && <ChgPct oi={row.pe.oi} oiChange={row.pe.oi_change} />}</td>
+                      <td style={{ ...td, textAlign: 'left', background: peBg }}><VolCell value={row.pe?.volume} rank={model.peRank.get(row.strike)} align="left" /></td>
+                      <td style={{ ...td, textAlign: 'right', background: peBg }}><BuildupPill label={row.pe?.buildup_label} /></td>
                     </tr>
                   )
                 })}

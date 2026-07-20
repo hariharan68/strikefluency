@@ -28,7 +28,7 @@ function OIBar({ value, max, side }) {
   )
 }
 
-function PriceCell({ price, onClick, side }) {
+function PriceCell({ price, onClick, side, bg }) {
   const [flash, setFlash] = useState(null)
   const prev = useRef(price)
   useEffect(() => {
@@ -47,7 +47,7 @@ function PriceCell({ price, onClick, side }) {
       className={flash === 'green' ? 'flash-green' : flash === 'red' ? 'flash-red' : ''}
       style={{
         padding: '0 10px', height: 36, textAlign: 'center',
-        cursor: 'pointer', userSelect: 'none',
+        cursor: 'pointer', userSelect: 'none', background: bg,
         color: side === 'ce' ? 'var(--primary-dark)' : 'var(--loss)',
         fontFamily: "'Inter',sans-serif", fontVariantNumeric: 'tabular-nums', fontSize: 12, fontWeight: 500,
       }}
@@ -81,8 +81,10 @@ export default function OptionChainTable({ data, onCellClick, instrument, loadin
 
   const atmStrike = data.atm_strike
   const spotPrice = data.spot_price
-  const maxCeOI = Math.max(...data.strikes.map(r => r.call?.open_interest || 0))
-  const maxPeOI = Math.max(...data.strikes.map(r => r.put?.open_interest || 0))
+  // Providers emit ce/pe with `oi`; tolerate a legacy call/put/open_interest shape too.
+  const legOI = (leg) => leg?.oi ?? leg?.open_interest ?? 0
+  const maxCeOI = Math.max(0, ...data.strikes.map(r => legOI(r.ce || r.call)))
+  const maxPeOI = Math.max(0, ...data.strikes.map(r => legOI(r.pe || r.put)))
 
   return (
     <div>
@@ -137,28 +139,37 @@ export default function OptionChainTable({ data, onCellClick, instrument, loadin
           <tbody>
             {data.strikes.map(row => {
               const isATM = row.strike === atmStrike
-              const ceChg = row.call?.change_pct
-              const peChg = row.put?.change_pct
+              // Canonical provider keys are ce/pe; fall back to call/put defensively.
+              const ce = row.ce || row.call || {}
+              const pe = row.pe || row.put || {}
+              const ceOI = legOI(ce)
+              const peOI = legOI(pe)
+              // "Chg%" = OI change as a % of OI (the only per-strike change the feed carries).
+              const ceChg = ce.oi_change != null && ceOI ? (ce.oi_change / ceOI) * 100 : (ce.change_pct ?? null)
+              const peChg = pe.oi_change != null && peOI ? (pe.oi_change / peOI) * 100 : (pe.change_pct ?? null)
+              // ITM wash: a call is in-the-money below spot, a put above it.
+              const ceBg = !isATM && spotPrice > 0 && row.strike < spotPrice ? 'var(--itm-bg)' : undefined
+              const peBg = !isATM && spotPrice > 0 && row.strike > spotPrice ? 'var(--itm-bg)' : undefined
               return (
                 <tr key={row.strike} className="chain-row" style={{
                   background: isATM ? 'var(--primary-bg)' : 'transparent',
                   borderBottom: '1px solid var(--color-surface2)',
                   borderLeft: isATM ? '3px solid var(--primary)' : '3px solid transparent'
                 }}>
-                  <td style={{ padding: 0, height: 36 }}>
-                    <OIBar value={row.call?.open_interest} max={maxCeOI} side="ce" />
+                  <td style={{ padding: 0, height: 36, background: ceBg }}>
+                    <OIBar value={ceOI} max={maxCeOI} side="ce" />
                   </td>
-                  <td className="num" style={{ padding: '0 6px', textAlign: 'center', fontSize: 11, color: (ceChg ?? 0) >= 0 ? 'var(--gain)' : 'var(--loss)' }}>
+                  <td className="num" style={{ padding: '0 6px', textAlign: 'center', fontSize: 11, background: ceBg, color: (ceChg ?? 0) >= 0 ? 'var(--gain)' : 'var(--loss)' }}>
                     {ceChg != null ? `${ceChg > 0 ? '+' : ''}${ceChg.toFixed(1)}%` : '—'}
                   </td>
-                  <td className="num" style={{ padding: '0 6px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
-                    {row.call?.iv ? row.call.iv.toFixed(1) : '—'}
+                  <td className="num" style={{ padding: '0 6px', textAlign: 'center', fontSize: 11, background: ceBg, color: 'var(--text-muted)' }}>
+                    {ce.iv ? ce.iv.toFixed(1) : '—'}
                   </td>
-                  <td className="num" style={{ padding: '0 6px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
-                    {fmtOI(row.call?.volume)}
+                  <td className="num" style={{ padding: '0 6px', textAlign: 'center', fontSize: 11, background: ceBg, color: 'var(--text-muted)' }}>
+                    {fmtOI(ce.volume)}
                   </td>
-                  <PriceCell price={row.call?.ltp} side="ce"
-                    onClick={() => onCellClick && onCellClick(row.strike, 'CE', row.call?.ltp)} />
+                  <PriceCell price={ce.ltp} side="ce" bg={ceBg}
+                    onClick={() => onCellClick && onCellClick(row.strike, 'CE', ce.ltp)} />
                   {/* Strike */}
                   <td style={{
                     padding: '0 6px', textAlign: 'center', height: 36,
@@ -171,16 +182,16 @@ export default function OptionChainTable({ data, onCellClick, instrument, loadin
                       <span style={{ fontSize: 8, background: 'var(--primary)', color: 'var(--on-primary)', padding: '1px 4px', borderRadius: 3, marginLeft: 4, verticalAlign: 'middle' }}>ATM</span>
                     )}
                   </td>
-                  <PriceCell price={row.put?.ltp} side="pe"
-                    onClick={() => onCellClick && onCellClick(row.strike, 'PE', row.put?.ltp)} />
-                  <td className="num" style={{ padding: '0 6px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
-                    {fmtOI(row.put?.volume)}
+                  <PriceCell price={pe.ltp} side="pe" bg={peBg}
+                    onClick={() => onCellClick && onCellClick(row.strike, 'PE', pe.ltp)} />
+                  <td className="num" style={{ padding: '0 6px', textAlign: 'center', fontSize: 11, background: peBg, color: 'var(--text-muted)' }}>
+                    {fmtOI(pe.volume)}
                   </td>
-                  <td className="num" style={{ padding: '0 6px', textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
-                    {row.put?.iv ? row.put.iv.toFixed(1) : '—'}
+                  <td className="num" style={{ padding: '0 6px', textAlign: 'center', fontSize: 11, background: peBg, color: 'var(--text-muted)' }}>
+                    {pe.iv ? pe.iv.toFixed(1) : '—'}
                   </td>
-                  <td style={{ padding: 0, height: 36 }}>
-                    <OIBar value={row.put?.open_interest} max={maxPeOI} side="pe" />
+                  <td style={{ padding: 0, height: 36, background: peBg }}>
+                    <OIBar value={peOI} max={maxPeOI} side="pe" />
                   </td>
                 </tr>
               )
