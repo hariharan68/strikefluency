@@ -167,7 +167,6 @@ export default function OptionChainPage() {
 
   const change = metrics?.change_pct ?? 0
   const chgColor = change >= 0 ? 'var(--gain)' : 'var(--loss)'
-  const futChange = 0
   const ist = now.toLocaleTimeString('en-IN', { hour12: false, timeZone: 'Asia/Kolkata' })
   const expiries = metrics?.expiries || []
   const curExpiry = expiry || metrics?.expiry_date
@@ -217,7 +216,7 @@ export default function OptionChainPage() {
 
           {metrics && <>
             <HeaderStat label="Spot" value={fmtNum(metrics.spot)} sub={`${change >= 0 ? '' : ''}${change.toFixed(2)}%`} subColor={chgColor} />
-            <HeaderStat label="Future" value={fmtNum(metrics.future)} sub={`${futChange.toFixed(2)}%`} subColor="var(--text-muted)" />
+            <HeaderStat label="Future" value={fmtNum(metrics.future)} sub="—" subColor="var(--text-muted)" />
             <HeaderStat label="VIX" value={metrics.vix != null ? fmtNum(metrics.vix) : '—'} />
           </>}
 

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
+import usePreferencesStore from '../../store/preferencesStore'
 import { useToast } from '../../components/common/Toast'
 import { clearFyersToken, getFyersProfile, getFyersStatus, revokeFyersCredentials } from '../../api/broker'
 import FyersSetupWizard from '../../components/broker/FyersSetupWizard'
 import DisciplineModeToggle from '../../components/discipline/DisciplineModeToggle'
-import { getSessions, logout, logoutAll, revokeSession } from '../../api/auth'
+import { getSessions, logout, logoutAll, revokeSession, updateProfile } from '../../api/auth'
 import { User, Bell, Shield, ShieldCheck, Globe, LogOut, ChevronRight, Link as LinkIcon, RefreshCw, Unplug, Trash2 } from 'lucide-react'
 
 const Card = ({ children, style = {} }) => (
@@ -61,7 +62,24 @@ function Toggle({ value, onChange }) {
 function ProfileSection({ user }) {
   const [fullName, setFullName] = useState(user?.full_name || '')
   const [email] = useState(user?.email || '')
-  const { success } = useToast()
+  const [saving, setSaving] = useState(false)
+  const { success, error } = useToast()
+  const setUser = useAuthStore(s => s.setUser)
+
+  const save = async () => {
+    const name = fullName.trim()
+    if (!name) { error('Full name cannot be empty'); return }
+    setSaving(true)
+    try {
+      const r = await updateProfile(name)
+      setUser(r.data)          // refresh name app-wide (sidebar/topbar)
+      success('Profile updated')
+    } catch (err) {
+      error(err.response?.data?.detail || 'Could not update profile')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <Card>
@@ -99,8 +117,8 @@ function ProfileSection({ user }) {
         </div>
 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={() => success('Profile updated (changes saved locally)')} className="sf-btn-primary" style={{ height: 36, padding: '0 20px', fontSize: 13 }}>
-            Save Changes
+          <button onClick={save} disabled={saving} className="sf-btn-primary" style={{ height: 36, padding: '0 20px', fontSize: 13 }}>
+            {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
       </div>
@@ -109,45 +127,62 @@ function ProfileSection({ user }) {
 }
 
 function TradingPreferences() {
-  const [prefs, setPrefs] = useState({
-    defaultInstrument: 'NIFTY',
-    defaultLots: 1,
-    confirmClose: true,
-    showRiskWarnings: true,
-    autoFillLtp: true,
-  })
-  const { success } = useToast()
+  const stored = usePreferencesStore(s => s.prefs)
+  const savePrefs = usePreferencesStore(s => s.save)
+  const { success, error } = useToast()
+  const [prefs, setPrefs] = useState(stored)
+  const [saving, setSaving] = useState(false)
+  // Re-sync when the store finishes loading from the backend.
+  useEffect(() => { setPrefs(stored) }, [stored])
   const set = (key, val) => setPrefs(p => ({ ...p, [key]: val }))
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await savePrefs({
+        default_instrument: prefs.default_instrument,
+        default_lots: prefs.default_lots,
+        confirm_close: prefs.confirm_close,
+        show_risk_warnings: prefs.show_risk_warnings,
+        auto_fill_ltp: prefs.auto_fill_ltp,
+      })
+      success('Trading preferences saved')
+    } catch {
+      error('Could not save preferences')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <Card>
       <SectionHeader title="Trading Preferences" subtitle="Defaults for your trading desk" />
 
       <SettingRow label="Default Instrument" description="Pre-selected instrument on Trading Desk">
-        <select className="sf-input" style={{ width: 130, height: 34 }} value={prefs.defaultInstrument} onChange={e => set('defaultInstrument', e.target.value)}>
+        <select className="sf-input" style={{ width: 130, height: 34 }} value={prefs.default_instrument} onChange={e => set('default_instrument', e.target.value)}>
           {['NIFTY', 'BANKNIFTY', 'SENSEX'].map(i => <option key={i}>{i}</option>)}
         </select>
       </SettingRow>
 
       <SettingRow label="Default Lots" description="Number of lots pre-filled in order form">
-        <input className="sf-input" type="number" min={1} max={50} style={{ width: 80, height: 34, textAlign: 'center' }} value={prefs.defaultLots} onChange={e => set('defaultLots', Math.max(1, parseInt(e.target.value) || 1))} />
+        <input className="sf-input" type="number" min={1} max={50} style={{ width: 80, height: 34, textAlign: 'center' }} value={prefs.default_lots} onChange={e => set('default_lots', Math.max(1, parseInt(e.target.value) || 1))} />
       </SettingRow>
 
       <SettingRow label="Confirm Before Closing" description="Show confirmation dialog when closing positions">
-        <Toggle value={prefs.confirmClose} onChange={v => set('confirmClose', v)} />
+        <Toggle value={prefs.confirm_close} onChange={v => set('confirm_close', v)} />
       </SettingRow>
 
       <SettingRow label="Show Risk Warnings" description="Display SL validation warnings in order form">
-        <Toggle value={prefs.showRiskWarnings} onChange={v => set('showRiskWarnings', v)} />
+        <Toggle value={prefs.show_risk_warnings} onChange={v => set('show_risk_warnings', v)} />
       </SettingRow>
 
       <SettingRow label="Auto-fill LTP from Chain" description="Prefill LTP when clicking option chain cells" noBorder>
-        <Toggle value={prefs.autoFillLtp} onChange={v => set('autoFillLtp', v)} />
+        <Toggle value={prefs.auto_fill_ltp} onChange={v => set('auto_fill_ltp', v)} />
       </SettingRow>
 
       <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={() => success('Trading preferences saved')} className="sf-btn-primary" style={{ height: 36, padding: '0 20px', fontSize: 13 }}>
-          Save Preferences
+        <button onClick={save} disabled={saving} className="sf-btn-primary" style={{ height: 36, padding: '0 20px', fontSize: 13 }}>
+          {saving ? 'Saving…' : 'Save Preferences'}
         </button>
       </div>
     </Card>
@@ -155,29 +190,51 @@ function TradingPreferences() {
 }
 
 function NotificationSettings() {
-  const [notifs, setNotifs] = useState({
-    disciplineAlert: true,
-    cooldownAlert: true,
-    dailyLossAlert: true,
-    tradeConfirmation: false,
-  })
+  const stored = usePreferencesStore(s => s.prefs)
+  const savePrefs = usePreferencesStore(s => s.save)
+  const { success, error } = useToast()
+  const [notifs, setNotifs] = useState(stored)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { setNotifs(stored) }, [stored])
   const set = (key, val) => setNotifs(p => ({ ...p, [key]: val }))
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await savePrefs({
+        notify_discipline: notifs.notify_discipline,
+        notify_cooldown: notifs.notify_cooldown,
+        notify_daily_loss: notifs.notify_daily_loss,
+        notify_trade_confirm: notifs.notify_trade_confirm,
+      })
+      success('Notification settings saved')
+    } catch {
+      error('Could not save notification settings')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <Card>
       <SectionHeader title="Notifications" subtitle="Control in-app alerts and toasts" />
       <SettingRow label="Discipline Rule Violations" description="Alert when an order is blocked by a discipline rule">
-        <Toggle value={notifs.disciplineAlert} onChange={v => set('disciplineAlert', v)} />
+        <Toggle value={notifs.notify_discipline} onChange={v => set('notify_discipline', v)} />
       </SettingRow>
       <SettingRow label="Revenge Cooldown Active" description="Remind you when you're in cooldown period">
-        <Toggle value={notifs.cooldownAlert} onChange={v => set('cooldownAlert', v)} />
+        <Toggle value={notifs.notify_cooldown} onChange={v => set('notify_cooldown', v)} />
       </SettingRow>
       <SettingRow label="Daily Loss Limit Approaching" description="Warn when you're 80% of max daily loss">
-        <Toggle value={notifs.dailyLossAlert} onChange={v => set('dailyLossAlert', v)} />
+        <Toggle value={notifs.notify_daily_loss} onChange={v => set('notify_daily_loss', v)} />
       </SettingRow>
       <SettingRow label="Trade Confirmation Toast" description="Show toast on every successful order" noBorder>
-        <Toggle value={notifs.tradeConfirmation} onChange={v => set('tradeConfirmation', v)} />
+        <Toggle value={notifs.notify_trade_confirm} onChange={v => set('notify_trade_confirm', v)} />
       </SettingRow>
+      <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={save} disabled={saving} className="sf-btn-primary" style={{ height: 36, padding: '0 20px', fontSize: 13 }}>
+          {saving ? 'Saving…' : 'Save Notifications'}
+        </button>
+      </div>
     </Card>
   )
 }

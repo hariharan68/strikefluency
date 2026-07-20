@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getAccount } from '../../api/trading'
-import { getTodayViolations, getScore, getRules } from '../../api/discipline'
+import { getAccount, getOrders, closeOrder } from '../../api/trading'
+import { getTodayViolations, getViolations, getScore, getRules } from '../../api/discipline'
 import { getPnlCurve, getSummary } from '../../api/analytics'
 import { formatCurrency, formatDate } from '../../utils/formatters'
 import { RULE_LABELS } from '../../utils/constants'
+import { useToast } from '../../components/common/Toast'
 import {
   ArrowRight, Shield, ShieldCheck, Flame, Timer, Gauge,
-  Wallet, TrendingUp, BookOpen, Check, Ban, AlertTriangle
+  Wallet, TrendingUp, BookOpen, Check, Ban, AlertTriangle,
+  LayoutDashboard, ClipboardList, Receipt, ScrollText,
+  SlidersHorizontal, RefreshCw, Download, X
 } from 'lucide-react'
 import {
   BarChart, Bar, AreaChart, Area, XAxis, YAxis,
@@ -220,8 +223,378 @@ function BarTooltip({ active, payload, label }) {
   )
 }
 
+// ── In-page tab nav (Dashboard / OrderBook / TradeBook / Logs) ────
+const TABS = [
+  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { key: 'orderbook', label: 'OrderBook', icon: ClipboardList },
+  { key: 'tradebook', label: 'TradeBook', icon: Receipt },
+  { key: 'logs',      label: 'Logs',      icon: ScrollText },
+]
+
+function DashTabs({ active, onChange }) {
+  return (
+    <div style={{ display: 'inline-flex', gap: 4, background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, alignSelf: 'flex-start' }}>
+      {TABS.map(t => {
+        const Icon = t.icon
+        const on = active === t.key
+        return (
+          <button key={t.key} onClick={() => onChange(t.key)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 15px',
+              borderRadius: 7, border: 'none', cursor: 'pointer',
+              background: on ? 'var(--primary)' : 'transparent',
+              color: on ? 'var(--on-primary)' : 'var(--text-sub)',
+              fontSize: 12.5, fontWeight: 600, fontFamily: "'Inter', sans-serif",
+              transition: 'background 0.15s',
+            }}>
+            <Icon size={15} /> {t.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+const thStyle = { padding: '9px 16px', textAlign: 'left', color: 'var(--text-muted)', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)', background: 'var(--color-surface2)', whiteSpace: 'nowrap' }
+const tdStyle = { padding: '10px 16px', fontSize: 12.5, color: 'var(--text-sub)' }
+
+function StatusBadge({ status }) {
+  const map = {
+    OPEN:       ['var(--primary-bg)', 'var(--primary)'],
+    CLOSED:     ['var(--color-surface2)', 'var(--text-sub)'],
+    SL_HIT:     ['var(--loss-bg)', 'var(--loss-text)'],
+    TARGET_HIT: ['var(--gain-bg)', 'var(--gain-text)'],
+    CANCELLED:  ['var(--color-surface2)', 'var(--text-muted)'],
+  }
+  const [bg, fg] = map[status] || map.CLOSED
+  return <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 20, background: bg, color: fg }}>{status}</span>
+}
+
+function ActionTag({ action }) {
+  const buy = action === 'BUY'
+  return <span style={{ fontSize: 10.5, fontWeight: 700, color: buy ? 'var(--gain)' : 'var(--loss)' }}>{action}</span>
+}
+
+function PanelState({ icon: Icon, title, sub }) {
+  return (
+    <div style={{ padding: '44px 18px', textAlign: 'center' }}>
+      <div style={{ width: 46, height: 46, margin: '0 auto 12px', borderRadius: '50%', background: 'var(--primary-bg)', display: 'grid', placeItems: 'center' }}>
+        <Icon size={22} color="var(--primary)" />
+      </div>
+      <div style={{ color: 'var(--text)', fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{title}</div>
+      <div style={{ color: 'var(--text-muted)', fontSize: 12.5, maxWidth: 360, margin: '0 auto' }}>{sub}</div>
+    </div>
+  )
+}
+
+function PanelShell({ title, right, children }) {
+  return (
+    <div className="sf-card" style={{ overflow: 'hidden' }}>
+      <div className="sf-card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{title}</span>
+        {right}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+const fmtPrice = (v) => (v != null ? `₹${Number(v).toFixed(2)}` : '—')
+const countLabel = (n, noun) => `${n} ${noun}${n !== 1 ? 's' : ''}`
+
+// A completed order is any that has been filled and closed.
+const CLOSED_SET = ['CLOSED', 'SL_HIT', 'TARGET_HIT']
+
+// Status groups the Filters modal exposes (StrikeFluency has no "rejected" state).
+const FILTER_GROUPS = [
+  { key: 'COMPLETE',  label: 'Complete',  test: (o) => CLOSED_SET.includes(o.status) },
+  { key: 'OPEN',      label: 'Open',      test: (o) => o.status === 'OPEN' },
+  { key: 'CANCELLED', label: 'Cancelled', test: (o) => o.status === 'CANCELLED' },
+]
+
+function OBStat({ label, value, color }) {
+  return (
+    <div className="sf-card" style={{ padding: '15px 18px' }}>
+      <div style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 500, marginBottom: 9 }}>{label}</div>
+      <div className="num" style={{ color, fontSize: 25, fontWeight: 700, lineHeight: 1 }}>{value}</div>
+    </div>
+  )
+}
+
+function ToolBtn({ icon: Icon, label, onClick, tone, disabled }) {
+  const danger = tone === 'danger'
+  return (
+    <button onClick={onClick} disabled={disabled}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 7, height: 34, padding: '0 13px',
+        borderRadius: 8, cursor: disabled ? 'not-allowed' : 'pointer',
+        border: `1px solid ${danger ? 'var(--loss)' : 'var(--border)'}`,
+        background: danger ? 'var(--loss-bg)' : 'var(--color-surface)',
+        color: danger ? 'var(--loss)' : 'var(--text-sub)',
+        fontSize: 12.5, fontWeight: 600, opacity: disabled ? 0.5 : 1,
+        fontFamily: "'Inter', sans-serif", whiteSpace: 'nowrap',
+      }}>
+      <Icon size={14} /> {label}
+    </button>
+  )
+}
+
+// OrderBook — summary cards, status filter, refresh/export, close-all + table
+function OrderBookTab() {
+  const { success, error: showErr } = useToast()
+  const [orders, setOrders] = useState(null)
+  const [statusFilter, setStatusFilter] = useState([])   // group keys; empty = all
+  const [showFilters, setShowFilters] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [confirmClose, setConfirmClose] = useState(false)
+  const [closing, setClosing] = useState(false)
+
+  const load = () => {
+    setRefreshing(true)
+    return getOrders(1)
+      .then(r => setOrders(r.data?.orders || []))
+      .catch(() => setOrders([]))
+      .finally(() => setRefreshing(false))
+  }
+  useEffect(() => { load() }, [])
+
+  const list = orders || []
+  const counts = {
+    buy:       list.filter(o => o.action === 'BUY').length,
+    sell:      list.filter(o => o.action === 'SELL').length,
+    completed: list.filter(o => CLOSED_SET.includes(o.status)).length,
+    open:      list.filter(o => o.status === 'OPEN').length,
+    cancelled: list.filter(o => o.status === 'CANCELLED').length,
+  }
+  const openList = list.filter(o => o.status === 'OPEN')
+  const active = FILTER_GROUPS.filter(g => statusFilter.includes(g.key))
+  const filtered = active.length ? list.filter(o => active.some(g => g.test(o))) : list
+
+  const toggleFilter = (key) =>
+    setStatusFilter(f => f.includes(key) ? f.filter(x => x !== key) : [...f, key])
+
+  const exportCsv = () => {
+    const head = ['Time', 'Instrument', 'Strike', 'Type', 'Side', 'Lots', 'Entry', 'SL', 'Target', 'Status', 'PnL']
+    const rows = filtered.map(o => [
+      o.entry_time, o.instrument, o.strike_price, o.option_type, o.action,
+      o.quantity, o.entry_price ?? '', o.sl_price ?? '', o.target_price ?? '', o.status, o.pnl ?? '',
+    ])
+    const csv = [head, ...rows].map(r => r.map(c => `"${c ?? ''}"`).join(',')).join('\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    const a = document.createElement('a')
+    a.href = url; a.download = `orderbook_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click(); URL.revokeObjectURL(url)
+  }
+
+  const closeAll = async () => {
+    if (!confirmClose) { setConfirmClose(true); return }   // two-click guard (books P&L)
+    setClosing(true)
+    try {
+      await Promise.allSettled(openList.map(o => closeOrder(o.id)))
+      success(`Closed ${countLabel(openList.length, 'open order')}`)
+      await load()
+    } catch {
+      showErr?.('Some orders could not be closed')
+    } finally {
+      setClosing(false); setConfirmClose(false)
+    }
+  }
+
+  const emptyTitle = active.length ? 'No matching orders' : 'No orders today'
+  const emptySub = active.length
+    ? 'No orders match the selected status filters. Clear the filter to see everything.'
+    : 'Orders you place from the Trading Desk display here with their live status.'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'relative' }}>
+      {/* Toolbar */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+        <ToolBtn icon={SlidersHorizontal} label={`Filters${active.length ? ` (${active.length})` : ''}`} onClick={() => setShowFilters(true)} />
+        <ToolBtn icon={RefreshCw} label={refreshing ? 'Refreshing…' : 'Refresh'} onClick={load} disabled={refreshing} />
+        <ToolBtn icon={Download} label="Export" onClick={exportCsv} disabled={!filtered.length} />
+        <ToolBtn icon={X} tone="danger" disabled={openList.length === 0 || closing}
+          label={closing ? 'Closing…' : confirmClose ? `Confirm — close ${openList.length}?` : 'Close All'}
+          onClick={closeAll} />
+      </div>
+
+      {/* Summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12 }}>
+        <OBStat label="Buy Orders"  value={counts.buy}       color="var(--gain)" />
+        <OBStat label="Sell Orders" value={counts.sell}      color="var(--loss)" />
+        <OBStat label="Completed"   value={counts.completed} color="var(--text)" />
+        <OBStat label="Open"        value={counts.open}      color="var(--primary)" />
+        <OBStat label="Cancelled"   value={counts.cancelled} color="var(--text-muted)" />
+      </div>
+
+      {/* Table / states */}
+      <PanelShell
+        title="Orders"
+        right={orders && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{countLabel(filtered.length, 'order')}</span>}
+      >
+        {orders === null ? (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12.5 }}>Loading orders…</div>
+        ) : filtered.length === 0 ? (
+          <PanelState icon={ClipboardList} title={emptyTitle} sub={emptySub} />
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>
+                {['Time', 'Contract', 'Side', 'Qty', 'Entry', 'SL', 'Target', 'Status'].map((h, i) => (
+                  <th key={h} style={{ ...thStyle, textAlign: i >= 3 && i <= 6 ? 'right' : 'left' }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {filtered.map(o => (
+                  <tr key={o.id} className="chain-row" style={{ borderTop: '1px solid var(--border-light)' }}>
+                    <td className="num" style={tdStyle}>{formatDate(o.entry_time)}</td>
+                    <td style={{ ...tdStyle, color: 'var(--text)', fontWeight: 600 }}>{o.instrument} {Math.round(o.strike_price)} {o.option_type}</td>
+                    <td style={tdStyle}><ActionTag action={o.action} /></td>
+                    <td className="num" style={{ ...tdStyle, textAlign: 'right' }}>{o.quantity} lot</td>
+                    <td className="num" style={{ ...tdStyle, textAlign: 'right' }}>{fmtPrice(o.entry_price)}</td>
+                    <td className="num" style={{ ...tdStyle, textAlign: 'right' }}>{fmtPrice(o.sl_price)}</td>
+                    <td className="num" style={{ ...tdStyle, textAlign: 'right' }}>{fmtPrice(o.target_price)}</td>
+                    <td style={tdStyle}><StatusBadge status={o.status} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </PanelShell>
+
+      {/* Filters modal */}
+      {showFilters && (
+        <div onClick={() => setShowFilters(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'grid', placeItems: 'center', zIndex: 60 }}>
+          <div onClick={e => e.stopPropagation()} className="sf-card" style={{ width: 460, maxWidth: '92vw', padding: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>Order Filters</div>
+                <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 3 }}>Filter orders by status</div>
+              </div>
+              <button onClick={() => setShowFilters(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="eyebrow" style={{ fontSize: 10, margin: '20px 0 10px' }}>Order Status</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {FILTER_GROUPS.map(g => {
+                const on = statusFilter.includes(g.key)
+                return (
+                  <button key={g.key} onClick={() => toggleFilter(g.key)}
+                    style={{
+                      padding: '7px 15px', borderRadius: 999, cursor: 'pointer',
+                      border: `1px solid ${on ? 'var(--primary)' : 'var(--border)'}`,
+                      background: on ? 'var(--primary)' : 'var(--color-surface2)',
+                      color: on ? 'var(--on-primary)' : 'var(--text-sub)',
+                      fontSize: 12.5, fontWeight: 600,
+                    }}>
+                    {g.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 14, marginTop: 24 }}>
+              <button onClick={() => setStatusFilter([])}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-sub)', fontSize: 12.5, fontWeight: 600 }}>
+                Clear All
+              </button>
+              <button onClick={() => setShowFilters(false)} className="sf-btn-primary"
+                style={{ height: 36, padding: '0 22px', fontSize: 12.5 }}>
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TradeBookTab() {
+  const [trades, setTrades] = useState(null)
+  useEffect(() => {
+    getOrders(1)
+      .then(r => setTrades((r.data?.orders || []).filter(o => CLOSED_SET.includes(o.status))))
+      .catch(() => setTrades([]))
+  }, [])
+  return (
+    <PanelShell title="Trade Book" right={trades && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{countLabel(trades.length, 'trade')}</span>}>
+      {trades === null ? (
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12.5 }}>Loading trades…</div>
+      ) : trades.length === 0 ? (
+        <PanelState icon={Receipt} title="No completed trades" sub="When a position closes — manually, by SL, or by target — the fill shows up here with its P&L." />
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>
+              {['Closed', 'Contract', 'Side', 'Entry', 'Exit', 'P&L', 'Result'].map((h, i) => (
+                <th key={h} style={{ ...thStyle, textAlign: i >= 3 && i <= 5 ? 'right' : 'left' }}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {trades.map(o => {
+                const pnl = Number(o.pnl ?? 0)
+                return (
+                  <tr key={o.id} className="chain-row" style={{ borderTop: '1px solid var(--border-light)' }}>
+                    <td className="num" style={tdStyle}>{formatDate(o.exit_time)}</td>
+                    <td style={{ ...tdStyle, color: 'var(--text)', fontWeight: 600 }}>{o.instrument} {Math.round(o.strike_price)} {o.option_type}</td>
+                    <td style={tdStyle}><ActionTag action={o.action} /></td>
+                    <td className="num" style={{ ...tdStyle, textAlign: 'right' }}>{fmtPrice(o.entry_price)}</td>
+                    <td className="num" style={{ ...tdStyle, textAlign: 'right' }}>{fmtPrice(o.exit_price)}</td>
+                    <td className="num" style={{ ...tdStyle, textAlign: 'right', color: pnl >= 0 ? 'var(--gain)' : 'var(--loss)', fontWeight: 600 }}>{pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}</td>
+                    <td style={tdStyle}><StatusBadge status={o.status} /></td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </PanelShell>
+  )
+}
+
+// Logs — discipline violation events (blocked / warned)
+function LogsTab() {
+  const [logs, setLogs] = useState(null)
+  useEffect(() => {
+    getViolations(1).then(r => setLogs(r.data?.violations || r.data || [])).catch(() => setLogs([]))
+  }, [])
+  return (
+    <PanelShell title="Discipline Logs" right={logs && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{countLabel(logs.length, 'event')}</span>}>
+      {logs === null ? (
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12.5 }}>Loading logs…</div>
+      ) : logs.length === 0 ? (
+        <PanelState icon={ShieldCheck} title="Clean record" sub="Every rule you break — blocked or warned — is logged here for review. Nothing so far." />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {logs.map((v, i) => (
+            <div key={v.id || i} style={{ display: 'flex', gap: 12, padding: '13px 18px', borderTop: i ? '1px solid var(--border-light)' : 'none' }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, background: v.was_blocked ? 'var(--loss-bg)' : 'var(--warn-bg)', display: 'grid', placeItems: 'center' }}>
+                <AlertTriangle size={16} color={v.was_blocked ? 'var(--loss)' : 'var(--warn)'} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{RULE_LABELS[v.rule_code] || v.rule_code}</span>
+                  <span style={{ fontSize: 9.5, padding: '2px 8px', borderRadius: 20, fontWeight: 700, background: v.was_blocked ? 'var(--loss-bg)' : 'var(--warn-bg)', color: v.was_blocked ? 'var(--loss-text)' : 'var(--warn)' }}>{v.was_blocked ? 'BLOCKED' : 'WARNED'}</span>
+                  <span className="num" style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{formatDate(v.created_at)}</span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3, lineHeight: 1.4 }}>{RULE_WHY[v.rule_code]}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </PanelShell>
+  )
+}
+
 // ── Main Dashboard Page ───────────────────────────────────────────
 export default function DashboardPage() {
+  const [tab, setTab] = useState('dashboard')
   const [account, setAccount] = useState(null)
   const [score, setScore] = useState(null)
   const [violations, setViolations] = useState([])
@@ -283,6 +656,14 @@ export default function DashboardPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
+      {/* In-page nav — Dashboard / OrderBook / TradeBook / Logs */}
+      <DashTabs active={tab} onChange={setTab} />
+
+      {tab === 'orderbook' && <OrderBookTab />}
+      {tab === 'tradebook' && <TradeBookTab />}
+      {tab === 'logs' && <LogsTab />}
+
+      {tab === 'dashboard' && (<>
       {/* Discipline is the hero */}
       <DisciplineHero
         name={name} score={disciplineScore} streak={streak}
@@ -494,6 +875,7 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+      </>)}
     </div>
   )
 }

@@ -25,6 +25,10 @@ const useAuthStore = create((set) => ({
     set({ user, accessToken, isAuthenticated: true, initialized: true })
   },
   setInitialized: (initialized) => set({ initialized }),
+  setUser: (user) => {
+    localStorage.setItem('sf_user', JSON.stringify(user))
+    set({ user })
+  },
   clearAuth: () => {
     beginLogout()
     localStorage.removeItem('sf_user')

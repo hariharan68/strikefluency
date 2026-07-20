@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Wallet, SlidersHorizontal, Info } from 'lucide-react'
 import useDiscipline from '../../hooks/useDiscipline'
 import DisciplineModeToggle from '../../components/discipline/DisciplineModeToggle'
-import { RULE_LABELS } from '../../utils/constants'
+import { RULE_LABELS, FULL_SANDBOX_CAPITAL } from '../../utils/constants'
 
 const fmtMoney = (n) =>
   n == null ? '—' : `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
@@ -124,7 +124,7 @@ export default function DisciplineModePage() {
         <div style={{ fontSize: 12.5, color: 'var(--text-sub)', lineHeight: 1.6 }}>
           <strong style={{ color: 'var(--text)' }}>When Discipline Mode is OFF:</strong> all 7 rules are bypassed —
           you can place orders with no stop-loss or setup tag, with no trade/loss limits or cooldowns. Your
-          full ₹10,00,000 sandbox capital is unlocked, and any trades you take are flagged as free-play so they
+          full {fmtMoney(FULL_SANDBOX_CAPITAL)} sandbox capital is unlocked, and any trades you take are flagged as free-play so they
           never affect your discipline score or tier streak. Turn it back ON at any time to resume the
           disciplined sandbox — your capital is kept, not reset.
         </div>

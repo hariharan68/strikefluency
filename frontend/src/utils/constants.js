@@ -1,3 +1,7 @@
+// Full sandbox capital granted in free-play (Discipline Mode OFF) — Tier 3.
+// Mirrors backend FULL_SANDBOX_CAPITAL (app/core/constants.py).
+export const FULL_SANDBOX_CAPITAL = 1000000
+
 export const SETUP_TAG_LABELS = {
   OI_BASED: 'OI Based',
   PRICE_ACTION: 'Price Action',

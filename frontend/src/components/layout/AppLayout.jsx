@@ -5,16 +5,25 @@ import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import { getStatus } from '../../api/market'
 import useMarketStore from '../../store/marketStore'
+import usePreferencesStore from '../../store/preferencesStore'
+import useMarketWebSocket from '../../hooks/useMarketWebSocket'
 
 const STORAGE_KEY = 'sf_sidebar_collapsed'
 
 export default function AppLayout() {
   const setMarketStatus = useMarketStore(s => s.setMarketStatus)
+  const loadPrefs = usePreferencesStore(s => s.load)
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(STORAGE_KEY) === '1')
+
+  // Live market data streams app-wide from here (single mount point for all
+  // protected routes) into marketStore — the Trade desk chain updates without
+  // a manual instrument change.
+  useMarketWebSocket()
 
   useEffect(() => {
     const fetch = () => getStatus().then(r => setMarketStatus(r.data.is_open)).catch(() => {})
     fetch()
+    loadPrefs()
     const t = setInterval(fetch, 30000)
     return () => clearInterval(t)
   }, [])

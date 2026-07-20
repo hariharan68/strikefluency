@@ -32,12 +32,12 @@ const ToggleGroup = ({ value, options, onChange, fullWidth }) => (
   </div>
 )
 
-export default function OrderFormPanel({ prefill, instrument = 'NIFTY', disciplineOff = false, onSuccess }) {
+export default function OrderFormPanel({ prefill, instrument = 'NIFTY', disciplineOff = false, prefs = {}, onSuccess }) {
   const { success } = useToast()
   const [strike, setStrike] = useState('')
   const [optionType, setOptionType] = useState('CE')
   const [action, setAction] = useState('BUY')
-  const [lots, setLots] = useState(1)
+  const [lots, setLots] = useState(prefs.default_lots || 1)
   const [ltp, setLtp] = useState('')
   const [sl, setSl] = useState('')
   const [target, setTarget] = useState('')
@@ -88,7 +88,8 @@ export default function OrderFormPanel({ prefill, instrument = 'NIFTY', discipli
         target_price: target ? parseFloat(target) : null,
         expiry_date: expiry, setup_tag: setupTag || null, notes: notes || null,
       })
-      success(`Order placed — ${instrument} ${strike} ${optionType}`)
+      // "Trade Confirmation Toast" preference gates this success toast.
+      if (prefs.notify_trade_confirm) success(`Order placed — ${instrument} ${strike} ${optionType}`)
       setStrike(''); setLtp(''); setSl(''); setTarget(''); setNotes(''); setSetupTag('')
       onSuccess?.()
     } catch (err) {
@@ -125,7 +126,7 @@ export default function OrderFormPanel({ prefill, instrument = 'NIFTY', discipli
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <Field label={disciplineOff ? 'Stop Loss (optional)' : 'Stop Loss ★'}>
           <input className="sf-input" type="number" step="0.05" placeholder="0.00" value={sl} onChange={e => setSl(e.target.value)}
-            style={{ borderColor: sl && slNum > 0 && action === 'BUY' && slNum >= ltpNum ? 'var(--loss)' : undefined }} />
+            style={{ borderColor: prefs.show_risk_warnings && sl && slNum > 0 && action === 'BUY' && slNum >= ltpNum ? 'var(--loss)' : undefined }} />
         </Field>
         <Field label="Target (optional)">
           <input className="sf-input" type="number" step="0.05" placeholder="0.00" value={target} onChange={e => setTarget(e.target.value)} />

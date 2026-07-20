@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import useMarketStore from '../../store/marketStore'
+import usePreferencesStore from '../../store/preferencesStore'
 import useVirtualTrading from '../../hooks/useVirtualTrading'
 import { getOptionChain } from '../../api/market'
 import { getPositions, closeOrder } from '../../api/trading'
@@ -27,10 +28,18 @@ const PanelHead = ({ title, right }) => (
   </div>
 )
 
-function PositionRow({ pos, onClose }) {
+function PositionRow({ pos, onClose, confirmClose }) {
   const [closing, setClosing] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const pnl = pos.unrealized_pnl ?? pos.net_pnl ?? 0
   const isGain = pnl >= 0
+
+  const doClose = async () => {
+    if (confirmClose && !confirming) { setConfirming(true); return }
+    setClosing(true)
+    try { await onClose(pos.order_id || pos.id) } catch {}
+    setClosing(false); setConfirming(false)
+  }
   return (
     <tr className="chain-row" style={{ borderBottom: '1px solid var(--color-surface2)' }}>
       <td style={{ padding: '9px 16px' }}>
@@ -53,10 +62,11 @@ function PositionRow({ pos, onClose }) {
         {isGain ? '+' : ''}{formatCurrency(pnl)}
       </td>
       <td style={{ padding: '9px 16px', textAlign: 'right' }}>
-        <button onClick={async () => { setClosing(true); try { await onClose(pos.order_id || pos.id) } catch {} setClosing(false) }}
+        <button onClick={doClose}
+          onBlur={() => setConfirming(false)}
           disabled={closing}
           style={{ background: 'var(--loss-bg)', border: '1px solid var(--loss)', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', color: 'var(--loss)', fontSize: 11, fontWeight: 500 }}>
-          {closing ? '…' : 'Close'}
+          {closing ? '…' : confirming ? 'Confirm?' : 'Close'}
         </button>
       </td>
     </tr>
@@ -64,7 +74,15 @@ function PositionRow({ pos, onClose }) {
 }
 
 export default function TradingDeskPage() {
-  const [instrument, setInstrument] = useState('NIFTY')
+  const prefs = usePreferencesStore(s => s.prefs)
+  const [instrument, setInstrument] = useState(prefs.default_instrument || 'NIFTY')
+  // Apply the saved default instrument once prefs load — unless the user has
+  // already picked one this session.
+  const pickedRef = useRef(false)
+  useEffect(() => {
+    if (!pickedRef.current) setInstrument(prefs.default_instrument || 'NIFTY')
+  }, [prefs.default_instrument])
+  const pickInstrument = (ins) => { pickedRef.current = true; setInstrument(ins) }
   const [strikeCount, setStrikeCount] = useState(5)   // ±ATM window, default ±5
   const [prefill, setPrefill] = useState(null)
   const [chainLoading, setChainLoading] = useState(false)
@@ -121,7 +139,7 @@ export default function TradingDeskPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3, gap: 2 }}>
           {INSTRUMENTS.map(ins => (
-            <button key={ins} onClick={() => setInstrument(ins)}
+            <button key={ins} onClick={() => pickInstrument(ins)}
               className="toggle-btn"
               style={{
                 minWidth: 90, fontSize: 13,
@@ -177,7 +195,10 @@ export default function TradingDeskPage() {
           <OptionChainTable
             data={viewChain}
             onCellClick={(s, t, l) => setPrefill({
-              strike: s, optionType: t, ltp: l,
+              strike: s, optionType: t,
+              // Auto-fill LTP only when the preference is on; otherwise the
+              // trader types it deliberately.
+              ltp: prefs.auto_fill_ltp ? l : null,
               expiry: optionChain?.expiry, lotSize: optionChain?.lot_size,
             })}
             instrument={instrument} loading={chainLoading && !optionChain}
@@ -196,12 +217,12 @@ export default function TradingDeskPage() {
           {prefill && (
             <div style={{ padding: '6px 16px', borderBottom: '1px solid var(--border)', background: 'var(--primary-bg)' }}>
               <span style={{ color: 'var(--primary)', fontSize: 11 }}>
-                Prefilled: {instrument} {prefill.strike} {prefill.optionType} @ {prefill.ltp?.toFixed(2)}
+                Prefilled: {instrument} {prefill.strike} {prefill.optionType}{prefill.ltp != null ? ` @ ${prefill.ltp.toFixed(2)}` : ''}
               </span>
             </div>
           )}
           <div style={{ padding: 16 }}>
-            <OrderFormPanel prefill={prefill} instrument={instrument} disciplineOff={disciplineOff} onSuccess={() => { setPrefill(null); loadAccount(); loadPositions() }} />
+            <OrderFormPanel prefill={prefill} instrument={instrument} disciplineOff={disciplineOff} prefs={prefs} onSuccess={() => { setPrefill(null); loadAccount(); loadPositions() }} />
           </div>
         </Card>
       </div>
@@ -235,7 +256,7 @@ export default function TradingDeskPage() {
               </tr>
             </thead>
             <tbody>
-              {open.map(pos => <PositionRow key={pos.id} pos={pos} onClose={handleClose} />)}
+              {open.map(pos => <PositionRow key={pos.id} pos={pos} onClose={handleClose} confirmClose={prefs.confirm_close} />)}
             </tbody>
           </table>
         )}

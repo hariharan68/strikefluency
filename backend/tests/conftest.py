@@ -59,6 +59,10 @@ def _ensure_strategy_schema(conn) -> None:
     if "capital_unlocked" not in va_cols:
         conn.execute(text(
             "ALTER TABLE virtual_accounts ADD COLUMN capital_unlocked BOOLEAN NOT NULL DEFAULT FALSE"))
+    # Per-user settings table (migration 20260721) — create if not yet applied.
+    from app.models.user_settings import UserSettings as USORM
+    if not inspect(conn).has_table(USORM.__tablename__):
+        USORM.__table__.create(conn)
 
 
 @pytest.fixture
