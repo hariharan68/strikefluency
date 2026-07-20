@@ -87,6 +87,35 @@ async def _mtm_tick():
         db.close()
 
 
+async def _auto_exit_tick():
+    """
+    Enforce stop-loss / target on open single-leg virtual orders, every 5s.
+
+    A user's SL is only a promise until something honours it — this closes any
+    order whose premium has crossed its level, whether or not the desk is open.
+    Runs independently of connected WebSocket clients for exactly that reason.
+    Owns its own short-lived DB session.
+    """
+    from app.config import settings
+    from app.database import SessionLocal
+    from app.services.auto_exit_service import scan_and_exit
+
+    if not is_market_open() and not settings.is_development:
+        return
+
+    db = SessionLocal()
+    try:
+        n = scan_and_exit(db)
+        db.commit()
+        if n:
+            logger.info("Auto-exit closed %d order(s) on SL/target", n)
+    except Exception as e:
+        db.rollback()
+        logger.error("Auto-exit tick failed: %s", e)
+    finally:
+        db.close()
+
+
 async def _expiry_squareoff_tick():
     """
     On expiry day at EOD, cash-settle every open strategy whose leg expires today
@@ -129,6 +158,14 @@ def start_market_scheduler():
         replace_existing=True,
         misfire_grace_time=10,
     )
+    scheduler.add_job(
+        _auto_exit_tick,
+        trigger="interval",
+        seconds=5,
+        id="auto_exit_tick",
+        replace_existing=True,
+        misfire_grace_time=5,
+    )
     from app.core.constants import EOD_SQUAREOFF_HOUR, EOD_SQUAREOFF_MINUTE
     scheduler.add_job(
         _expiry_squareoff_tick,
@@ -140,7 +177,7 @@ def start_market_scheduler():
         misfire_grace_time=60,
     )
     scheduler.start()
-    logger.info("Market data scheduler started (3s data, 15s MTM, EOD expiry square-off)")
+    logger.info("Market data scheduler started (3s data, 15s MTM, 5s auto-exit, EOD expiry square-off)")
 
 
 def stop_market_scheduler():
