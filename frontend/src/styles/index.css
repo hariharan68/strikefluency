@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -38,6 +38,7 @@
   --primary-dark: #c9a6ff;
   --primary-bg: #1f1f1f;
   --primary-border: #3a3a3a;
+  --on-primary: #131313;   /* text/icon that sits on a --primary fill */
 
   --gain: #31dd6a;
   --gain-bg: rgba(49,221,106,0.12);
@@ -61,6 +62,68 @@
   --shadow-pop: 0 24px 60px rgba(0,0,0,0.6);
 }
 
+/* ── Light theme ──────────────────────────────────────────────
+   Applied when <html> carries the `light` class (set by the topbar
+   toggle). Same token names as dark, so every component that reads
+   the tokens flips automatically — never hardcode a hex. */
+:root.light {
+  color-scheme: light;
+
+  --color-bg: #f5f5f7;
+  --color-surface: #ffffff;
+  --color-surface2: #f0f0f3;
+  --color-border: #e5e5ea;
+  --color-border2: #d5d5dd;
+  --color-accent: #7c5cff;
+  --color-accent-d: #6a45f2;
+  --color-accent-l: #9c85ff;
+  --color-accent-bg: #f1ecff;
+  --color-text: #1a1a1e;
+  --color-text2: #33333a;
+  --color-muted: #6b6b74;
+  --color-subtle: #86868f;
+  --color-faint: #a6a6ae;
+
+  --bg: #f5f5f7;
+  --bg-alt: #ffffff;
+  --bg-panel: #ffffff;
+  --tile: #f0f0f3;
+  --sidebar-bg: #ffffff;
+  --sidebar-active: #7c5cff;
+  --sidebar-active-bg: #f1ecff;
+  --border: #e5e5ea;
+  --border-light: #ececf0;
+  --text: #1a1a1e;
+  --text-sub: #55555e;
+  --text-muted: #7a7a83;
+  --primary: #7c5cff;
+  --primary-dark: #6a45f2;
+  --primary-bg: #f1ecff;
+  --primary-border: #d9ccff;
+  --on-primary: #ffffff;
+
+  --gain: #12b76a;
+  --gain-bg: rgba(18,183,106,0.12);
+  --gain-text: #087443;
+  --gain-bar: #12b76a;
+  --loss: #ef4444;
+  --loss-bg: rgba(239,68,68,0.12);
+  --loss-text: #c0362b;
+  --loss-bar: #ef4444;
+  --warn: #c98a04;
+  --warn-bg: rgba(201,138,4,0.14);
+
+  --brand-dark: #ffffff;
+  --brand-dark-soft: #f0f0f3;
+
+  --accent-gradient: linear-gradient(to right, #7c5cff 0%, #4f7cff 50%, #12b76a 100%);
+  --card-glow: inset 0 0 0 1px rgba(16,24,40,0.05);
+
+  --shadow: 0 1px 2px rgba(16,24,40,0.06), var(--card-glow);
+  --shadow-md: 0 10px 30px rgba(16,24,40,0.10), var(--card-glow);
+  --shadow-pop: 0 24px 56px rgba(16,24,40,0.16);
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html { min-height: 100%; }
@@ -69,31 +132,33 @@ body {
   min-height: 100%;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-weight: 400;
   font-size: 15px;
   line-height: 1.5;
-  letter-spacing: 0;
+  letter-spacing: -0.006em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-body, input, select, textarea, button { font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-h1, h2, h3, h4, h5, h6, .sf-serif { font-family: 'Sora', 'Manrope', -apple-system, sans-serif; letter-spacing: -0.02em; }
+body, input, select, textarea, button { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+h1, h2, h3, h4, h5, h6, .sf-serif { font-family: 'Inter', -apple-system, sans-serif; letter-spacing: -0.02em; }
 button, a, input, select, textarea { transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease; }
 input:focus, select:focus, textarea:focus { outline: none; }
 
-::selection { background: rgba(219,189,255,0.28); color: #ffffff; }
+::selection { background: rgba(219,189,255,0.28); color: var(--text); }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--color-border2); border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-subtle); }
 
-.num { font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+/* Numbers use Inter with tabular figures — same family as everything else, but
+   fixed-width digits so columns of numbers still align. */
+.num { font-family: 'Inter', -apple-system, sans-serif; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; letter-spacing: -0.01em; }
 
 /* Monospace eyebrow / micro-label — uppercase category tags & stat captions */
 .eyebrow {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: 'JetBrains Mono', monospace;
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-size: 12px;
@@ -178,7 +243,7 @@ input:focus, select:focus, textarea:focus { outline: none; }
 }
 .sf-btn-primary {
   background: var(--primary);
-  color: #131313;
+  color: var(--on-primary);
   border: 1px solid var(--primary);
   box-shadow: 0 6px 20px -8px rgba(219,189,255,0.55);
 }
@@ -225,8 +290,33 @@ input:focus, select:focus, textarea:focus { outline: none; }
 }
 
 .sf-app-shell { min-height: 100vh; background: var(--bg); display: flex; }
-.sf-main-shell { min-width: 0; flex: 1; display: flex; flex-direction: column; margin-left: 240px; }
+.sf-main-shell { min-width: 0; flex: 1; display: flex; flex-direction: column; margin-left: 240px; transition: margin-left 0.24s ease; }
 .sf-page-content { flex: 1; overflow-x: hidden; overflow-y: auto; padding: 20px 28px 32px; }
+
+/* ── Collapsible sidebar ─────────────────────────────────────── */
+.sf-sidebar { transition: transform 0.24s ease; }
+.sf-app-shell.sidebar-collapsed .sf-sidebar { transform: translateX(-100%); }
+.sf-app-shell.sidebar-collapsed .sf-main-shell { margin-left: 0; }
+
+/* Toggle button rides the sidebar's right edge and follows it in/out */
+.sf-sidebar-toggle {
+  position: fixed;
+  top: 22px;
+  left: 240px;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border2, var(--border));
+  color: var(--text-sub);
+  display: grid; place-items: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: left 0.24s ease, transform 0.24s ease, color 0.18s, border-color 0.18s;
+}
+.sf-sidebar-toggle:hover { color: var(--primary); border-color: var(--primary-border); }
+.sf-app-shell.sidebar-collapsed .sf-sidebar-toggle { left: 12px; transform: none; }
 
 .sf-sidebar {
   position: fixed;
@@ -246,7 +336,7 @@ input:focus, select:focus, textarea:focus { outline: none; }
   align-items: center;
   gap: 10px;
   color: var(--text);
-  font-family: 'Sora', -apple-system, sans-serif;
+  font-family: 'Inter', -apple-system, sans-serif;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -260,7 +350,7 @@ input:focus, select:focus, textarea:focus { outline: none; }
   border-radius: 9px;
   display: grid;
   place-items: center;
-  color: #131313;
+  color: var(--on-primary);
   background: var(--accent-gradient);
   box-shadow: 0 8px 20px -8px rgba(219,189,255,0.5);
 }
@@ -289,7 +379,7 @@ input:focus, select:focus, textarea:focus { outline: none; }
 .sf-upgrade-card h3 { color: var(--text); font-size: 13px; font-weight: 700; line-height: 1.35; max-width: 150px; }
 .sf-upgrade-card p { color: var(--text-muted); font-size: 11px; line-height: 1.45; margin-top: 8px; max-width: 150px; }
 .sf-upgrade-card svg { position: absolute; right: 14px; top: 46px; color: var(--primary); }
-.sf-upgrade-card button { width: 100%; height: 36px; margin-top: 14px; border: 0; border-radius: 999px; background: var(--primary); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+.sf-upgrade-card button { width: 100%; height: 36px; margin-top: 14px; border: 0; border-radius: 999px; background: var(--primary); color: var(--on-primary); font-size: 12px; font-weight: 700; cursor: pointer; }
 .sf-user-card { padding: 16px 12px; text-align: center; }
 .sf-user-avatar { width: 44px; height: 44px; margin: 0 auto 10px; border-radius: 50%; display: grid; place-items: center; background: var(--primary-bg); color: var(--primary); font-size: 17px; font-weight: 800; }
 .sf-user-name { color: var(--text); font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -311,7 +401,7 @@ input:focus, select:focus, textarea:focus { outline: none; }
   border-bottom: 1px solid var(--border);
   backdrop-filter: blur(12px);
 }
-.sf-page-title-block h1 { color: var(--text); font-family: 'Sora', -apple-system, sans-serif; font-size: 24px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
+.sf-page-title-block h1 { color: var(--text); font-family: 'Inter', -apple-system, sans-serif; font-size: 24px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
 .sf-page-title-block p { margin-top: 2px; color: var(--text-muted); font-size: 12px; line-height: 1.35; }
 .sf-topbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
 .sf-market-pill { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 7px; row-gap: 1px; color: var(--text-sub); font-size: 12px; white-space: nowrap; }
@@ -328,6 +418,7 @@ input:focus, select:focus, textarea:focus { outline: none; }
 @media (max-width: 1180px) {
   .sf-main-shell { margin-left: 84px; }
   .sf-sidebar { width: 84px; padding: 18px 12px; }
+  .sf-sidebar-toggle { left: 84px; }   /* ride the narrower rail's edge */
   .sf-brand { justify-content: center; padding-inline: 0; }
   .sf-brand span, .sf-nav-link span, .sf-upgrade-card, .sf-user-name, .sf-user-plan, .sf-signout-button { display: none; }
   .sf-nav-link { justify-content: center; padding: 0; }
@@ -338,6 +429,10 @@ input:focus, select:focus, textarea:focus { outline: none; }
   .sf-app-shell { display: block; }
   .sf-sidebar { position: sticky; top: 0; width: 100%; height: auto; min-height: 68px; flex-direction: row; align-items: center; gap: 12px; padding: 12px 14px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); }
   .sf-main-shell { margin-left: 0; }
+  /* Mobile shows the nav as a top row — collapse toggle doesn't apply. */
+  .sf-sidebar-toggle { display: none; }
+  .sf-app-shell.sidebar-collapsed .sf-sidebar { transform: none; }
+  .sf-app-shell.sidebar-collapsed .sf-main-shell { margin-left: 0; }
   .sf-brand { margin: 0 8px 0 0; flex: 0 0 auto; border-bottom: 0; padding-bottom: 0; }
   .sf-brand span { display: inline; font-size: 15px; }
   .sf-side-nav { flex-direction: row; gap: 6px; flex: 1 0 auto; }

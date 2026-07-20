@@ -44,7 +44,7 @@ export default function JournalEntryCard({ entry, onSaveReview }) {
 
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>
+            <span style={{ color: 'var(--text)', fontSize: 14, fontWeight: 500 }}>
               {entry.instrument} {entry.strike} {entry.option_type}
             </span>
             <span style={{
@@ -71,14 +71,14 @@ export default function JournalEntryCard({ entry, onSaveReview }) {
               </span>
             )}
           </div>
-          <div style={{ color: '#717784', fontSize: 12, marginTop: 3 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 3 }}>
             {formatDate(entry.placed_at || entry.created_at)} · {entry.lots} lot{entry.lots !== 1 ? 's' : ''}
           </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
           <span style={{ color: pnl.color, fontSize: 15, fontWeight: 500 }}>{pnl.signed}</span>
-          {expanded ? <ChevronUp size={16} color="#717784" /> : <ChevronDown size={16} color="#717784" />}
+          {expanded ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
         </div>
       </button>
 
@@ -87,12 +87,12 @@ export default function JournalEntryCard({ entry, onSaveReview }) {
         <div style={{
           borderTop: '1px solid var(--border)',
           padding: '16px',
-          background: '#F3F4F6'
+          background: 'var(--border)'
         }}>
           <TradeDetailPanel entry={entry} />
           {entry.review_notes && (
             <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--color-surface)', borderRadius: 8 }}>
-              <div style={{ color: '#717784', fontSize: 12, marginBottom: 4 }}>Review Notes</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 4 }}>Review Notes</div>
               <div style={{ color: 'var(--text-sub)', fontSize: 13 }}>{entry.review_notes}</div>
             </div>
           )}

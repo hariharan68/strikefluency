@@ -18,9 +18,9 @@ export function ToastProvider({ children }) {
   const warning = useCallback((msg) => add('warning', msg), [add])
 
   const configs = {
-    success: { icon: <CheckCircle size={16} />, color: 'var(--gain-text)', bg: '#f0fdf4', border: '#bbf7d0' },
+    success: { icon: <CheckCircle size={16} />, color: 'var(--gain-text)', bg: 'var(--gain-bg)', border: 'var(--gain)' },
     error:   { icon: <XCircle size={16} />, color: 'var(--loss)', bg: 'var(--loss-bg)', border: 'var(--loss)' },
-    warning: { icon: <AlertTriangle size={16} />, color: 'var(--warn)', bg: '#fffbeb', border: '#fde68a' },
+    warning: { icon: <AlertTriangle size={16} />, color: 'var(--warn)', bg: 'var(--warn-bg)', border: 'var(--warn)' },
   }
 
   return (

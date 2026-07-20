@@ -97,22 +97,24 @@ class MockMarketDataProvider(MarketDataProvider):
             strikes.append({
                 "strike": strike,
                 "ce": {
-                    "ltp":    ce_ltp,
-                    "oi":     ce_oi,
-                    "volume": random.randint(1000, 100000),
-                    "iv":     round(random.uniform(10, 25), 2),
-                    "bid":    round(ce_ltp - 0.5, 2),
-                    "ask":    round(ce_ltp + 0.5, 2),
-                    "delta":  round(random.uniform(0.1, 0.9), 2),
+                    "ltp":       ce_ltp,
+                    "oi":        ce_oi,
+                    "oi_change": random.randint(-800000, 800000),
+                    "volume":    random.randint(1000, 100000),
+                    "iv":        round(random.uniform(10, 25), 2),
+                    "bid":       round(ce_ltp - 0.5, 2),
+                    "ask":       round(ce_ltp + 0.5, 2),
+                    "delta":     round(random.uniform(0.1, 0.9), 2),
                 },
                 "pe": {
-                    "ltp":    pe_ltp,
-                    "oi":     pe_oi,
-                    "volume": random.randint(1000, 100000),
-                    "iv":     round(random.uniform(10, 25), 2),
-                    "bid":    round(pe_ltp - 0.5, 2),
-                    "ask":    round(pe_ltp + 0.5, 2),
-                    "delta":  round(random.uniform(-0.9, -0.1), 2),
+                    "ltp":       pe_ltp,
+                    "oi":        pe_oi,
+                    "oi_change": random.randint(-800000, 800000),
+                    "volume":    random.randint(1000, 100000),
+                    "iv":        round(random.uniform(10, 25), 2),
+                    "bid":       round(pe_ltp - 0.5, 2),
+                    "ask":       round(pe_ltp + 0.5, 2),
+                    "delta":     round(random.uniform(-0.9, -0.1), 2),
                 },
             })
 
@@ -124,10 +126,13 @@ class MockMarketDataProvider(MarketDataProvider):
             "atm_strike":  atm_strike,
             "expiry":      expiry or self._nearest_expiry(instrument),
             "timestamp":   datetime.now().isoformat(),
-            "pcr":         pcr,
-            "lot_size":    lot_size,
-            "source":      "mock",   # lets consumers flag this as non-live data
-            "strikes":     strikes,
+            "pcr":          pcr,
+            "lot_size":     lot_size,
+            "change_pct":   round(random.uniform(-1.2, 1.2), 2),   # underlying % move (buildup direction)
+            "future_price": round(spot + random.uniform(5, 40), 2),  # near-month future ≈ spot + carry
+            "expiries":     self.get_expiries(instrument),
+            "source":       "mock",   # lets consumers flag this as non-live data
+            "strikes":      strikes,
         }
 
     # ── Private helpers ───────────────────────────────────────

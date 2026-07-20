@@ -33,6 +33,8 @@ from app.market.provider_factory import get_market_provider
 from app.schemas.strategy import (
     AddLegRequest,
     AnalyticsResponse,
+    AnalyzeRequest,
+    AnalyzeResponse,
     BuildFromTemplateRequest,
     CreateDraftRequest,
     CloseLegRequest,
@@ -67,6 +69,12 @@ def _expiries(underlying: str, needed: int) -> list[date]:
 
 
 # ── templates ─────────────────────────────────────────────────
+@router.get("/templates/{template_id}/legs")
+def expand_template(template_id: str, underlying: str, current_user: CurrentUser,
+                    expiry: str | None = None):
+    return svc.expand_template(template_id, underlying, expiry)
+
+
 @router.get("/templates", response_model=list[TemplateResponse])
 def list_templates(
     current_user: CurrentUser,
@@ -80,6 +88,17 @@ def list_templates(
         )
         for m in metas
     ]
+
+
+# ── live analysis (no persistence) ────────────────────────────
+@router.post("/analyze", response_model=AnalyzeResponse)
+def analyze(
+    body: AnalyzeRequest,
+    current_user: CurrentUser,
+):
+    return AnalyzeResponse.model_validate(
+        svc.analyze(body.underlying, body.spot, body.legs)
+    )
 
 
 # ── draft creation ────────────────────────────────────────────

@@ -15,6 +15,8 @@ import RegisterPage from './pages/auth/RegisterPage'
 import OAuthCallbackPage from './pages/auth/OAuthCallbackPage'
 import DashboardPage from './pages/dashboard/DashboardPage'
 import Terminal1Page from './pages/terminal/Terminal1Page'
+import StrategyBuilderPage from './pages/strategy/StrategyBuilderPage'
+import OptionChainPage from './pages/optionchain/OptionChainPage'
 import TradingDeskPage from './pages/trading/TradingDeskPage'
 import DisciplinePage from './pages/discipline/DisciplinePage'
 import JournalPage from './pages/journal/JournalPage'
@@ -83,6 +85,8 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/terminal-1" element={<Terminal1Page />} />
+              <Route path="/strategy-builder" element={<StrategyBuilderPage />} />
+              <Route path="/option-chain" element={<OptionChainPage />} />
               <Route path="/trading" element={<TradingDeskPage />} />
               <Route path="/discipline" element={<DisciplinePage />} />
               <Route path="/journal" element={<JournalPage />} />

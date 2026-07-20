@@ -20,13 +20,13 @@ export default function TradeDetailPanel({ entry }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', marginTop: 12 }}>
       {rows.map(([label, value]) => (
-        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F3F4F6' }}>
-          <span style={{ color: '#717784', fontSize: 12 }}>{label}</span>
-          <span style={{ color: '#fff', fontSize: 12 }}>{value}</span>
+        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{label}</span>
+          <span style={{ color: 'var(--text)', fontSize: 12 }}>{value}</span>
         </div>
       ))}
       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', gridColumn: '1 / -1' }}>
-        <span style={{ color: '#717784', fontSize: 13 }}>Net P&L</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Net P&L</span>
         <span style={{ color: pnl.color, fontSize: 14, fontWeight: 500 }}>{pnl.signed}</span>
       </div>
     </div>

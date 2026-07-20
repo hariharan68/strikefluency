@@ -70,7 +70,7 @@ function IndexCard({ label, accent, tick, isOpen }) {
       {/* price */}
       <div>
         <div key={ts || 0} className={flash} style={{ borderRadius: 8, display: 'inline-block', padding: '2px 6px', margin: '-2px -6px' }}>
-          <span className="num" style={{ fontSize: 38, fontWeight: 700, color: 'var(--text)', lineHeight: 1.05, fontFamily: "'IBM Plex Mono', monospace" }}>
+          <span className="num" style={{ fontSize: 38, fontWeight: 700, color: 'var(--text)', lineHeight: 1.05, fontFamily: "'Inter', sans-serif", fontVariantNumeric: 'tabular-nums' }}>
             {fmt(ltp)}
           </span>
         </div>
@@ -175,7 +175,7 @@ export default function Terminal1Page() {
           <span style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--tile)', display: 'grid', placeItems: 'center' }}>
             <Radio size={16} color="var(--primary)" />
           </span>
-          <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', fontFamily: "'Sora', sans-serif" }}>Live Index Feed</span>
+          <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', fontFamily: "'Inter', sans-serif" }}>Live Index Feed</span>
         </div>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
           color: isOpen ? 'var(--gain)' : 'var(--loss)',

@@ -104,7 +104,7 @@ export default function TradingDeskPage() {
               style={{
                 minWidth: 90, fontSize: 13,
                 background: instrument === ins ? 'var(--primary)' : 'transparent',
-                color: instrument === ins ? '#131313' : 'var(--text-sub)',
+                color: instrument === ins ? 'var(--on-primary)' : 'var(--text-sub)',
               }}>
               {ins}
             </button>

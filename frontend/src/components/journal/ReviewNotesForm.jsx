@@ -38,11 +38,11 @@ export default function ReviewNotesForm({ entry, onSave }) {
           rows={3}
           style={{
             width: '100%',
-            background: '#F3F4F6',
+            background: 'var(--border)',
             border: '1px solid var(--border)',
             borderRadius: 10,
             padding: '10px 14px',
-            color: '#fff',
+            color: 'var(--text)',
             fontSize: 14,
             fontFamily: 'Inter,sans-serif',
             outline: 'none',

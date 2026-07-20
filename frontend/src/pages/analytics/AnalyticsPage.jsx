@@ -30,7 +30,7 @@ function CustomBarTooltip({ active, payload, label }) {
   return (
     <div style={{ background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', fontSize: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
       <div style={{ color: 'var(--text-sub)', marginBottom: 4 }}>{label}</div>
-      <div style={{ color: val >= 0 ? 'var(--gain)' : 'var(--loss)', fontWeight: 600, fontFamily: "'JetBrains Mono',monospace" }}>
+      <div style={{ color: val >= 0 ? 'var(--gain)' : 'var(--loss)', fontWeight: 600, fontFamily: "'Inter',sans-serif", fontVariantNumeric: 'tabular-nums' }}>
         {val >= 0 ? '+' : ''}{formatCurrency(val)}
       </div>
     </div>

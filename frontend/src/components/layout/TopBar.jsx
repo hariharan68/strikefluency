@@ -14,8 +14,8 @@ const PAGE_META = {
 }
 
 function getInitialTheme() {
-  if (typeof window === 'undefined') return 'light'
-  return localStorage.getItem('sf-theme') || 'light'
+  if (typeof window === 'undefined') return 'dark'
+  return localStorage.getItem('sf-theme') || 'dark'
 }
 
 export default function TopBar() {
@@ -26,7 +26,9 @@ export default function TopBar() {
   const [time, setTime] = useState('')
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
+    const root = document.documentElement
+    root.classList.toggle('dark', theme === 'dark')
+    root.classList.toggle('light', theme === 'light')
     localStorage.setItem('sf-theme', theme)
   }, [theme])
 

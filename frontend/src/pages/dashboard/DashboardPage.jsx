@@ -73,26 +73,26 @@ function Sparkline({ data = [], color = 'var(--primary)', w = 70, h = 34 }) {
 }
 
 // ── Discipline Score ring ─────────────────────────────────────────
-function ScoreRing({ score, size = 118, stroke = 10 }) {
+function ScoreRing({ score, size = 116, stroke = 9 }) {
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
   const pct = Math.max(0, Math.min(100, score))
   const dash = c * (1 - pct / 100)
-  const ringColor = pct >= 80 ? '#22c55e' : pct >= 50 ? '#f5c542' : '#ef4444'
+  const ringColor = pct >= 80 ? '#31dd6a' : pct >= 50 ? '#f5c451' : '#ff5c5c'
   return (
     <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.14)" strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(219,189,255,0.13)" strokeWidth={stroke} />
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={ringColor} strokeWidth={stroke}
         strokeDasharray={c} strokeDashoffset={dash} strokeLinecap="round"
         style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
-      <text x="50%" y="50%" dy="0.05em" textAnchor="middle"
+      <text x="50%" y="50%" dy="0.02em" textAnchor="middle"
         style={{ transform: 'rotate(90deg)', transformOrigin: 'center' }}
-        fill="#fff" fontSize="26" fontWeight="700" fontFamily="'JetBrains Mono', monospace">
+        fill="var(--text)" fontSize="27" fontWeight="700" fontFamily="'Inter', sans-serif">
         {Math.round(pct)}
       </text>
-      <text x="50%" y="66%" textAnchor="middle"
+      <text x="50%" y="65%" textAnchor="middle"
         style={{ transform: 'rotate(90deg)', transformOrigin: 'center' }}
-        fill="rgba(255,255,255,0.55)" fontSize="10" fontWeight="600" letterSpacing="0.08em">
+        fill="var(--text-muted)" fontSize="9.5" fontWeight="600" letterSpacing="0.14em">
         SCORE
       </text>
     </svg>
@@ -113,41 +113,37 @@ function DisciplineHero({ name, score, streak, tier, toNextTier, navigate }) {
     : 'Reset mode. Your only job today is to not break a single rule.'
 
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, #0B1437 0%, #1E3A6A 100%)',
-      borderRadius: 18, padding: '26px 30px', position: 'relative', overflow: 'hidden'
+    <div className="sf-card" style={{
+      background: 'radial-gradient(120% 140% at 88% 0%, rgba(219,189,255,0.10) 0%, transparent 55%), var(--color-surface)',
+      padding: '26px 30px', position: 'relative', overflow: 'hidden'
     }}>
-      <div style={{ position: 'absolute', right: 60, top: -40, width: 150, height: 150, borderRadius: '50%', background: 'rgba(37,99,235,0.30)' }} />
-      <div style={{ position: 'absolute', right: -10, top: 30, width: 110, height: 110, borderRadius: '50%', background: 'rgba(96,165,250,0.18)' }} />
-
-      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' }}>
         <ScoreRing score={s} />
 
         <div style={{ flex: 1, minWidth: 220 }}>
-          <p style={{ color: '#93C5FD', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 8 }}>
-            {getGreeting()}, {name} · Discipline Desk
+          <p className="eyebrow" style={{ color: 'var(--primary)', marginBottom: 9 }}>
+            {getGreeting()}, {name}
           </p>
-          <h2 style={{ color: '#fff', fontSize: 21, fontWeight: 700, lineHeight: 1.3, marginBottom: 14, maxWidth: 460 }}>
+          <h2 style={{ color: 'var(--text)', fontSize: 21, fontWeight: 700, lineHeight: 1.32, marginBottom: 15, maxWidth: 460, letterSpacing: '-0.01em' }}>
             {coach}
           </h2>
 
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(245,158,11,0.16)', border: '1px solid rgba(245,158,11,0.3)', color: '#fcd34d', borderRadius: 999, padding: '5px 12px', fontSize: 12, fontWeight: 600 }}>
-              <Flame size={14} /> {streak} disciplined {streak === 1 ? 'trade' : 'trades'} in a row
+          <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--warn-bg)', border: '1px solid rgba(245,196,81,0.22)', color: 'var(--warn)', borderRadius: 999, padding: '5px 12px', fontSize: 12, fontWeight: 600 }}>
+              <Flame size={14} /> {streak} in a row
             </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: '#DBEAFE', borderRadius: 999, padding: '5px 12px', fontSize: 12, fontWeight: 600 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--primary-bg)', border: '1px solid var(--primary-border)', color: 'var(--primary)', borderRadius: 999, padding: '5px 12px', fontSize: 12, fontWeight: 600 }}>
               <ShieldCheck size={14} /> {tierMeta.label} · {tierMeta.capital}
             </span>
-            <span style={{ color: '#B8CDEE', fontSize: 12 }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
               {isTop ? 'Top tier reached' : `${toNextTier} clean trades to next tier`}
             </span>
           </div>
         </div>
 
-        <button onClick={() => navigate('/trading')} style={{
-          background: '#fff', color: '#0F1C3F', border: 'none', borderRadius: 999,
-          padding: '10px 20px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-          display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start'
+        <button onClick={() => navigate('/trading')} className="sf-btn-primary" style={{
+          height: 40, padding: '0 20px', fontSize: 12.5, alignSelf: 'flex-start',
+          display: 'inline-flex', alignItems: 'center', gap: 6
         }}>
           Open Trading Desk <ArrowRight size={14} />
         </button>
@@ -368,7 +364,7 @@ export default function DashboardPage() {
                 <ReferenceLine y={0} stroke="var(--border)" />
                 <Tooltip content={<BarTooltip />} cursor={{ fill: 'var(--primary-bg)', opacity: 0.4 }} />
                 <Bar dataKey="pnl" radius={[3, 3, 0, 0]}>
-                  {barData.map((e, i) => <Cell key={i} fill={e.pnl >= 0 ? '#22c55e' : '#ef4444'} />)}
+                  {barData.map((e, i) => <Cell key={i} fill={e.pnl >= 0 ? '#31dd6a' : '#ff5c5c'} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -389,8 +385,8 @@ export default function DashboardPage() {
               <AreaChart data={areaData} margin={{ left: 0, right: 8, bottom: 4 }}>
                 <defs>
                   <linearGradient id="cumGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={isGain ? '#22c55e' : '#ef4444'} stopOpacity={0.26} />
-                    <stop offset="100%" stopColor={isGain ? '#22c55e' : '#ef4444'} stopOpacity={0.02} />
+                    <stop offset="0%" stopColor={isGain ? '#31dd6a' : '#ff5c5c'} stopOpacity={0.26} />
+                    <stop offset="100%" stopColor={isGain ? '#31dd6a' : '#ff5c5c'} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="var(--border)" vertical={false} />
@@ -399,8 +395,8 @@ export default function DashboardPage() {
                 <ReferenceLine y={0} stroke="var(--border)" />
                 <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
                   formatter={v => formatCurrency(v)} labelStyle={{ color: 'var(--text-muted)' }} />
-                <Area type="monotone" dataKey="cumulative" stroke={isGain ? '#22c55e' : '#ef4444'} strokeWidth={2}
-                  fill="url(#cumGrad)" dot={{ r: 2, fill: isGain ? '#22c55e' : '#ef4444', strokeWidth: 0 }} activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="cumulative" stroke={isGain ? '#31dd6a' : '#ff5c5c'} strokeWidth={2}
+                  fill="url(#cumGrad)" dot={{ r: 2, fill: isGain ? '#31dd6a' : '#ff5c5c', strokeWidth: 0 }} activeDot={{ r: 4 }} />
               </AreaChart>
             </ResponsiveContainer>
           )}

@@ -79,6 +79,14 @@ def save_fyers_credentials(payload: FyersCredentialsRequest, current_user: Curre
         raise HTTPException(status_code=500, detail="Could not save credentials to the server configuration") from exc
 
 
+@router.delete("/auth/fyers/credentials")
+def revoke_fyers_credentials(current_user: CurrentUser = None):
+    """REVOKE — remove App ID + Secret ID from .env. Reconnecting needs new keys."""
+    result = fyers_auth.revoke_credentials()
+    reset_provider()
+    return {"success": True, "message": "Fyers credentials revoked", **result}
+
+
 @router.get("/auth/fyers/login")
 def fyers_login(current_user: CurrentUser = None):
     try:

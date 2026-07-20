@@ -27,7 +27,7 @@ function ScoreRing({ score = 0 }) {
         transform="rotate(-90 52 52)" style={{ transition: 'stroke-dashoffset 0.6s ease' }}
       />
       <text x={cx} y={cy - 4} textAnchor="middle" dominantBaseline="middle"
-        fill={color} fontSize="20" fontFamily="'JetBrains Mono',monospace" fontWeight="600">
+        fill={color} fontSize="20" fontFamily="'Inter',sans-serif" fontWeight="600">
         {Math.round(score)}
       </text>
       <text x={cx} y={cy + 15} textAnchor="middle" fill="var(--text-muted)" fontSize="9" fontFamily="Inter,sans-serif" fontWeight="500">

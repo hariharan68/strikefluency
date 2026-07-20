@@ -132,7 +132,7 @@ export default function JournalPage() {
             {['ALL', 'CLOSED', 'OPEN'].map(f => (
               <button key={f} onClick={() => { setFilter(f); setPage(1) }}
                 className="toggle-btn"
-                style={{ minWidth: 60, fontSize: 11, background: filter === f ? 'var(--primary)' : 'transparent', color: filter === f ? '#131313' : 'var(--text-sub)', border: 'none' }}>
+                style={{ minWidth: 60, fontSize: 11, background: filter === f ? 'var(--primary)' : 'transparent', color: filter === f ? 'var(--on-primary)' : 'var(--text-sub)', border: 'none' }}>
                 {f}
               </button>
             ))}

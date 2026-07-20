@@ -28,7 +28,7 @@ from app.models.user import User
 from app.models.virtual_account import VirtualAccount
 from app.strategy import builder, templates
 from app.strategy.domain import Leg, OptionContract, Strategy as StrategyDomain
-from app.strategy.greeks import strategy_greeks
+from app.strategy.greeks import strategy_greeks, years_to_expiry
 from app.strategy.margin import estimate_margin
 from app.strategy.payoff import payoff_curve
 
@@ -205,6 +205,160 @@ def delete_draft(db: Session, user: User, strategy_id: uuid.UUID) -> None:
 
 
 # ── analytics preview (payoff + greeks + margin) ──────────────
+def _probability_of_profit(prices: list[float], pnls: list[float], spot: float,
+                           iv_pct: Optional[float], t_years: float) -> Optional[float]:
+    """
+    Rough POP: integrate a normal density of the expiry price (centred at spot,
+    sd = spot·σ·√T) over the region of the payoff curve where P&L > 0.
+    Returns a percentage. None when we have no vol estimate.
+    """
+    if not iv_pct or iv_pct <= 0 or t_years <= 0 or spot <= 0 or len(prices) < 2:
+        return None
+    import math
+    sd = spot * (iv_pct / 100.0) * math.sqrt(t_years)
+    if sd <= 0:
+        return None
+
+    def pdf(x):
+        z = (x - spot) / sd
+        return math.exp(-0.5 * z * z) / (sd * math.sqrt(2 * math.pi))
+
+    total = 0.0
+    profit = 0.0
+    for i in range(len(prices) - 1):
+        width = prices[i + 1] - prices[i]
+        density = (pdf(prices[i]) + pdf(prices[i + 1])) / 2.0
+        mass = density * width
+        total += mass
+        if pnls[i] > 0 or pnls[i + 1] > 0:
+            profit += mass
+    return round(profit / total * 100.0, 1) if total > 0 else None
+
+
+def analyze(underlying: str, spot: Optional[float], legs: list) -> dict:
+    """
+    Compute payoff / greeks / margin / POP for an ad-hoc set of legs — the live
+    interactive builder path. No persistence, no account. Each leg carries the
+    ltp (entry) and iv the client read off the live chain; missing option ltp is
+    priced from the provider chain as a fallback.
+
+    `legs` items are pydantic AnalyzeLeg (attr access).
+    """
+    from app.market.provider_factory import get_market_provider
+    from app.strategy.chain import ChainPricer
+
+    spec = get_spec(underlying)
+    if not legs:
+        raise StrategyValidationError(code="EMPTY", message="Add at least one leg.")
+
+    if spot is None:
+        spot = float(get_market_provider().get_spot_price(underlying))
+
+    domain = StrategyDomain(underlying=underlying, allow_calendar=True)
+    pricer = None
+    problems: list[str] = []
+    ivs: list[float] = []
+
+    for item in legs:
+        contract = OptionContract(
+            underlying=underlying, expiry=item.expiry,
+            instrument_type=item.instrument_type,
+            strike=item.strike, ltp=item.ltp,
+            iv=(item.iv / 100.0) if item.iv else None,
+        )
+        entry = item.ltp
+        if entry is None:                       # fallback: price from live chain
+            if pricer is None:
+                pricer = ChainPricer(get_market_provider(), underlying)
+            try:
+                built = pricer.build_contract(item.strike, item.instrument_type, item.expiry, spot)
+                entry = built.ltp
+                contract.iv = built.iv if built.iv else contract.iv
+            except Exception as e:
+                problems.append(str(e))
+        leg = builder.make_leg(
+            underlying, item.instrument_type, item.action, item.lots,
+            item.expiry, strike=item.strike, entry_price=entry, contract=contract,
+        )
+        builder.add_leg(domain, leg)
+        if item.iv:
+            ivs.append(item.iv)
+
+    payoff = payoff_curve(domain, spot) if domain.net_premium is not None else None
+    try:
+        g = strategy_greeks(domain, spot)
+        greeks = {"delta": g.delta, "gamma": g.gamma, "theta": g.theta, "vega": g.vega}
+    except Exception:
+        greeks = {"delta": 0.0, "gamma": 0.0, "theta": 0.0, "vega": 0.0}
+    margin = estimate_margin(domain, spot)
+
+    pop = None
+    if payoff is not None and ivs:
+        t = years_to_expiry(min(l.contract.expiry for l in domain.legs))
+        pop = _probability_of_profit(payoff.prices, payoff.pnls, spot,
+                                     sum(ivs) / len(ivs), t)
+
+    return {
+        "underlying": spec.symbol,
+        "spot": spot,
+        "net_premium": domain.net_premium,
+        "max_profit": payoff.max_profit if payoff else None,
+        "max_loss": payoff.max_loss if payoff else None,
+        "breakevens": payoff.breakevens if payoff else [],
+        "prices": payoff.prices if payoff else [],
+        "pnls": payoff.pnls if payoff else [],
+        "margin": margin.total,
+        "is_defined_risk": margin.is_defined_risk,
+        "pop": pop,
+        "greeks": greeks,
+        "problems": problems,
+    }
+
+
+def expand_template(template_id: str, underlying: str,
+                    expiry: Optional[str] = None) -> dict:
+    """
+    Turn a template into concrete, chain-priced legs for the interactive builder
+    (no persistence). Returns legs with strike/action/type/lots/ltp/iv so the
+    client can drop them straight into the positions table and analyze.
+    """
+    from app.market.provider_factory import get_market_provider
+    from app.strategy.chain import ChainPricer
+
+    provider = get_market_provider()
+    pricer = ChainPricer(provider, underlying)
+    spot = float(provider.get_spot_price(underlying))
+
+    raw = provider.get_expiries(underlying) or []
+    exps = [date.fromisoformat(e) if isinstance(e, str) else e for e in raw]
+    if expiry:
+        sel = date.fromisoformat(expiry)
+        exps = [sel] + [e for e in exps if e != sel]
+    if not exps:
+        raise StrategyValidationError(code="NO_EXPIRY", message="No expiries available.")
+
+    meta = templates.get_template(template_id)
+    domain = templates.build_template(template_id, underlying, spot,
+                                      exps[:max(meta.min_expiries, 1)])
+    out = []
+    for leg in domain.legs:
+        c = leg.contract
+        ltp, iv = None, None
+        try:
+            built = pricer.build_contract(c.strike, c.instrument_type, c.expiry, spot)
+            ltp = built.ltp
+            iv = round(built.iv * 100, 2) if built.iv else None
+        except Exception:
+            pass
+        out.append({
+            "action": leg.action, "instrument_type": c.instrument_type,
+            "strike": c.strike, "lots": leg.lots,
+            "expiry": c.expiry.isoformat(), "ltp": ltp, "iv": iv,
+        })
+    return {"underlying": get_spec(underlying).symbol, "spot": spot,
+            "name": meta.name, "legs": out}
+
+
 def analytics(orm: StrategyORM, spot: float, as_of: Optional[date] = None) -> dict:
     """
     Payoff summary + net greeks + margin estimate for a strategy at `spot`.

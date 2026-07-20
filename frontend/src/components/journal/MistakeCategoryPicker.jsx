@@ -23,7 +23,7 @@ export default function MistakeCategoryPicker({ value, onChange }) {
                 cursor: 'pointer',
                 border: `1px solid ${isSelected ? color : 'var(--border)'}`,
                 background: isSelected ? color + '20' : 'transparent',
-                color: isSelected ? color : '#717784',
+                color: isSelected ? color : 'var(--text-muted)',
                 transition: 'all 0.15s'
               }}
             >

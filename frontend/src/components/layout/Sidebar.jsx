@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, Shield, BookOpen, BarChart2, LogOut,
-  TrendingUp, Settings, HelpCircle, Radio
+  TrendingUp, Settings, Radio, Layers, Table2
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import * as authApi from '../../api/auth'
@@ -9,6 +9,8 @@ import * as authApi from '../../api/auth'
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/terminal-1', icon: Radio, label: 'Terminal 1' },
+  { to: '/strategy-builder', icon: Layers, label: 'Strategy Builder' },
+  { to: '/option-chain', icon: Table2, label: 'Option Chain' },
   { to: '/trading', icon: Activity, label: 'Trade' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },
@@ -49,10 +51,6 @@ export default function Sidebar() {
             <span>{label}</span>
           </NavLink>
         ))}
-        <button type="button" className="sf-nav-link sf-nav-button">
-          <HelpCircle size={17} strokeWidth={1.9} />
-          <span>Help Center</span>
-        </button>
       </nav>
 
       <div className="sf-sidebar-spacer" />

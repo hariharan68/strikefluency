@@ -15,10 +15,10 @@ export default function StatCard({ label, value, sub, color = 'var(--primary)', 
         </div>
       )}
       <div style={{ color: 'var(--text-sub)', fontSize: 13 }}>{label}</div>
-      <div style={{ color: typeof value === 'string' ? '#fff' : color, fontSize: 22, fontWeight: 500 }}>
+      <div style={{ color: typeof value === 'string' ? 'var(--text)' : color, fontSize: 22, fontWeight: 500 }}>
         {value ?? '-'}
       </div>
-      {sub && <div style={{ color: '#717784', fontSize: 12 }}>{sub}</div>}
+      {sub && <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{sub}</div>}
     </div>
   )
 }

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import useAuthStore from '../../store/authStore'
 import { useToast } from '../../components/common/Toast'
-import { clearFyersToken, getFyersProfile, getFyersStatus } from '../../api/broker'
+import { clearFyersToken, getFyersProfile, getFyersStatus, revokeFyersCredentials } from '../../api/broker'
 import FyersSetupWizard from '../../components/broker/FyersSetupWizard'
 import { getSessions, logout, logoutAll, revokeSession } from '../../api/auth'
-import { User, Bell, Shield, Globe, LogOut, ChevronRight, Link as LinkIcon, RefreshCw, Unplug } from 'lucide-react'
+import { User, Bell, Shield, Globe, LogOut, ChevronRight, Link as LinkIcon, RefreshCw, Unplug, Trash2 } from 'lucide-react'
 
 const Card = ({ children, style = {} }) => (
   <div style={{
@@ -72,7 +72,7 @@ function ProfileSection({ user }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0, boxShadow: '0 2px 8px rgba(37,99,235,0.22)'
           }}>
-            <span style={{ color: '#fff', fontSize: 20, fontWeight: 700 }}>{(user?.full_name || user?.email || 'T').charAt(0).toUpperCase()}</span>
+            <span style={{ color: 'var(--on-primary)', fontSize: 20, fontWeight: 700 }}>{(user?.full_name || user?.email || 'T').charAt(0).toUpperCase()}</span>
           </div>
           <div>
             <div style={{ color: 'var(--text)', fontSize: 15, fontWeight: 600 }}>{user?.full_name || 'Trader'}</div>
@@ -223,11 +223,13 @@ function BrokerIntegrationSection() {
     }
   }
 
+  // DISCONNECT — drop the session/token but keep credentials in .env.
+  // Reconnect needs only OAuth (no key re-entry).
   const disconnect = async () => {
     setLoading(true)
     try {
       const res = await clearFyersToken()
-      success(res.data?.message || 'Fyers disconnected')
+      success(res.data?.message || 'Fyers disconnected — credentials kept, reconnect anytime')
       await loadStatus()
     } catch (err) {
       error(err.response?.data?.detail || 'Unable to disconnect Fyers')
@@ -236,10 +238,26 @@ function BrokerIntegrationSection() {
     }
   }
 
+  // REVOKE — wipe App ID + Secret ID from .env. Reconnect needs new keys.
+  const revoke = async () => {
+    if (!window.confirm('Revoke Fyers credentials? Your App ID and Secret ID will be removed from the server and you will need to re-enter them to reconnect.')) return
+    setLoading(true)
+    try {
+      const res = await revokeFyersCredentials()
+      success(res.data?.message || 'Fyers credentials revoked')
+      await loadStatus()
+    } catch (err) {
+      error(err.response?.data?.detail || 'Unable to revoke Fyers credentials')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const configured = !!status?.configured
   const connected = !!status?.connected
   const badgeLabel = connected ? 'Connected' : status?.has_token ? 'Token saved' : 'Not connected'
-  const badgeColor = connected ? 'var(--gain-text)' : status?.has_token ? '#92400e' : 'var(--text-sub)'
-  const badgeBg = connected ? '#f0fdf4' : status?.has_token ? '#fffbeb' : 'var(--color-surface2)'
+  const badgeColor = connected ? 'var(--gain-text)' : status?.has_token ? 'var(--warn)' : 'var(--text-sub)'
+  const badgeBg = connected ? 'var(--gain-bg)' : status?.has_token ? 'var(--warn-bg)' : 'var(--color-surface2)'
   const profileName = status?.profile?.name || status?.profile?.display_name
 
   return (
@@ -271,28 +289,45 @@ function BrokerIntegrationSection() {
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-          {!connected ? (
+          {!configured ? (
+            // First time — no credentials stored. Full guided setup.
             <button type="button" className="sf-btn-primary" onClick={() => setWizardOpen(true)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               <LinkIcon size={15} />
               Add Fyers Broker
             </button>
+          ) : !connected ? (
+            // Credentials stored but no live session — connect via OAuth only
+            // (the wizard opens straight at the Connect step), or Revoke to wipe keys.
+            <>
+              <button type="button" className="sf-btn-primary" onClick={() => setWizardOpen(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <LinkIcon size={15} />
+                Connect
+              </button>
+              <button type="button" className="sf-btn-outline" disabled={loading} onClick={revoke}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--loss)' }}>
+                <Trash2 size={15} />
+                Revoke
+              </button>
+            </>
           ) : (
+            // Connected — Disconnect (keep keys) or Revoke (wipe keys).
             <>
               <button type="button" className="sf-btn-outline" disabled={loading} onClick={refreshProfile}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                 <RefreshCw size={15} />
                 Refresh Profile
               </button>
-              <button type="button" className="sf-btn-outline" onClick={() => setWizardOpen(true)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <LinkIcon size={15} />
-                Reconfigure
-              </button>
               <button type="button" className="sf-btn-outline" disabled={loading} onClick={disconnect}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--loss)' }}>
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--warn, #f5c451)' }}>
                 <Unplug size={15} />
                 Disconnect
+              </button>
+              <button type="button" className="sf-btn-outline" disabled={loading} onClick={revoke}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--loss)' }}>
+                <Trash2 size={15} />
+                Revoke
               </button>
             </>
           )}
@@ -340,7 +375,7 @@ function SessionsSection({ clearAuth }) {
       <SectionHeader title="Active Sessions" subtitle="Review and revoke devices with access to your account" />
       <div style={{ padding: 20 }}>
         {loading ? <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Loading sessions...</div> : sessions.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No active sessions found.</div> : sessions.map(session => (
-          <div key={session.family_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F3F4F6' }}>
+          <div key={session.family_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
             <div>
               <div style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>{session.current ? 'This device' : 'Active device'}</div>
               <div style={{ color: 'var(--text-sub)', fontSize: 11, marginTop: 3 }}>{session.device_info || 'Unknown browser'} · {session.session_policy}</div>

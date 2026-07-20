@@ -30,7 +30,7 @@ export default function JournalEntryPage() {
   }
 
   if (loading) return <Spinner />
-  if (!entry) return <div style={{ color: '#717784' }}>Entry not found</div>
+  if (!entry) return <div style={{ color: 'var(--text-muted)' }}>Entry not found</div>
 
   return (
     <div style={{ maxWidth: 700 }}>
@@ -39,7 +39,7 @@ export default function JournalEntryPage() {
           <ArrowLeft size={14} />
           Back to Journal
         </Button>
-        <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 500 }}>Trade Review</h1>
+        <h1 style={{ color: 'var(--text)', fontSize: 20, fontWeight: 500 }}>Trade Review</h1>
       </div>
       <JournalEntryCard entry={entry} onSaveReview={handleSaveReview} />
     </div>

@@ -61,7 +61,7 @@ export default function RuleCard({ rule, onUpdate }) {
 
   return (
     <div style={{
-      background: '#F3F4F6',
+      background: 'var(--border)',
       border: '1px solid var(--border)',
       borderRadius: 12,
       padding: '14px 16px',
@@ -71,7 +71,7 @@ export default function RuleCard({ rule, onUpdate }) {
       gap: 12
     }}>
       <div style={{ flex: 1 }}>
-        <div style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>{label}</div>
+        <div style={{ color: 'var(--text)', fontSize: 14, fontWeight: 500 }}>{label}</div>
         {!editing && (
           <div style={{ color: 'var(--text-sub)', fontSize: 12, marginTop: 4 }}>{displayValue}</div>
         )}
@@ -85,7 +85,7 @@ export default function RuleCard({ rule, onUpdate }) {
               onChange={e => setEditValue(e.target.value)}
               style={{
                 background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 8,
-                color: '#fff', padding: '6px 10px', fontSize: 13, fontFamily: 'Inter,sans-serif'
+                color: 'var(--text)', padding: '6px 10px', fontSize: 13, fontFamily: 'Inter,sans-serif'
               }}
             >
               <option value="true">Enabled</option>
@@ -98,7 +98,7 @@ export default function RuleCard({ rule, onUpdate }) {
               onChange={e => setEditValue(e.target.value)}
               style={{
                 width: 80, background: 'var(--color-surface)', border: '1px solid var(--border)',
-                borderRadius: 8, color: '#fff', padding: '6px 10px',
+                borderRadius: 8, color: 'var(--text)', padding: '6px 10px',
                 fontSize: 13, fontFamily: 'Inter,sans-serif', outline: 'none'
               }}
             />

@@ -22,7 +22,7 @@ export default function OpenPositionCard({ position, onClose }) {
 
   return (
     <div style={{
-      background: '#F3F4F6',
+      background: 'var(--border)',
       border: '1px solid var(--border)',
       borderRadius: 12,
       padding: 16,
@@ -44,10 +44,10 @@ export default function OpenPositionCard({ position, onClose }) {
             }
           </div>
           <div>
-            <div style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>
+            <div style={{ color: 'var(--text)', fontSize: 14, fontWeight: 500 }}>
               {position.instrument} {position.strike} {position.option_type}
             </div>
-            <div style={{ color: '#717784', fontSize: 11 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>
               {position.action} · {position.lots} lot{position.lots !== 1 ? 's' : ''}
             </div>
           </div>
@@ -56,14 +56,14 @@ export default function OpenPositionCard({ position, onClose }) {
           <div style={{ color: pnl.color, fontSize: 15, fontWeight: 500 }}>
             {pnl.signed}
           </div>
-          <div style={{ color: '#717784', fontSize: 11 }}>Unrealized P&L</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>Unrealized P&L</div>
         </div>
       </div>
 
       {/* Details */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         <span style={{ color: 'var(--text-sub)', fontSize: 12 }}>
-          Entry: <span style={{ color: '#fff' }}>₹{position.entry_price}</span>
+          Entry: <span style={{ color: 'var(--text)' }}>₹{position.entry_price}</span>
         </span>
         {position.stop_loss && (
           <span style={{ color: 'var(--text-sub)', fontSize: 12 }}>

@@ -38,7 +38,7 @@ export default function DisciplineScoreRing({ score = 0, size = 120 }) {
       <text
         x={cx} y={cy - 4}
         textAnchor="middle"
-        fill="#fff"
+        fill="var(--text)"
         fontSize="22"
         fontWeight="500"
         fontFamily="Inter,sans-serif"
@@ -48,7 +48,7 @@ export default function DisciplineScoreRing({ score = 0, size = 120 }) {
       <text
         x={cx} y={cy + 14}
         textAnchor="middle"
-        fill="#717784"
+        fill="var(--text-muted)"
         fontSize="10"
         fontFamily="Inter,sans-serif"
       >

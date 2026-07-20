@@ -56,3 +56,29 @@ def update_env_file(updates: dict[str, str], env_path: Path | None = None) -> Pa
     tmp.write_text("\n".join(out) + "\n", encoding="utf-8")
     os.replace(tmp, path)
     return path
+
+
+def remove_env_keys(keys, env_path: Path | None = None) -> Path:
+    """Delete the given KEY=... lines from .env entirely.
+
+    Used by broker "Revoke" to wipe stored credentials. Comments, blank lines,
+    ordering, and every other key are preserved byte-for-byte. Missing keys and
+    a missing file are both no-ops.
+    """
+    path = env_path or DEFAULT_ENV_PATH
+    keyset = {k for k in keys}
+    for key in keyset:
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]*", key):
+            raise ValueError(f"Invalid env key: {key!r}")
+    if not path.exists():
+        return path
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    out = [
+        line for line in lines
+        if not any(re.match(rf"\s*{re.escape(k)}\s*=", line) for k in keyset)
+    ]
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text("\n".join(out) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+    return path

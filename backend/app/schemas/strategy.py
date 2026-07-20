@@ -35,6 +35,23 @@ class BuildFromTemplateRequest(BaseModel):
         return v
 
 
+class AnalyzeLeg(BaseModel):
+    action: Action
+    instrument_type: InstrumentType
+    strike: Optional[float] = None       # None for FUT
+    lots: int = 1
+    expiry: date
+    ltp: Optional[float] = None          # entry price the client saw on the chain
+    iv: Optional[float] = None           # in percent, for greeks
+
+
+class AnalyzeRequest(BaseModel):
+    """Compute payoff/greeks/margin for an ad-hoc leg set — no persistence."""
+    underlying: Underlying = "NIFTY"
+    spot: Optional[float] = None         # falls back to the live provider spot
+    legs: list[AnalyzeLeg]
+
+
 class CreateDraftRequest(BaseModel):
     underlying: Underlying = "NIFTY"
     name: Optional[str] = None
@@ -175,3 +192,26 @@ class AnalyticsResponse(BaseModel):
 class MarkToMarketResponse(BaseModel):
     updated: int
     message: str
+
+
+class LegGreeks(BaseModel):
+    delta: float
+    gamma: float
+    theta: float
+    vega: float
+
+
+class AnalyzeResponse(BaseModel):
+    underlying: str
+    spot: float
+    net_premium: Optional[float] = None
+    max_profit: Optional[float] = None       # None = unlimited
+    max_loss: Optional[float] = None
+    breakevens: list[float] = []
+    prices: list[float] = []
+    pnls: list[float] = []
+    margin: float = 0.0
+    is_defined_risk: bool = False
+    pop: Optional[float] = None               # probability of profit, %
+    greeks: LegGreeks
+    problems: list[str] = []

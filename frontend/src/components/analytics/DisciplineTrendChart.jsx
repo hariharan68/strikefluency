@@ -6,10 +6,10 @@ function CustomTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null
   return (
     <div style={{
-      background: '#F3F4F6', border: '1px solid var(--border)',
+      background: 'var(--border)', border: '1px solid var(--border)',
       borderRadius: 8, padding: '10px 14px'
     }}>
-      <div style={{ color: '#717784', fontSize: 12, marginBottom: 4 }}>{label}</div>
+      <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 4 }}>{label}</div>
       <div style={{ color: 'var(--primary)', fontSize: 14, fontWeight: 500 }}>
         Score: {payload[0]?.value}
       </div>
@@ -34,13 +34,13 @@ export default function DisciplineTrendChart({ data = [] }) {
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis
           dataKey="date"
-          tick={{ fill: '#717784', fontSize: 11 }}
+          tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
           axisLine={{ stroke: 'var(--border)' }}
           tickLine={false}
         />
         <YAxis
           domain={[0, 100]}
-          tick={{ fill: '#717784', fontSize: 11 }}
+          tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
           axisLine={{ stroke: 'var(--border)' }}
           tickLine={false}
         />

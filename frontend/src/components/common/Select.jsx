@@ -11,11 +11,11 @@ export default function Select({ label, value, onChange, options = [], error, ..
         onChange={onChange}
         {...rest}
         style={{
-          background: '#F3F4F6',
+          background: 'var(--border)',
           border: `1px solid ${error ? '#e93544' : 'var(--border)'}`,
           borderRadius: 10,
           padding: '10px 14px',
-          color: value ? '#fff' : '#717784',
+          color: value ? 'var(--text)' : 'var(--text-muted)',
           fontSize: 14,
           fontFamily: 'Inter,sans-serif',
           outline: 'none',
@@ -29,7 +29,7 @@ export default function Select({ label, value, onChange, options = [], error, ..
         }}
       >
         {options.map(opt => (
-          <option key={opt.value} value={opt.value} style={{ background: '#F3F4F6', color: '#fff' }}>
+          <option key={opt.value} value={opt.value} style={{ background: 'var(--border)', color: 'var(--text)' }}>
             {opt.label}
           </option>
         ))}

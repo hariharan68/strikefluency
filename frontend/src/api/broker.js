@@ -6,7 +6,8 @@ export const saveFyersCredentials = (appId, secretId) => client.post('/auth/fyer
 export const getFyersLogin = () => client.get('/auth/fyers/login')
 export const setFyersToken = (accessToken) => client.post('/auth/fyers/token', { access_token: accessToken })
 export const exchangeFyersAuthCode = (authCode) => client.post('/auth/fyers/exchange', { auth_code: authCode })
-export const clearFyersToken = () => client.delete('/auth/fyers/token')
+export const clearFyersToken = () => client.delete('/auth/fyers/token')          // Disconnect: drop token, keep creds
+export const revokeFyersCredentials = () => client.delete('/auth/fyers/credentials') // Revoke: wipe creds from .env
 
 // Backward-compatible names used by older components.
 export const getFyersAuthUrl = getFyersLogin

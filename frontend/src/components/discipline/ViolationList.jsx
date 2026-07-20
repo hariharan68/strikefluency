@@ -21,7 +21,7 @@ export default function ViolationList({ violations = [] }) {
           <tr style={{ borderBottom: '1px solid var(--border)' }}>
             {['Rule', 'Type', 'Time'].map(h => (
               <th key={h} style={{
-                textAlign: 'left', color: '#717784', fontSize: 12,
+                textAlign: 'left', color: 'var(--text-muted)', fontSize: 12,
                 padding: '8px 12px', fontWeight: 500
               }}>{h}</th>
             ))}
@@ -29,8 +29,8 @@ export default function ViolationList({ violations = [] }) {
         </thead>
         <tbody>
           {violations.map((v, i) => (
-            <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
-              <td style={{ padding: '10px 12px', color: '#fff', fontSize: 13 }}>
+            <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+              <td style={{ padding: '10px 12px', color: 'var(--text)', fontSize: 13 }}>
                 {RULE_LABELS[v.rule_code] || v.rule_code}
               </td>
               <td style={{ padding: '10px 12px' }}>
@@ -47,7 +47,7 @@ export default function ViolationList({ violations = [] }) {
                   {v.was_blocked ? 'Blocked' : 'Warning'}
                 </span>
               </td>
-              <td style={{ padding: '10px 12px', color: '#717784', fontSize: 12 }}>
+              <td style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: 12 }}>
                 {formatDate(v.created_at)}
               </td>
             </tr>

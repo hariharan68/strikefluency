@@ -12,7 +12,7 @@ import logging
 from app.brokers.connections import save_fyers_token_best_effort, revoke_fyers_token_best_effort
 from app.config import settings
 from app.core import token_store
-from app.core.env_file import update_env_file
+from app.core.env_file import remove_env_keys, update_env_file
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +205,11 @@ def store_access_token(access_token: str, source: str = "manual", meta: dict[str
 
 
 def clear_saved_token(revoke_db: bool = True) -> None:
+    """DISCONNECT: drop the access token but KEEP the app credentials.
+
+    After this the broker can be reconnected via OAuth alone — no need to
+    re-enter the App ID / Secret ID. Credentials stay in .env and settings.
+    """
     global _IGNORE_LEGACY_TOKEN
 
     _IGNORE_LEGACY_TOKEN = True
@@ -217,6 +222,37 @@ def clear_saved_token(revoke_db: bool = True) -> None:
             pass
     if revoke_db:
         revoke_fyers_token_best_effort()
+
+
+def revoke_credentials() -> dict[str, Any]:
+    """REVOKE: forget the broker entirely — remove credentials from .env.
+
+    Clears the token first (so the session is dropped), then deletes the app
+    credentials from both .env and the live settings object, and reverts market
+    data to the mock provider. Reconnecting afterwards requires re-entering the
+    App ID and Secret ID (unlike Disconnect).
+
+    Note: the app id resolves as FYERS_APP_ID or FYERS_CLIENT_ID, so BOTH are
+    cleared — otherwise a leftover FYERS_CLIENT_ID would still read as configured.
+    """
+    clear_saved_token(revoke_db=True)
+
+    remove_env_keys([
+        "FYERS_APP_ID", "FYERS_CLIENT_ID", "FYERS_SECRET_ID", "FYERS_ACCESS_TOKEN",
+    ])
+    settings.FYERS_APP_ID = ""
+    settings.FYERS_CLIENT_ID = ""
+    settings.FYERS_SECRET_ID = ""
+    settings.FYERS_ACCESS_TOKEN = ""
+
+    # No credentials → fall back to mock market data.
+    settings.MARKET_DATA_PROVIDER = "mock"
+    try:
+        update_env_file({"MARKET_DATA_PROVIDER": "mock"})
+    except OSError:
+        logger.warning("Could not persist MARKET_DATA_PROVIDER=mock to .env")
+
+    return {"configured": has_required_credentials()}
 
 
 def get_fyers_model(access_token: str | None = None):

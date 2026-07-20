@@ -146,7 +146,7 @@ class FyersMarketDataProvider(MarketDataProvider):
 
         payload = {
             "symbol": fyers_symbol,
-            "strikecount": 10,
+            "strikecount": 20,   # 20 each side → 41 rows, covers the ±20 UI window
             "timestamp": "",
         }
         response = self._fyers.optionchain(data=payload)
@@ -249,30 +249,56 @@ class FyersMarketDataProvider(MarketDataProvider):
         })
         nearest_expiry = expiries[0] if expiries else "unknown"
 
+        # Fyers v3 optionchain uses snake_case keys (`strike_price`, `oi`, `oich`,
+        # `volume`), NOT the camelCase this once assumed. With the wrong keys every
+        # strike defaulted to 0, collapsing the whole chain into a single strike-0
+        # row and a spot of 0 (the visible "only ATM" bug). Read documented names.
         strikes_map = {}
+        spot_price = float(data.get("underlyingValue") or 0.0)
+        change_pct = 0.0
+        future_price = 0.0
+
         for contract in options_chain:
-            strike = int(contract.get("strikePrice", 0))
-            opt_type = contract.get("option_type", "CE")
+            opt_type = contract.get("option_type", "")
+            strike = int(float(contract.get("strike_price",
+                                            contract.get("strikePrice", 0)) or 0))
+
+            # The underlying/index leg carries strike_price == -1 and an empty
+            # option_type; Fyers hangs spot, %-change and future price off it.
+            if opt_type not in ("CE", "PE") or strike < 0:
+                if spot_price <= 0:
+                    spot_price = float(contract.get("ltp") or 0.0)
+                change_pct = float(contract.get("ltpchp") or change_pct)
+                future_price = float(contract.get("fp") or future_price)
+                continue
+
             if strike not in strikes_map:
                 strikes_map[strike] = {"strike": strike, "ce": {}, "pe": {}}
 
             side = "ce" if opt_type == "CE" else "pe"
             strikes_map[strike][side] = {
-                "ltp": float(contract.get("ltp", 0)),
-                "oi": int(contract.get("openInterest", 0)),
-                "volume": int(contract.get("vol", 0)),
-                "iv": float(contract.get("iv", 0)),
-                "bid": float(contract.get("bid", 0)),
-                "ask": float(contract.get("ask", 0)),
-                "delta": float(contract.get("delta", 0)),
+                "ltp": float(contract.get("ltp") or 0),
+                "oi": int(contract.get("oi") or 0),
+                "oi_change": int(contract.get("oich") or 0),   # Fyers OI change since prev
+                "volume": int(contract.get("volume") or 0),
+                "iv": float(contract.get("iv") or 0),
+                "bid": float(contract.get("bid") or 0),
+                "ask": float(contract.get("ask") or 0),
+                "delta": float(contract.get("delta") or 0),
             }
 
         sorted_strikes = sorted(strikes_map.values(), key=lambda x: x["strike"])
-        spot_price = float(data.get("underlyingValue", 0))
         atm_strike = self._get_atm_strike(spot_price, sorted_strikes)
         total_ce_oi = sum(s["ce"].get("oi", 0) for s in sorted_strikes if s.get("ce"))
         total_pe_oi = sum(s["pe"].get("oi", 0) for s in sorted_strikes if s.get("pe"))
         pcr = round(total_pe_oi / total_ce_oi, 2) if total_ce_oi > 0 else 0
+        # Underlying % change drives OI-buildup direction — taken from the index leg
+        # above, with top-level keys as a fallback across SDK builds.
+        if not change_pct:
+            change_pct = float(data.get("indexChangePercent")
+                               or data.get("underlyingChangePercent") or 0.0)
+        if not future_price:
+            future_price = float(data.get("fut_price") or data.get("fp") or 0.0)
 
         return {
             "instrument": instrument,
@@ -283,6 +309,8 @@ class FyersMarketDataProvider(MarketDataProvider):
             "timestamp": datetime.now().isoformat(),
             "pcr": pcr,
             "lot_size": get_spec(instrument).lot_size,
+            "change_pct": change_pct,
+            "future_price": future_price,
             "strikes": sorted_strikes,
         }
 

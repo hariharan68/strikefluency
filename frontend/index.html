@@ -8,6 +8,15 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Apply the saved theme before React paints to avoid a flash of the
+      // wrong palette. Mirrors the toggle logic in TopBar.jsx.
+      (function () {
+        var t = localStorage.getItem('sf-theme') || 'dark';
+        document.documentElement.classList.toggle('dark', t === 'dark');
+        document.documentElement.classList.toggle('light', t === 'light');
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

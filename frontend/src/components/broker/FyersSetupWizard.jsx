@@ -24,7 +24,7 @@ function StepIndicator({ step }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 13, fontWeight: 700,
                 background: done || active ? 'var(--primary)' : 'var(--primary-bg)',
-                color: done || active ? '#fff' : '#93C5FD',
+                color: done || active ? 'var(--on-primary)' : '#93C5FD',
                 boxShadow: active ? '0 0 0 4px rgba(37,99,235,0.15)' : 'none',
                 transition: 'all 0.2s'
               }}>
@@ -80,6 +80,9 @@ export default function FyersSetupWizard({ isOpen, onClose, onConnected }) {
       .then(({ data }) => {
         if (data.redirect_uri) setRedirectUri(data.redirect_uri)
         setExisting(data)
+        // Credentials already stored → skip Create App + Enter Keys and go
+        // straight to the OAuth Connect step. First-time setup still starts at 1.
+        if (data.configured) setStep(3)
       })
       .catch(() => setExisting(null))
     return () => clearInterval(pollRef.current)
@@ -249,10 +252,13 @@ export default function FyersSetupWizard({ isOpen, onClose, onConnected }) {
             <LinkIcon size={24} color="var(--primary)" />
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Credentials saved</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>
+              {existing?.configured ? 'Credentials ready' : 'Credentials saved'}
+            </div>
             <p style={{ fontSize: 12, color: '#8B93A7', marginTop: 6, lineHeight: 1.55, maxWidth: 380 }}>
-              Now sign in with your Fyers trading account. A popup will open; after login the
-              access token is generated and stored automatically.
+              {existing?.configured
+                ? <>Using your saved Fyers app <b>{existing.app_id_masked}</b>. Sign in to reconnect — a popup will open and a fresh access token is stored automatically.</>
+                : 'Now sign in with your Fyers trading account. A popup will open; after login the access token is generated and stored automatically.'}
             </p>
           </div>
           <button type="button" className="sf-btn-primary" disabled={connecting} onClick={connect}
@@ -260,6 +266,12 @@ export default function FyersSetupWizard({ isOpen, onClose, onConnected }) {
             <LinkIcon size={15} />
             {connecting ? 'Waiting for Fyers login…' : 'Connect Fyers Account'}
           </button>
+          {existing?.configured && (
+            <button type="button" onClick={() => setStep(2)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontSize: 12, fontWeight: 600 }}>
+              Use different keys
+            </button>
+          )}
           <p style={{ fontSize: 11, color: '#8B93A7' }}>
             Settings are saved on the server and survive restarts.
           </p>

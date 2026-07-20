@@ -7,10 +7,10 @@ function CustomTooltip({ active, payload, label }) {
   const val = payload[0]?.value ?? 0
   return (
     <div style={{
-      background: '#F3F4F6', border: '1px solid var(--border)',
+      background: 'var(--border)', border: '1px solid var(--border)',
       borderRadius: 8, padding: '10px 14px'
     }}>
-      <div style={{ color: '#717784', fontSize: 12, marginBottom: 4 }}>{label}</div>
+      <div style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 4 }}>{label}</div>
       <div style={{ color: val >= 0 ? '#3ee089' : '#ff6875', fontSize: 14, fontWeight: 500 }}>
         ₹{Number(val).toFixed(2)}
       </div>
@@ -43,12 +43,12 @@ export default function PnLCurveChart({ data = [] }) {
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis
           dataKey="date"
-          tick={{ fill: '#717784', fontSize: 11 }}
+          tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
           axisLine={{ stroke: 'var(--border)' }}
           tickLine={false}
         />
         <YAxis
-          tick={{ fill: '#717784', fontSize: 11 }}
+          tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
           axisLine={{ stroke: 'var(--border)' }}
           tickLine={false}
           tickFormatter={v => `₹${v}`}

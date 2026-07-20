@@ -11,7 +11,7 @@ export default function Pagination({ page, totalPages, onPageChange }) {
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: 32, height: 32, borderRadius: 8,
-          background: page <= 1 ? 'transparent' : '#F3F4F6',
+          background: page <= 1 ? 'transparent' : 'var(--border)',
           border: '1px solid var(--border)',
           cursor: page <= 1 ? 'not-allowed' : 'pointer',
           opacity: page <= 1 ? 0.4 : 1
@@ -30,7 +30,7 @@ export default function Pagination({ page, totalPages, onPageChange }) {
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: 32, height: 32, borderRadius: 8,
-          background: page >= totalPages ? 'transparent' : '#F3F4F6',
+          background: page >= totalPages ? 'transparent' : 'var(--border)',
           border: '1px solid var(--border)',
           cursor: page >= totalPages ? 'not-allowed' : 'pointer',
           opacity: page >= totalPages ? 0.4 : 1

@@ -8,7 +8,7 @@ function CustomTooltip({ active, payload }) {
   const item = payload[0]
   return (
     <div style={{
-      background: '#F3F4F6', border: '1px solid var(--border)',
+      background: 'var(--border)', border: '1px solid var(--border)',
       borderRadius: 8, padding: '10px 14px'
     }}>
       <div style={{ color: item.payload.color, fontSize: 13, fontWeight: 500 }}>
@@ -35,7 +35,7 @@ export default function MistakeBreakdownChart({ data = [] }) {
   const chartData = data.map(item => ({
     name: MISTAKE_LABELS[item.category]?.label || item.category,
     value: item.count,
-    color: MISTAKE_LABELS[item.category]?.color || '#717784'
+    color: MISTAKE_LABELS[item.category]?.color || 'var(--text-muted)'
   })).filter(d => d.value > 0)
 
   if (chartData.length === 0) {

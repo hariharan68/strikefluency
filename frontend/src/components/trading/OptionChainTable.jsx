@@ -49,7 +49,7 @@ function PriceCell({ price, onClick, side }) {
         padding: '0 10px', height: 36, textAlign: 'center',
         cursor: 'pointer', userSelect: 'none',
         color: side === 'ce' ? 'var(--primary-dark)' : 'var(--loss)',
-        fontFamily: "'JetBrains Mono',monospace", fontSize: 12, fontWeight: 500,
+        fontFamily: "'Inter',sans-serif", fontVariantNumeric: 'tabular-nums', fontSize: 12, fontWeight: 500,
       }}
     >
       {price != null ? fmt(price) : '—'}
@@ -162,13 +162,13 @@ export default function OptionChainTable({ data, onCellClick, instrument, loadin
                   {/* Strike */}
                   <td style={{
                     padding: '0 6px', textAlign: 'center', height: 36,
-                    fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: 600,
+                    fontFamily: "'Inter',sans-serif", fontVariantNumeric: 'tabular-nums', fontSize: 13, fontWeight: 600,
                     color: isATM ? 'var(--primary-dark)' : 'var(--text)',
                     background: isATM ? 'rgba(37,99,235,0.08)' : 'transparent'
                   }}>
                     {row.strike}
                     {isATM && (
-                      <span style={{ fontSize: 8, background: 'var(--primary)', color: '#131313', padding: '1px 4px', borderRadius: 3, marginLeft: 4, verticalAlign: 'middle' }}>ATM</span>
+                      <span style={{ fontSize: 8, background: 'var(--primary)', color: 'var(--on-primary)', padding: '1px 4px', borderRadius: 3, marginLeft: 4, verticalAlign: 'middle' }}>ATM</span>
                     )}
                   </td>
                   <PriceCell price={row.put?.ltp} side="pe"
