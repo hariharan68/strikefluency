@@ -36,6 +36,9 @@ class VirtualOrder(Base):
     setup_tag: Mapped[str] = mapped_column(String(30), nullable=False)
     exit_reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     is_discipline_compliant: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # True when placed while Discipline Mode was OFF (free-play). Such trades are
+    # excluded from the discipline score/streak and never trigger a cooldown.
+    was_free_play: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Set when this order is a leg mirrored from a multi-leg Strategy (Phase 5+);
     # NULL for ordinary single-leg orders. Lets existing analytics/journal treat
     # strategy legs as normal orders while still being groupable by strategy.

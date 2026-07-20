@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useLocation, Link } from 'react-router-dom'
 import useMarketStore from '../../store/marketStore'
-import { Bell, Mail, Moon, Search, Settings, Sun } from 'lucide-react'
+import { getMode } from '../../api/discipline'
+import { Bell, Mail, Moon, Search, Settings, Sun, ShieldOff } from 'lucide-react'
 
 const PAGE_META = {
   '/dashboard': { title: 'Dashboard', subtitle: 'Track performance, risk, and today\'s trading discipline.' },
@@ -10,6 +11,7 @@ const PAGE_META = {
   '/journal': { title: 'Trade Journal', subtitle: 'Review setups, emotions, mistakes, and lessons from each trade.' },
   '/analytics': { title: 'Analytics', subtitle: 'Measure P&L, discipline trends, and execution quality over time.' },
   '/discipline': { title: 'Reports', subtitle: 'Monitor rule compliance, violations, and discipline score health.' },
+  '/discipline-mode': { title: 'Discipline Mode', subtitle: 'Master switch for the rules that gate your trades — and free-play capital.' },
   '/settings': { title: 'Settings', subtitle: 'Manage profile, broker integration, preferences, and account controls.' },
 }
 
@@ -24,6 +26,15 @@ export default function TopBar() {
   const meta = PAGE_META[location.pathname] || { title: 'StrikeFluency', subtitle: 'Virtual options trading dashboard.' }
   const [theme, setTheme] = useState(getInitialTheme)
   const [time, setTime] = useState('')
+  const [disciplineOff, setDisciplineOff] = useState(false)
+
+  // Reflect the master Discipline Mode state globally; re-check on navigation
+  // so toggling it on any page updates the pill.
+  useEffect(() => {
+    let active = true
+    getMode().then(r => { if (active) setDisciplineOff(r.data?.enabled === false) }).catch(() => {})
+    return () => { active = false }
+  }, [location.pathname])
 
   useEffect(() => {
     const root = document.documentElement
@@ -49,6 +60,14 @@ export default function TopBar() {
       </div>
 
       <div className="sf-topbar-actions">
+        {disciplineOff && (
+          <Link to="/discipline-mode" title="Discipline Mode is OFF — free play"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none',
+              background: 'var(--warn-bg)', color: 'var(--warn)', border: '1px solid var(--warn)',
+              borderRadius: 999, padding: '5px 12px', fontSize: 11.5, fontWeight: 700 }}>
+            <ShieldOff size={14} /> DISCIPLINE OFF
+          </Link>
+        )}
         <div className="sf-market-pill">
           <span className={isMarketOpen ? 'sf-market-dot open blink' : 'sf-market-dot'} />
           <span>{isMarketOpen ? 'Market Open' : 'Market Closed'}</span>

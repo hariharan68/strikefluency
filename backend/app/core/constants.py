@@ -99,6 +99,9 @@ TIER_CAPITALS = {
 # Consecutive disciplined trades needed to unlock next tier
 TIER_UNLOCK_STREAK = 15
 
+# Full sandbox capital granted when Discipline Mode is switched OFF (free-play).
+FULL_SANDBOX_CAPITAL = TIER_CAPITALS[Tier.TIER_3]   # ₹10,00,000
+
 
 # ── Discipline rule codes ─────────────────────────────────────
 class DisciplineRuleCode:

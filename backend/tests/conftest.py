@@ -48,6 +48,17 @@ def _ensure_strategy_schema(conn) -> None:
         conn.execute(text("ALTER TABLE virtual_orders ADD COLUMN strategy_id UUID NULL"))
     # ensure sl_price is nullable (Phase 5) regardless of migration state
     conn.execute(text("ALTER TABLE virtual_orders ALTER COLUMN sl_price DROP NOT NULL"))
+    # Discipline Mode columns (migration 20260720) — add if not yet applied.
+    if "was_free_play" not in vo_cols:
+        conn.execute(text(
+            "ALTER TABLE virtual_orders ADD COLUMN was_free_play BOOLEAN NOT NULL DEFAULT FALSE"))
+    va_cols = {c["name"] for c in insp.get_columns("virtual_accounts")}
+    if "discipline_mode_enabled" not in va_cols:
+        conn.execute(text(
+            "ALTER TABLE virtual_accounts ADD COLUMN discipline_mode_enabled BOOLEAN NOT NULL DEFAULT TRUE"))
+    if "capital_unlocked" not in va_cols:
+        conn.execute(text(
+            "ALTER TABLE virtual_accounts ADD COLUMN capital_unlocked BOOLEAN NOT NULL DEFAULT FALSE"))
 
 
 @pytest.fixture

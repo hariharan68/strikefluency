@@ -263,6 +263,7 @@ class DisciplineEngine:
             .filter(
                 VirtualOrder.user_id == self.user.id,
                 VirtualOrder.status != "OPEN",
+                VirtualOrder.was_free_play == False,
             )
             .order_by(VirtualOrder.created_at.desc())
             .limit(DISCIPLINE_SCORE_WINDOW)

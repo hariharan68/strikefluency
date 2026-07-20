@@ -13,11 +13,14 @@ class PlaceOrderRequest(BaseModel):
     option_type:  Literal["CE", "PE"]
     action:       Literal["BUY", "SELL"]
     quantity:     int = 1
-    sl_price:     Decimal
+    # SL and setup tag are optional at the schema level: when Discipline Mode is
+    # ON, the engine's MANDATORY_SL / MANDATORY_SETUP_TAG rules still require them
+    # (and raise a clear violation); when OFF, bare free-play orders are allowed.
+    sl_price:     Optional[Decimal] = None
     target_price: Optional[Decimal] = None
-    setup_tag:    Literal[
+    setup_tag:    Optional[Literal[
         "OI_BASED", "PRICE_ACTION", "LEVEL_TRADE", "EXPIRY_PLAY", "OTHER"
-    ]
+    ]] = None
 
     @field_validator("quantity")
     @classmethod
@@ -59,6 +62,7 @@ class OrderResponse(BaseModel):
     setup_tag: str
     exit_reason: Optional[str] = None
     is_discipline_compliant: bool
+    was_free_play: bool
     created_at: datetime
 
 

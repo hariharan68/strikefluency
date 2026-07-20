@@ -5,6 +5,7 @@ export default function useDiscipline() {
   const [rules, setRules] = useState([])
   const [score, setScore] = useState(null)
   const [violations, setViolations] = useState([])
+  const [mode, setMode] = useState(null)   // { enabled, capital_unlocked, tier, balance }
   const [loading, setLoading] = useState(false)
 
   const loadRules = async () => {
@@ -33,5 +34,26 @@ export default function useDiscipline() {
     await loadRules()
   }
 
-  return { rules, score, violations, loading, loadRules, loadScore, loadViolations, updateRule }
+  const loadMode = async () => {
+    try {
+      const r = await disciplineApi.getMode()
+      setMode(r.data)
+    } catch {}
+  }
+
+  const toggleMode = async (enabled) => {
+    setLoading(true)
+    try {
+      const r = await disciplineApi.setMode(enabled)
+      setMode(r.data)
+      return r.data
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return {
+    rules, score, violations, mode, loading,
+    loadRules, loadScore, loadViolations, loadMode, updateRule, toggleMode,
+  }
 }

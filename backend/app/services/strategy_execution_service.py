@@ -204,9 +204,11 @@ def execute_strategy(db: Session, user: User, strategy_id: uuid.UUID) -> Strateg
             f"Insufficient balance. Margin required ₹{margin}, available ₹{account.balance}."
         )
 
-    # Discipline: one trade, three rules.
-    engine = DisciplineEngine(db, user)
-    _check_strategy_discipline(engine, orm.setup_tag, session, account)
+    # Discipline: one trade, three rules (skipped in free-play mode).
+    free_play = not account.discipline_mode_enabled
+    if not free_play:
+        engine = DisciplineEngine(db, user)
+        _check_strategy_discipline(engine, orm.setup_tag, session, account)
 
     # ── persist: legs, mirror orders, position ────────────────
     fills_by_leg = {f.leg_id: f for f in plan.fills}
@@ -219,7 +221,7 @@ def execute_strategy(db: Session, user: User, strategy_id: uuid.UUID) -> Strateg
         row.entry_price = Decimal(str(fill.fill_price))
         row.status = LegStatus.OPEN
         row.opened_at = now
-        _mirror_order(db, user, orm, row, fill)
+        _mirror_order(db, user, orm, row, fill, free_play)
 
     exec_spot = float(pricer.chain_for(domain.legs[0].contract.expiry).get("spot_price", 0.0))
     payoff = _safe_payoff(domain, exec_spot)
@@ -244,7 +246,7 @@ def execute_strategy(db: Session, user: User, strategy_id: uuid.UUID) -> Strateg
 
 
 def _mirror_order(db: Session, user: User, orm, leg_row: StrategyLegORM,
-                  fill: LegFill) -> Optional[VirtualOrder]:
+                  fill: LegFill, free_play: bool = False) -> Optional[VirtualOrder]:
     """
     Mirror one OPTION leg into a VirtualOrder so existing analytics/journal see
     it. FUT legs are skipped: virtual_orders is CE/PE-only (CHECK constraint) and
@@ -264,6 +266,7 @@ def _mirror_order(db: Session, user: User, orm, leg_row: StrategyLegORM,
         status=OrderStatus.OPEN, brokerage=Decimal(str(fill.brokerage)),
         setup_tag=orm.setup_tag or "OTHER",
         is_discipline_compliant=True, strategy_id=orm.id,
+        was_free_play=free_play,
     )
     db.add(order)
     return order

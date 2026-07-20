@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
 import { useToast } from '../../components/common/Toast'
 import { clearFyersToken, getFyersProfile, getFyersStatus, revokeFyersCredentials } from '../../api/broker'
 import FyersSetupWizard from '../../components/broker/FyersSetupWizard'
+import DisciplineModeToggle from '../../components/discipline/DisciplineModeToggle'
 import { getSessions, logout, logoutAll, revokeSession } from '../../api/auth'
-import { User, Bell, Shield, Globe, LogOut, ChevronRight, Link as LinkIcon, RefreshCw, Unplug, Trash2 } from 'lucide-react'
+import { User, Bell, Shield, ShieldCheck, Globe, LogOut, ChevronRight, Link as LinkIcon, RefreshCw, Unplug, Trash2 } from 'lucide-react'
 
 const Card = ({ children, style = {} }) => (
   <div style={{
@@ -433,9 +435,24 @@ function AccountSection({ clearAuth }) {
   )
 }
 
+function DisciplineModeSection() {
+  return (
+    <Card>
+      <SectionHeader title="Discipline Mode" subtitle="Master switch for the trading rules that gate your orders" />
+      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <DisciplineModeToggle variant="full" />
+        <Link to="/discipline-mode" style={{ fontSize: 12.5, color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>
+          Open the Discipline Mode control center →
+        </Link>
+      </div>
+    </Card>
+  )
+}
+
 const SECTIONS = [
   { id: 'profile', icon: User, label: 'Profile' },
   { id: 'trading', icon: Globe, label: 'Trading Preferences' },
+  { id: 'discipline', icon: ShieldCheck, label: 'Discipline Mode' },
   { id: 'notifications', icon: Bell, label: 'Notifications' },
   { id: 'broker', icon: LinkIcon, label: 'Broker Integration' },
   { id: 'account', icon: Shield, label: 'Account & Security' },
@@ -481,6 +498,7 @@ export default function SettingsPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {active === 'profile' && <ProfileSection user={user} />}
         {active === 'trading' && <TradingPreferences />}
+        {active === 'discipline' && <DisciplineModeSection />}
         {active === 'notifications' && <NotificationSettings />}
         {active === 'broker' && <BrokerIntegrationSection />}
         {active === 'account' && <SessionsSection clearAuth={clearAuth} />}

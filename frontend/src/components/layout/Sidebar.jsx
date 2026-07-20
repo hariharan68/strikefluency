@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, Activity, Shield, BookOpen, BarChart2, LogOut,
+  LayoutDashboard, Activity, Shield, ShieldCheck, BookOpen, BarChart2, LogOut,
   TrendingUp, Settings, Radio, Layers, Table2
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
@@ -12,6 +12,7 @@ const navItems = [
   { to: '/strategy-builder', icon: Layers, label: 'Strategy Builder' },
   { to: '/option-chain', icon: Table2, label: 'Option Chain' },
   { to: '/trading', icon: Activity, label: 'Trade' },
+  { to: '/discipline-mode', icon: ShieldCheck, label: 'Discipline Mode' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },
   { to: '/discipline', icon: Shield, label: 'Reports' },

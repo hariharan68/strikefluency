@@ -26,6 +26,17 @@ class DisciplineScoreResponse(BaseModel):
     trades_to_next_tier: int
 
 
+class DisciplineModeResponse(BaseModel):
+    enabled: bool
+    capital_unlocked: bool
+    tier: str
+    balance: Decimal
+
+
+class SetDisciplineModeRequest(BaseModel):
+    enabled: bool
+
+
 class ViolationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID

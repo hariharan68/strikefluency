@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import useDiscipline from '../../hooks/useDiscipline'
+import DisciplineModeToggle from '../../components/discipline/DisciplineModeToggle'
 import { RULE_LABELS } from '../../utils/constants'
 import { formatDate } from '../../utils/formatters'
 import { X } from 'lucide-react'
@@ -98,6 +100,14 @@ export default function DisciplinePage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Master Discipline Mode switch */}
+      <DisciplineModeToggle variant="full" />
+      <div style={{ marginTop: -6 }}>
+        <Link to="/discipline-mode" style={{ fontSize: 12, color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>
+          Open the Discipline Mode control center →
+        </Link>
+      </div>
+
       {/* Score strip */}
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', padding: '18px 22px', gap: 28 }}>

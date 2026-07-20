@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 from datetime import datetime
-from sqlalchemy import Numeric, String, Integer, ForeignKey, CheckConstraint, UniqueConstraint, Index, func
+from sqlalchemy import Numeric, String, Integer, Boolean, ForeignKey, CheckConstraint, UniqueConstraint, Index, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
@@ -16,6 +16,11 @@ class VirtualAccount(Base):
     tier: Mapped[str] = mapped_column(String(10), default="TIER_1", nullable=False)
     consecutive_disciplined_trades: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     discipline_score: Mapped[Decimal] = mapped_column(Numeric(5, 2), default=Decimal("100.00"), nullable=False)
+    # Master Discipline Mode switch. ON (default) → the 7 rules gate every order.
+    # OFF → free-play sandbox: rules bypassed and full capital unlocked.
+    discipline_mode_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Set True once full sandbox capital has been granted (discipline turned OFF).
+    capital_unlocked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now(), nullable=False)
     user: Mapped["User"] = relationship("User", back_populates="virtual_account")

@@ -19,14 +19,46 @@ from app.models.discipline_rule import DisciplineRule
 from app.models.discipline_violation import DisciplineViolation
 from app.models.virtual_account import VirtualAccount
 from app.schemas.discipline import (
+    DisciplineModeResponse,
     DisciplineRuleResponse,
     DisciplineScoreResponse,
+    SetDisciplineModeRequest,
     UpdateRuleRequest,
     ViolationResponse,
 )
+from app.services import discipline_mode_service
 from datetime import date
 
 router = APIRouter(prefix="/discipline", tags=["Discipline"])
+
+
+# ── Master mode switch ────────────────────────────────────────
+
+@router.get("/mode", response_model=DisciplineModeResponse)
+def get_mode(
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+):
+    """Current Discipline Mode state (on/off, capital unlocked, tier, balance)."""
+    return discipline_mode_service.get_mode(db, current_user)
+
+
+@router.put("/mode", response_model=DisciplineModeResponse)
+def set_mode(
+    data: SetDisciplineModeRequest,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+):
+    """
+    Flip the master Discipline Mode switch.
+
+    OFF → all 7 rules are bypassed and full sandbox capital (₹10,00,000) is
+          unlocked. Trades placed while OFF do not affect the discipline score.
+    ON  → rules gate every order again (money is kept, not reset).
+    """
+    result = discipline_mode_service.set_mode(db, current_user, data.enabled)
+    db.commit()
+    return result
 
 
 @router.get("/rules", response_model=list[DisciplineRuleResponse])

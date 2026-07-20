@@ -19,6 +19,7 @@ import StrategyBuilderPage from './pages/strategy/StrategyBuilderPage'
 import OptionChainPage from './pages/optionchain/OptionChainPage'
 import TradingDeskPage from './pages/trading/TradingDeskPage'
 import DisciplinePage from './pages/discipline/DisciplinePage'
+import DisciplineModePage from './pages/discipline/DisciplineModePage'
 import JournalPage from './pages/journal/JournalPage'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
 import SettingsPage from './pages/settings/SettingsPage'
@@ -89,6 +90,7 @@ export default function App() {
               <Route path="/option-chain" element={<OptionChainPage />} />
               <Route path="/trading" element={<TradingDeskPage />} />
               <Route path="/discipline" element={<DisciplinePage />} />
+              <Route path="/discipline-mode" element={<DisciplineModePage />} />
               <Route path="/journal" element={<JournalPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/settings" element={<SettingsPage />} />

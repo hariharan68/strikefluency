@@ -79,9 +79,11 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
 
     order_data["ltp"] = ltp
 
-    # ── Run discipline engine ──────────────────────────────
-    engine = DisciplineEngine(db, user)
-    engine.check_order(order_data, session, account, open_positions)
+    # ── Run discipline engine (skipped in free-play mode) ──
+    free_play = not account.discipline_mode_enabled
+    if not free_play:
+        engine = DisciplineEngine(db, user)
+        engine.check_order(order_data, session, account, open_positions)
 
     # ── Calculate fill price with slippage ─────────────────
     fill_price, slippage_points = calculate_slippage(
@@ -106,6 +108,9 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
     entry_brokerage = calculate_brokerage(fill_price, quantity, lot_size, action)
 
     # ── Create order ───────────────────────────────────────
+    # SL / setup tag may be absent in free-play mode (the engine that requires
+    # them is skipped). setup_tag is NOT NULL, so default it to OTHER.
+    sl_raw = order_data.get("sl_price")
     order = VirtualOrder(
         id=uuid.uuid4(),
         user_id=user.id,
@@ -120,13 +125,14 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
         lot_size=lot_size,
         entry_ltp=ltp,
         entry_price=fill_price,
-        sl_price=Decimal(str(order_data["sl_price"])),
+        sl_price=Decimal(str(sl_raw)) if sl_raw is not None else None,
         target_price=Decimal(str(order_data["target_price"])) if order_data.get("target_price") else None,
         status=OrderStatus.OPEN,
         brokerage=entry_brokerage.total,
         slippage_points=slippage_points,
-        setup_tag=order_data["setup_tag"],
+        setup_tag=order_data.get("setup_tag") or "OTHER",
         is_discipline_compliant=True,
+        was_free_play=free_play,
     )
     db.add(order)
     db.flush()
@@ -257,13 +263,16 @@ def close_position(
     # ── Update session ─────────────────────────────────────
     update_realized_pnl(session, net_pnl)
 
-    if exit_reason == ExitReason.SL_HIT:
-        activate_cooldown(session)
-        order.is_discipline_compliant = False
+    # Free-play trades never trigger a cooldown or touch the discipline score —
+    # the rules were off when they were placed.
+    if not order.was_free_play:
+        if exit_reason == ExitReason.SL_HIT:
+            activate_cooldown(session)
+            order.is_discipline_compliant = False
 
-    # ── Discipline score ───────────────────────────────────
-    engine = DisciplineEngine(db, user)
-    engine.update_discipline_score(account, was_compliant=order.is_discipline_compliant)
+        # ── Discipline score ───────────────────────────────
+        engine = DisciplineEngine(db, user)
+        engine.update_discipline_score(account, was_compliant=order.is_discipline_compliant)
 
     # ── Auto journal ───────────────────────────────────────
     _create_journal_entry(db, user, order, net_pnl, exit_reason)

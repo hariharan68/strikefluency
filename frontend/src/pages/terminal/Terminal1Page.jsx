@@ -1,19 +1,34 @@
 import { useEffect, useRef, useState } from 'react'
 import { getSpot, getStatus } from '../../api/market'
-import { Radio, ArrowUp, ArrowDown, Minus, Clock, Activity } from 'lucide-react'
+import { getOptionMetrics } from '../../api/options'
+import { Radio, ArrowUp, ArrowDown, Minus, Clock, Activity, Scale, Target } from 'lucide-react'
 
 const INDICES = [
-  { key: 'NIFTY', label: 'NIFTY 50', accent: '#adc9ff' },
-  { key: 'BANKNIFTY', label: 'BANK NIFTY', accent: '#dbbdff' },
-  { key: 'SENSEX', label: 'SENSEX', accent: '#31dd6a' },
+  { key: 'NIFTY', label: 'NIFTY 50', short: 'NIFTY', accent: '#adc9ff' },
+  { key: 'BANKNIFTY', label: 'BANK NIFTY', short: 'BANKNIFTY', accent: '#dbbdff' },
+  { key: 'SENSEX', label: 'SENSEX', short: 'SENSEX', accent: '#31dd6a' },
 ]
 
 const POLL_MS = 3000
+const METRICS_POLL_MS = 15000
 const MAX_TICKS = 40
 
 function fmt(n) {
   if (n == null || Number.isNaN(n) || n === 0) return '—'
   return Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function fmtInt(n) {
+  if (n == null || Number.isNaN(n) || n === 0) return '—'
+  return Math.round(Number(n)).toLocaleString('en-IN')
+}
+
+// PCR reading → sentiment label (put-heavy = downside protection / bullish support)
+function pcrSentiment(pcr) {
+  if (pcr == null || pcr === 0) return { label: '—', tone: 'var(--text-muted)' }
+  if (pcr >= 1.2) return { label: 'Put-heavy', tone: 'var(--gain-text)' }
+  if (pcr <= 0.8) return { label: 'Call-heavy', tone: 'var(--loss-text)' }
+  return { label: 'Balanced', tone: 'var(--text-sub)' }
 }
 
 // ── Tick sparkline ────────────────────────────────────────────────
@@ -112,11 +127,85 @@ function IndexCard({ label, accent, tick, isOpen }) {
   )
 }
 
+// ── Essential metric tile ─────────────────────────────────────────
+function MetricTile({ label, value, sub, subColor, accent }) {
+  return (
+    <div style={{ flex: '1 1 130px', minWidth: 130, background: 'var(--tile)', border: '1px solid var(--border-light)', borderRadius: 12, padding: '13px 15px' }}>
+      <div className="eyebrow" style={{ fontSize: 9.5, color: accent || 'var(--text-muted)' }}>{label}</div>
+      <div className="num" style={{ fontSize: 21, fontWeight: 700, color: 'var(--text)', marginTop: 5, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+      {sub != null && <div style={{ fontSize: 11, fontWeight: 600, color: subColor || 'var(--text-muted)', marginTop: 3 }}>{sub}</div>}
+    </div>
+  )
+}
+
+// ── Essentials strip (PCR / Max Pain / … for the selected index) ───
+function Essentials({ label, accent, metrics, loading, err }) {
+  const pcr = metrics?.pcr_oi
+  const sentiment = pcrSentiment(pcr)
+  const ivPct = metrics?.iv_percentile_label
+
+  return (
+    <div className="sf-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--tile)', display: 'grid', placeItems: 'center' }}>
+          <Scale size={15} color="var(--primary)" />
+        </span>
+        <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', fontFamily: "'Inter', sans-serif" }}>Option Essentials</span>
+        <span className="eyebrow" style={{ fontSize: 10, color: accent, letterSpacing: '0.12em' }}>{label}</span>
+        {metrics?.expiry_date && (
+          <span className="eyebrow" style={{ fontSize: 10, marginLeft: 'auto' }}>
+            <Target size={11} style={{ verticalAlign: -1, marginRight: 4 }} />
+            Expiry {new Date(metrics.expiry_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+          </span>
+        )}
+      </div>
+
+      {err ? (
+        <div style={{ background: 'var(--loss-bg)', border: '1px solid var(--loss)', borderRadius: 8, padding: '10px 14px', color: 'var(--loss-text)', fontSize: 12.5 }}>{err}</div>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, opacity: loading && !metrics ? 0.5 : 1 }}>
+          <MetricTile
+            label="PCR (OI)" accent={accent}
+            value={pcr != null && pcr !== 0 ? pcr.toFixed(2) : '—'}
+            sub={sentiment.label} subColor={sentiment.tone}
+          />
+          <MetricTile
+            label="PCR (Volume)"
+            value={metrics?.pcr_volume != null && metrics.pcr_volume !== 0 ? metrics.pcr_volume.toFixed(2) : '—'}
+          />
+          <MetricTile
+            label="Max Pain" accent="var(--warn)"
+            value={fmtInt(metrics?.max_pain_strike)}
+            sub={metrics?.spot ? `Spot ${fmtInt(metrics.spot)}` : null}
+          />
+          <MetricTile
+            label="ATM IV"
+            value={metrics?.atm_iv != null ? `${metrics.atm_iv}%` : '—'}
+            sub={ivPct} subColor="var(--text-sub)"
+          />
+          <MetricTile
+            label="Support"
+            value={fmtInt(metrics?.support_strike)} subColor="var(--gain-text)"
+          />
+          <MetricTile
+            label="Resistance"
+            value={fmtInt(metrics?.resistance_strike)} subColor="var(--loss-text)"
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────
 export default function Terminal1Page() {
   const [ticks, setTicks] = useState({})   // { NIFTY: {ltp,dir,chg,chgPct,hist,high,low,ts}, ... }
   const [status, setStatus] = useState(null)
   const [connected, setConnected] = useState(false)
+  const [selected, setSelected] = useState('NIFTY')   // index driving the essentials strip
+  const [metrics, setMetrics] = useState(null)
+  const [metricsLoading, setMetricsLoading] = useState(false)
+  const [metricsErr, setMetricsErr] = useState('')
   const baselineRef = useRef({})            // first observed price per index
 
   useEffect(() => {
@@ -165,10 +254,61 @@ export default function Terminal1Page() {
     return () => { cancelled = true; clearInterval(id) }
   }, [])
 
+  // essentials (PCR / max pain / IV …) for the selected index
+  useEffect(() => {
+    let cancelled = false
+    setMetricsLoading(true)
+    setMetrics(null)
+
+    async function pollMetrics() {
+      try {
+        const res = await getOptionMetrics(selected)
+        if (cancelled) return
+        setMetrics(res.data)
+        setMetricsErr('')
+      } catch (e) {
+        if (!cancelled) setMetricsErr(e.response?.data?.detail || 'Unable to load option metrics')
+      } finally {
+        if (!cancelled) setMetricsLoading(false)
+      }
+    }
+
+    pollMetrics()
+    const id = setInterval(pollMetrics, METRICS_POLL_MS)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [selected])
+
   const isOpen = !!status?.is_open
+  const selectedMeta = INDICES.find(i => i.key === selected) || INDICES[0]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      {/* index selector bar */}
+      <div className="sf-card" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span className="eyebrow" style={{ fontSize: 10 }}>Index</span>
+        <div style={{ display: 'flex', gap: 4, background: 'var(--tile)', border: '1px solid var(--border-light)', borderRadius: 10, padding: 4 }}>
+          {INDICES.map(i => {
+            const active = i.key === selected
+            return (
+              <button key={i.key} onClick={() => setSelected(i.key)} className="toggle-btn"
+                style={{
+                  fontSize: 12.5, fontWeight: 700, padding: '6px 16px', border: 'none', borderRadius: 7, cursor: 'pointer',
+                  background: active ? 'var(--primary)' : 'transparent',
+                  color: active ? 'var(--on-primary)' : 'var(--text-sub)',
+                }}>
+                {i.short}
+              </button>
+            )
+          })}
+        </div>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'baseline', gap: 8 }}>
+          <span className="eyebrow" style={{ fontSize: 10, color: selectedMeta.accent }}>{selectedMeta.label}</span>
+          <span className="num" style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>
+            {fmt(ticks[selected]?.ltp)}
+          </span>
+        </span>
+      </div>
+
       {/* status bar */}
       <div className="sf-card" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -195,12 +335,17 @@ export default function Terminal1Page() {
       {/* index cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, alignItems: 'start' }}>
         {INDICES.map(idx => (
-          <IndexCard key={idx.key} label={idx.label} accent={idx.accent} tick={ticks[idx.key]} isOpen={isOpen} />
+          <div key={idx.key} onClick={() => setSelected(idx.key)} style={{ cursor: 'pointer', borderRadius: 16, outline: idx.key === selected ? `2px solid ${idx.accent}` : 'none', outlineOffset: 2 }}>
+            <IndexCard label={idx.label} accent={idx.accent} tick={ticks[idx.key]} isOpen={isOpen} />
+          </div>
         ))}
       </div>
 
+      {/* option essentials for the selected index */}
+      <Essentials label={selectedMeta.label} accent={selectedMeta.accent} metrics={metrics} loading={metricsLoading} err={metricsErr} />
+
       <p className="eyebrow" style={{ fontSize: 10, textAlign: 'center', opacity: 0.7 }}>
-        Spot prices update every {POLL_MS / 1000}s · session high/low and change are measured since this terminal was opened
+        Spot prices update every {POLL_MS / 1000}s · option essentials every {METRICS_POLL_MS / 1000}s · PCR &amp; Max Pain reflect the {selectedMeta.label} nearest expiry
       </p>
     </div>
   )

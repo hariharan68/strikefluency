@@ -12,6 +12,8 @@ class VirtualAccountResponse(BaseModel):
     tier: str
     discipline_score: Decimal
     consecutive_disciplined_trades: int
+    discipline_mode_enabled: bool
+    capital_unlocked: bool
 
 
 class AccountSummaryResponse(BaseModel):

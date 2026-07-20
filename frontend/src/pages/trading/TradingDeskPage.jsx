@@ -5,8 +5,10 @@ import { getOptionChain } from '../../api/market'
 import { getPositions, closeOrder } from '../../api/trading'
 import OptionChainTable from '../../components/trading/OptionChainTable'
 import OrderFormPanel from '../../components/trading/OrderFormPanel'
+import DisciplineModeToggle from '../../components/discipline/DisciplineModeToggle'
+import useDiscipline from '../../hooks/useDiscipline'
 import { formatCurrency } from '../../utils/formatters'
-import { X } from 'lucide-react'
+import { X, AlertTriangle } from 'lucide-react'
 import { useToast } from '../../components/common/Toast'
 
 const INSTRUMENTS = ['NIFTY', 'BANKNIFTY', 'SENSEX']
@@ -67,13 +69,15 @@ export default function TradingDeskPage() {
   const [positions, setPositions] = useState([])
   const optionChain = useMarketStore(s => s.optionChain)
   const { loadAccount } = useVirtualTrading()
+  const { mode, loadMode } = useDiscipline()
   const { success } = useToast()
+  const disciplineOff = mode?.enabled === false
 
   const loadPositions = async () => {
     try { const r = await getPositions(); setPositions(r.data?.positions || r.data || []) } catch {}
   }
 
-  useEffect(() => { loadAccount(); loadPositions() }, [])
+  useEffect(() => { loadAccount(); loadPositions(); loadMode() }, [])
 
   useEffect(() => {
     setChainLoading(true)
@@ -110,15 +114,26 @@ export default function TradingDeskPage() {
             </button>
           ))}
         </div>
-        {open.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: 'var(--text-sub)', fontSize: 12 }}>Open P&L:</span>
-            <span className="num" style={{ fontSize: 14, fontWeight: 600, color: totalPnL >= 0 ? 'var(--gain)' : 'var(--loss)' }}>
-              {totalPnL >= 0 ? '+' : ''}{formatCurrency(totalPnL)}
-            </span>
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {open.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: 'var(--text-sub)', fontSize: 12 }}>Open P&L:</span>
+              <span className="num" style={{ fontSize: 14, fontWeight: 600, color: totalPnL >= 0 ? 'var(--gain)' : 'var(--loss)' }}>
+                {totalPnL >= 0 ? '+' : ''}{formatCurrency(totalPnL)}
+              </span>
+            </div>
+          )}
+          <DisciplineModeToggle variant="compact" onChange={loadMode} />
+        </div>
       </div>
+
+      {/* Free-play banner */}
+      {disciplineOff && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--warn-bg)', border: '1px solid var(--warn)', borderRadius: 10, padding: '10px 14px', color: 'var(--warn)', fontSize: 12.5, fontWeight: 600 }}>
+          <AlertTriangle size={15} />
+          Discipline Mode is OFF — free play. Rules are bypassed, full capital is unlocked, and these trades don't affect your discipline score.
+        </div>
+      )}
 
       {/* Main: chain + order form */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 14, alignItems: 'start' }}>
@@ -150,7 +165,7 @@ export default function TradingDeskPage() {
             </div>
           )}
           <div style={{ padding: 16 }}>
-            <OrderFormPanel prefill={prefill} instrument={instrument} onSuccess={() => { setPrefill(null); loadAccount(); loadPositions() }} />
+            <OrderFormPanel prefill={prefill} instrument={instrument} disciplineOff={disciplineOff} onSuccess={() => { setPrefill(null); loadAccount(); loadPositions() }} />
           </div>
         </Card>
       </div>

@@ -32,7 +32,7 @@ const ToggleGroup = ({ value, options, onChange, fullWidth }) => (
   </div>
 )
 
-export default function OrderFormPanel({ prefill, instrument = 'NIFTY', onSuccess }) {
+export default function OrderFormPanel({ prefill, instrument = 'NIFTY', disciplineOff = false, onSuccess }) {
   const { success } = useToast()
   const [strike, setStrike] = useState('')
   const [optionType, setOptionType] = useState('CE')
@@ -70,16 +70,20 @@ export default function OrderFormPanel({ prefill, instrument = 'NIFTY', onSucces
     setError(null)
     if (!strike) { setError('Strike price is required'); return }
     if (!ltp || ltpNum <= 0) { setError('LTP is required'); return }
-    if (!sl || slNum <= 0) { setError('Stop Loss is mandatory'); return }
-    if (!setupTag) { setError('Setup tag is mandatory'); return }
+    // In free-play mode (Discipline OFF) SL + setup tag are optional.
+    if (!disciplineOff) {
+      if (!sl || slNum <= 0) { setError('Stop Loss is mandatory'); return }
+      if (!setupTag) { setError('Setup tag is mandatory'); return }
+    }
     setLoading(true)
     try {
       await placeOrder({
         instrument, strike_price: parseInt(strike),
         option_type: optionType, action, quantity: lots,
-        ltp: ltpNum, sl_price: slNum,
+        ltp: ltpNum,
+        sl_price: sl && slNum > 0 ? slNum : null,
         target_price: target ? parseFloat(target) : null,
-        expiry_date: expiry, setup_tag: setupTag, notes: notes || null,
+        expiry_date: expiry, setup_tag: setupTag || null, notes: notes || null,
       })
       success(`Order placed — ${instrument} ${strike} ${optionType}`)
       setStrike(''); setLtp(''); setSl(''); setTarget(''); setNotes(''); setSetupTag('')
@@ -116,7 +120,7 @@ export default function OrderFormPanel({ prefill, instrument = 'NIFTY', onSucces
 
       {/* SL + Target */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <Field label="Stop Loss ★">
+        <Field label={disciplineOff ? 'Stop Loss (optional)' : 'Stop Loss ★'}>
           <input className="sf-input" type="number" step="0.05" placeholder="0.00" value={sl} onChange={e => setSl(e.target.value)}
             style={{ borderColor: sl && slNum > 0 && action === 'BUY' && slNum >= ltpNum ? 'var(--loss)' : undefined }} />
         </Field>
@@ -143,8 +147,8 @@ export default function OrderFormPanel({ prefill, instrument = 'NIFTY', onSucces
         </Field>
       </div>
 
-      {/* Setup Tag ★ */}
-      <Field label="Setup Tag ★">
+      {/* Setup Tag */}
+      <Field label={disciplineOff ? 'Setup Tag (optional)' : 'Setup Tag ★'}>
         <select className="sf-input" value={setupTag} onChange={e => setSetupTag(e.target.value)} style={{ cursor: 'pointer' }}>
           <option value="">— select your setup —</option>
           {SETUP_TAGS.map(t => <option key={t} value={t}>{SETUP_TAG_LABELS[t]}</option>)}
