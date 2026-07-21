@@ -12,17 +12,24 @@ import { User, Bell, Shield, ShieldCheck, Globe, LogOut, ChevronRight, Link as L
 const Card = ({ children, style = {} }) => (
   <div style={{
     background: 'var(--color-surface)', border: '1px solid var(--border)',
-    borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+    borderRadius: 14, boxShadow: 'var(--shadow)',
     overflow: 'hidden', ...style
   }}>
     {children}
   </div>
 )
 
-const SectionHeader = ({ title, subtitle }) => (
-  <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', background: 'var(--color-surface2)' }}>
-    <div style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>{title}</div>
-    {subtitle && <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{subtitle}</div>}
+const SectionHeader = ({ icon: Icon, title, subtitle }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '15px 20px', borderBottom: '1px solid var(--border)', background: 'var(--color-surface2)' }}>
+    {Icon && (
+      <span style={{ display: 'grid', placeItems: 'center', height: 36, width: 36, flexShrink: 0, borderRadius: 11, background: 'var(--primary-bg)', color: 'var(--primary)' }}>
+        <Icon size={18} />
+      </span>
+    )}
+    <div>
+      <div style={{ color: 'var(--text)', fontSize: 14, fontWeight: 700 }}>{title}</div>
+      {subtitle && <div style={{ color: 'var(--text-muted)', fontSize: 11.5, marginTop: 2 }}>{subtitle}</div>}
+    </div>
   </div>
 )
 
@@ -83,22 +90,27 @@ function ProfileSection({ user }) {
 
   return (
     <Card>
-      <SectionHeader title="Profile" subtitle="Your personal information" />
+      <SectionHeader icon={User} title="Profile" subtitle="Your personal information" />
       <div style={{ padding: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+        {/* Identity banner */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20,
+          padding: '18px 20px', borderRadius: 14, border: '1px solid var(--primary-border)',
+          background: 'radial-gradient(120% 180% at 0% 0%, rgba(var(--primary-glow-rgb),0.12) 0%, var(--color-surface2) 60%)',
+        }}>
           <div style={{
-            width: 56, height: 56, borderRadius: '50%',
+            width: 60, height: 60, borderRadius: '50%',
             background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0, boxShadow: '0 2px 8px rgba(37,99,235,0.22)'
+            flexShrink: 0, boxShadow: '0 8px 20px -8px rgba(var(--primary-glow-rgb),0.7)'
           }}>
-            <span style={{ color: 'var(--on-primary)', fontSize: 20, fontWeight: 700 }}>{(user?.full_name || user?.email || 'T').charAt(0).toUpperCase()}</span>
+            <span style={{ color: 'var(--on-primary)', fontSize: 22, fontWeight: 800 }}>{(user?.full_name || user?.email || 'T').charAt(0).toUpperCase()}</span>
           </div>
           <div>
-            <div style={{ color: 'var(--text)', fontSize: 15, fontWeight: 600 }}>{user?.full_name || 'Trader'}</div>
-            <div style={{ color: 'var(--text-sub)', fontSize: 12, marginTop: 2 }}>{user?.email}</div>
-            <div style={{ marginTop: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 10px', borderRadius: 20, background: 'var(--primary-bg)', color: 'var(--primary-dark)' }}>
+            <div style={{ color: 'var(--text)', fontSize: 16, fontWeight: 700 }}>{user?.full_name || 'Trader'}</div>
+            <div style={{ color: 'var(--text-sub)', fontSize: 12.5, marginTop: 2 }}>{user?.email}</div>
+            <div style={{ marginTop: 8 }}>
+              <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', padding: '3px 11px', borderRadius: 999, background: 'var(--primary)', color: 'var(--on-primary)' }}>
                 {user?.tier || 'BRONZE'} TIER
               </span>
             </div>
@@ -157,7 +169,7 @@ function TradingPreferences() {
 
   return (
     <Card>
-      <SectionHeader title="Trading Preferences" subtitle="Defaults for your trading desk" />
+      <SectionHeader icon={Globe} title="Trading Preferences" subtitle="Defaults for your trading desk" />
 
       <SettingRow label="Default Instrument" description="Pre-selected instrument on Trading Desk">
         <select className="sf-input" style={{ width: 130, height: 34 }} value={prefs.default_instrument} onChange={e => set('default_instrument', e.target.value)}>
@@ -228,7 +240,7 @@ function NotificationSettings() {
 
   return (
     <Card>
-      <SectionHeader title="Notifications" subtitle="Control in-app alerts and toasts" />
+      <SectionHeader icon={Bell} title="Notifications" subtitle="Control in-app alerts and toasts" />
       <SettingRow label="Discipline Rule Violations" description="Alert when an order is blocked by a discipline rule">
         <Toggle value={notifs.notify_discipline} onChange={v => set('notify_discipline', v)} />
       </SettingRow>
@@ -332,7 +344,7 @@ function BrokerIntegrationSection() {
 
   return (
     <Card>
-      <SectionHeader title="Broker Integration" subtitle="Connect your Fyers account for live market data" />
+      <SectionHeader icon={LinkIcon} title="Broker Integration" subtitle="Connect your Fyers account for live market data" />
       <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -442,7 +454,7 @@ function SessionsSection({ clearAuth }) {
 
   return (
     <Card>
-      <SectionHeader title="Active Sessions" subtitle="Review and revoke devices with access to your account" />
+      <SectionHeader icon={Shield} title="Active Sessions" subtitle="Review and revoke devices with access to your account" />
       <div style={{ padding: 20 }}>
         {loading ? <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Loading sessions...</div> : sessions.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No active sessions found.</div> : sessions.map(session => (
           <div key={session.family_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
@@ -464,14 +476,14 @@ function AccountSection({ clearAuth }) {
 
   return (
     <Card>
-      <SectionHeader title="Account" subtitle="Manage your account and session" />
+      <SectionHeader icon={Shield} title="Account" subtitle="Manage your account and session" />
       <SettingRow label="Account Type" description="Your current plan">
         <span className="badge-primary" style={{ fontSize: 11 }}>Free Beta</span>
       </SettingRow>
       <SettingRow label="Data & Privacy" description="Your trade data is stored locally and on server" noBorder>
         <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Encrypted</span>
       </SettingRow>
-      <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', background: '#fef9f9' }}>
+      <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', background: 'var(--loss-bg)' }}>
         {!showConfirm ? (
           <button
             onClick={() => setShowConfirm(true)}
@@ -506,7 +518,7 @@ function AccountSection({ clearAuth }) {
 function DisciplineModeSection() {
   return (
     <Card>
-      <SectionHeader title="Discipline Mode" subtitle="Master switch for the trading rules that gate your orders" />
+      <SectionHeader icon={ShieldCheck} title="Discipline Mode" subtitle="Master switch for the trading rules that gate your orders" />
       <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <DisciplineModeToggle variant="full" />
         <Link to="/discipline-mode" style={{ fontSize: 12.5, color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>
@@ -526,51 +538,82 @@ const SECTIONS = [
   { id: 'account', icon: Shield, label: 'Account & Security' },
 ]
 
+const SECTION_META = {
+  profile: 'Your personal information',
+  trading: 'Desk defaults & margin',
+  discipline: 'Rules that gate your orders',
+  notifications: 'In-app alerts & toasts',
+  broker: 'Live market data via Fyers',
+  account: 'Sessions & sign-out',
+}
+
 export default function SettingsPage() {
   const [active, setActive] = useState('profile')
   const user = useAuthStore(s => s.user)
   const clearAuth = useAuthStore(s => s.clearAuth)
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 20, alignItems: 'start' }}>
-      <Card>
-        <div style={{ padding: '12px 8px' }}>
-          <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '4px 12px 8px' }}>
-            Settings
-          </div>
-          {SECTIONS.map(({ id, icon: Icon, label }) => (
-            <button
-              key={id}
-              onClick={() => setActive(id)}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                gap: 10, padding: '9px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                background: active === id ? 'var(--primary-bg)' : 'transparent',
-                color: active === id ? 'var(--primary-dark)' : 'var(--text-sub)',
-                fontSize: 13, fontFamily: 'Inter,sans-serif', fontWeight: active === id ? 500 : 400,
-                marginBottom: 2, transition: 'all 0.13s', textAlign: 'left'
-              }}
-              onMouseEnter={e => active !== id && (e.currentTarget.style.background = 'var(--color-surface2)')}
-              onMouseLeave={e => active !== id && (e.currentTarget.style.background = 'transparent')}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <Icon size={15} strokeWidth={active === id ? 2 : 1.75} />
-                {label}
-              </div>
-              {active === id && <ChevronRight size={13} />}
-            </button>
-          ))}
-        </div>
-      </Card>
+    <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+      {/* Page heading */}
+      <div style={{ marginBottom: 18 }}>
+        <h1 className="sf-serif" style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)' }}>Settings</h1>
+        <p style={{ color: 'var(--text-sub)', fontSize: 13, marginTop: 4 }}>
+          Manage your profile, trading defaults, broker integration, and account controls.
+        </p>
+      </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {active === 'profile' && <ProfileSection user={user} />}
-        {active === 'trading' && <TradingPreferences />}
-        {active === 'discipline' && <DisciplineModeSection />}
-        {active === 'notifications' && <NotificationSettings />}
-        {active === 'broker' && <BrokerIntegrationSection />}
-        {active === 'account' && <SessionsSection clearAuth={clearAuth} />}
-        {active === 'account' && <AccountSection clearAuth={clearAuth} />}
+      <div style={{ display: 'grid', gridTemplateColumns: '248px minmax(0, 1fr)', gap: 20, alignItems: 'start' }}>
+        {/* ── Nav rail ── */}
+        <Card style={{ position: 'sticky', top: 12 }}>
+          <div style={{ padding: 8 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', padding: '8px 12px 10px' }}>
+              Settings
+            </div>
+            {SECTIONS.map(({ id, icon: Icon, label }) => {
+              const on = active === id
+              return (
+                <button
+                  key={id}
+                  onClick={() => setActive(id)}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 11,
+                    padding: '9px 10px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                    background: on ? 'var(--primary-bg)' : 'transparent',
+                    marginBottom: 3, transition: 'background 0.13s', textAlign: 'left',
+                    fontFamily: 'Inter,sans-serif',
+                  }}
+                  onMouseEnter={e => !on && (e.currentTarget.style.background = 'var(--color-surface2)')}
+                  onMouseLeave={e => !on && (e.currentTarget.style.background = 'transparent')}
+                >
+                  <span style={{
+                    display: 'grid', placeItems: 'center', height: 32, width: 32, flexShrink: 0, borderRadius: 9,
+                    background: on ? 'var(--primary)' : 'var(--color-surface2)',
+                    color: on ? 'var(--on-primary)' : 'var(--text-muted)',
+                    transition: 'all 0.13s',
+                  }}>
+                    <Icon size={15} strokeWidth={2} />
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: on ? 700 : 600, color: on ? 'var(--primary)' : 'var(--text)' }}>{label}</span>
+                    <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{SECTION_META[id]}</span>
+                  </span>
+                  {on && <ChevronRight size={14} color="var(--primary)" style={{ flexShrink: 0 }} />}
+                </button>
+              )
+            })}
+          </div>
+        </Card>
+
+        {/* ── Content ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {active === 'profile' && <ProfileSection user={user} />}
+          {active === 'trading' && <TradingPreferences />}
+          {active === 'discipline' && <DisciplineModeSection />}
+          {active === 'notifications' && <NotificationSettings />}
+          {active === 'broker' && <BrokerIntegrationSection />}
+          {active === 'account' && <SessionsSection clearAuth={clearAuth} />}
+          {active === 'account' && <AccountSection clearAuth={clearAuth} />}
+        </div>
       </div>
     </div>
   )

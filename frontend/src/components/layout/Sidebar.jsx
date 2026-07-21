@@ -9,10 +9,10 @@ import * as authApi from '../../api/auth'
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/terminal-1', icon: Radio, label: 'Terminal 1' },
+  { to: '/trading', icon: Activity, label: 'Trade' },
   { to: '/positions', icon: Wallet, label: 'Positions' },
   { to: '/strategy-builder', icon: Layers, label: 'Strategy Builder' },
   { to: '/option-chain', icon: Table2, label: 'Option Chain' },
-  { to: '/trading', icon: Activity, label: 'Trade' },
   { to: '/discipline-mode', icon: ShieldCheck, label: 'Discipline Mode' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },
