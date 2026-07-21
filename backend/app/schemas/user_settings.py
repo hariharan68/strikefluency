@@ -18,6 +18,9 @@ DEFAULTS = {
     "confirm_close": True,
     "show_risk_warnings": True,
     "auto_fill_ltp": True,
+    # ON  → orders block only the leveraged margin (5x); OFF → orders block the
+    # full contract value (1x), so trades draw on the sandbox funds directly.
+    "leverage_enabled": True,
     "notify_discipline": True,
     "notify_cooldown": True,
     "notify_daily_loss": True,
@@ -31,6 +34,7 @@ class SettingsResponse(BaseModel):
     confirm_close: bool
     show_risk_warnings: bool
     auto_fill_ltp: bool
+    leverage_enabled: bool
     notify_discipline: bool
     notify_cooldown: bool
     notify_daily_loss: bool
@@ -46,6 +50,7 @@ class SettingsUpdate(BaseModel):
     confirm_close: Optional[bool] = None
     show_risk_warnings: Optional[bool] = None
     auto_fill_ltp: Optional[bool] = None
+    leverage_enabled: Optional[bool] = None
     notify_discipline: Optional[bool] = None
     notify_cooldown: Optional[bool] = None
     notify_daily_loss: Optional[bool] = None

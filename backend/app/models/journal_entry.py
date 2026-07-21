@@ -32,6 +32,33 @@ class JournalEntry(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now(), nullable=False)
     order: Mapped["VirtualOrder"] = relationship("VirtualOrder", back_populates="journal_entry")
     user: Mapped["User"] = relationship("User", back_populates="journal_entries")
+
+    # Contract details live on the owning order; expose them read-only so the
+    # journal API (and its UI rows) can show what was traded without a join
+    # in every caller.
+    @property
+    def instrument(self) -> Optional[str]:
+        return self.order.instrument if self.order else None
+
+    @property
+    def strike_price(self) -> Optional[Decimal]:
+        return self.order.strike_price if self.order else None
+
+    @property
+    def option_type(self) -> Optional[str]:
+        return self.order.option_type if self.order else None
+
+    @property
+    def action(self) -> Optional[str]:
+        return self.order.action if self.order else None
+
+    @property
+    def quantity(self) -> Optional[int]:
+        return self.order.quantity if self.order else None
+
+    @property
+    def product_type(self) -> Optional[str]:
+        return self.order.product_type if self.order else None
     __table_args__ = (
         UniqueConstraint("order_id", name="uq_journal_entries_order_id"),
         Index("idx_journal_entries_user_date", "user_id", "trade_date"),

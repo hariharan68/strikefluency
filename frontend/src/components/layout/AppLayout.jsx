@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
@@ -13,6 +13,7 @@ const STORAGE_KEY = 'sf_sidebar_collapsed'
 export default function AppLayout() {
   const setMarketStatus = useMarketStore(s => s.setMarketStatus)
   const loadPrefs = usePreferencesStore(s => s.load)
+  const { pathname } = useLocation()
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(STORAGE_KEY) === '1')
 
   // Live market data streams app-wide from here (single mount point for all
@@ -24,7 +25,12 @@ export default function AppLayout() {
     const fetch = () => getStatus().then(r => setMarketStatus(r.data.is_open)).catch(() => {})
     fetch()
     loadPrefs()
-    const t = setInterval(fetch, 30000)
+    // The WS pushes `market_status` every 3s (even off-hours); this poll is
+    // purely a fallback for when the socket is down or stale.
+    const t = setInterval(() => {
+      const { statusAt } = useMarketStore.getState()
+      if (!statusAt || Date.now() - statusAt > 45000) fetch()
+    }, 30000)
     return () => clearInterval(t)
   }, [])
 
@@ -49,7 +55,9 @@ export default function AppLayout() {
       <div className="sf-main-shell">
         <TopBar />
         <main className="sf-page-content">
-          <Outlet />
+          <div key={pathname} className="sf-route-transition">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

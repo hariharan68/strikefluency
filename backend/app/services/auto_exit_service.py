@@ -24,6 +24,7 @@ conservative, discipline-consistent choice.
 
 import logging
 from collections import defaultdict
+from typing import Callable, Optional
 
 from sqlalchemy.orm import Session
 
@@ -32,7 +33,11 @@ from app.core.exceptions import OrderAlreadyClosedError
 from app.market.provider_factory import get_market_provider
 from app.models.user import User
 from app.models.virtual_order import VirtualOrder
-from app.services.virtual_order_service import _get_ltp_from_chain, close_position
+from app.services.virtual_order_service import (
+    _get_ltp_from_chain,
+    close_position,
+    update_position_ltp,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,19 +64,26 @@ def _decide_exit(order: VirtualOrder, ltp) -> str | None:
     return None
 
 
-def scan_and_exit(db: Session) -> int:
+def scan_and_exit(db: Session,
+                  on_close: Optional[Callable[[object, str], None]] = None) -> int:
     """
-    Scan every open order carrying an SL or target and auto-close the ones
-    whose premium has crossed a level. Returns the number of orders closed.
+    Scan every open standalone order: mark its position to market at the live
+    premium (current_ltp + unrealized_pnl), then auto-close it if an SL/target
+    level has been crossed. Returns the number of orders closed.
 
-    The caller owns the transaction (commit/rollback) — mirrors the
-    _mtm_tick pattern in market_scheduler.py.
+    on_close(user_id, reason) is invoked after each successful close so the
+    caller can notify that user (e.g. a WS push after commit). Callback errors
+    are swallowed — notification must never break the exit itself.
+
+    Strategy legs (strategy_id set) are excluded — their P&L is marked at the
+    strategy level by mark_to_market_all. The caller owns the transaction
+    (commit/rollback) — mirrors the _mtm_tick pattern in market_scheduler.py.
     """
     orders = (
         db.query(VirtualOrder)
         .filter(
             VirtualOrder.status == OrderStatus.OPEN,
-            (VirtualOrder.sl_price.isnot(None)) | (VirtualOrder.target_price.isnot(None)),
+            VirtualOrder.strategy_id.is_(None),
         )
         .all()
     )
@@ -97,6 +109,17 @@ def scan_and_exit(db: Session) -> int:
 
         for order in instr_orders:
             ltp, _ = _get_ltp_from_chain(chain, int(order.strike_price), order.option_type)
+            if ltp is None:
+                # Strike outside the current chain window — no tradable quote,
+                # so neither mark-to-market nor SL/target can be evaluated.
+                continue
+
+            # Live mark-to-market — keeps positions' unrealized P&L fresh even
+            # for orders with no SL/target (e.g. free-play).
+            try:
+                update_position_ltp(db, order.id, ltp)
+            except Exception as e:
+                logger.error("MTM update failed for order %s: %s", order.id, e)
 
             reason = _decide_exit(order, ltp)
             if reason is None:
@@ -116,6 +139,11 @@ def scan_and_exit(db: Session) -> int:
                     db, user, order.id, exit_reason=reason, exit_ltp=ltp
                 )
                 closed += 1
+                if on_close is not None:
+                    try:
+                        on_close(order.user_id, reason)
+                    except Exception:
+                        pass
                 logger.info(
                     "Auto-exit %s: %s %s%s %s @ premium ₹%s",
                     reason, order.instrument, int(order.strike_price),

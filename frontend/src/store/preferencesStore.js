@@ -9,6 +9,7 @@ const DEFAULTS = {
   confirm_close: true,
   show_risk_warnings: true,
   auto_fill_ltp: true,
+  leverage_enabled: true,
   notify_discipline: true,
   notify_cooldown: true,
   notify_daily_loss: true,

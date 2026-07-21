@@ -1,5 +1,5 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
+import { Component, useEffect, useLayoutEffect } from 'react'
 import { ToastProvider } from './components/common/Toast'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 import AppLayout from './components/layout/AppLayout'
@@ -10,11 +10,13 @@ import ScopePage from './pages/marketing/ScopePage'
 import DocsPage from './pages/marketing/DocsPage'
 import BlogPage from './pages/marketing/BlogPage'
 import VarsityPage from './pages/marketing/VarsityPage'
+import PricingPage from './pages/marketing/PricingPage'
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import OAuthCallbackPage from './pages/auth/OAuthCallbackPage'
 import DashboardPage from './pages/dashboard/DashboardPage'
 import Terminal1Page from './pages/terminal/Terminal1Page'
+import PositionsPage from './pages/positions/PositionsPage'
 import StrategyBuilderPage from './pages/strategy/StrategyBuilderPage'
 import OptionChainPage from './pages/optionchain/OptionChainPage'
 import TradingDeskPage from './pages/trading/TradingDeskPage'
@@ -66,26 +68,80 @@ function AuthBootstrap() {
   return null
 }
 
+// Without a boundary, any render error unmounts the whole tree and leaves a
+// blank page (the body background). Show a recoverable message instead.
+class AppErrorBoundary extends Component {
+  state = { error: null }
+  static getDerivedStateFromError(error) { return { error } }
+  componentDidCatch(error, info) { console.error('App crashed:', error, info) }
+  render() {
+    if (!this.state.error) return this.props.children
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--bg)', color: 'var(--text)', padding: 24 }}>
+        <div style={{ maxWidth: 420, textAlign: 'center' }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Something went wrong</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-sub)', marginBottom: 16, lineHeight: 1.6 }}>
+            {String(this.state.error?.message || this.state.error)}
+          </p>
+          <button className="sf-btn-primary" style={{ height: 40, padding: '0 20px' }}
+            onClick={() => { this.setState({ error: null }); window.location.href = '/dashboard' }}>
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    )
+  }
+}
+
+// Scrolls back to the top on every navigation (window scroll for marketing
+// pages, and the app's scroll container when present). Runs before paint so the
+// new page never flashes at the previous scroll position.
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0)
+    document.querySelector('.sf-page-content')?.scrollTo(0, 0)
+  }, [pathname])
+  return null
+}
+
+// Wraps public/marketing pages so each navigation re-runs the enter animation.
+// Keyed by pathname so React remounts the page and the CSS keyframe replays.
+function PublicTransitionLayout() {
+  const { pathname } = useLocation()
+  return (
+    <div key={pathname} className="sf-route-transition">
+      <Outlet />
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <ToastProvider>
       <BrowserRouter>
+        <AppErrorBoundary>
         <AuthBootstrap />
+        <ScrollToTop />
         <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/product" element={<ProductPage />} />
-          <Route path="/discipline-engine" element={<DisciplineInfoPage />} />
-          <Route path="/scope" element={<ScopePage />} />
-          <Route path="/docs" element={<DocsPage />} />
-          <Route path="/blog" element={<BlogPage />} />
-          <Route path="/varsity" element={<VarsityPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/auth/oauth-callback" element={<OAuthCallbackPage />} />
+          <Route element={<PublicTransitionLayout />}>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/product" element={<ProductPage />} />
+            <Route path="/discipline-engine" element={<DisciplineInfoPage />} />
+            <Route path="/scope" element={<ScopePage />} />
+            <Route path="/docs" element={<DocsPage />} />
+            <Route path="/blog" element={<BlogPage />} />
+            <Route path="/varsity" element={<VarsityPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/auth/oauth-callback" element={<OAuthCallbackPage />} />
+          </Route>
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/terminal-1" element={<Terminal1Page />} />
+              <Route path="/positions" element={<PositionsPage />} />
               <Route path="/strategy-builder" element={<StrategyBuilderPage />} />
               <Route path="/option-chain" element={<OptionChainPage />} />
               <Route path="/trading" element={<TradingDeskPage />} />
@@ -98,6 +154,7 @@ export default function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </AppErrorBoundary>
       </BrowserRouter>
     </ToastProvider>
   )

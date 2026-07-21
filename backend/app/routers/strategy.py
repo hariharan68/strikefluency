@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import CurrentUser
 from app.market.provider_factory import get_market_provider
+from app.market.websocket_manager import notify_trading_update
 from app.schemas.strategy import (
     AddLegRequest,
     AnalyticsResponse,
@@ -114,6 +115,7 @@ def build_from_template(
     orm = svc.create_from_template(
         db, current_user, template_id=body.template_id, underlying=body.underlying,
         spot=spot, expiries=expiries, lots=body.lots, setup_tag=body.setup_tag,
+        product_type=body.product_type,
     )
     db.commit()
     db.refresh(orm)
@@ -129,6 +131,7 @@ def create_draft(
     orm = svc.create_empty_draft(
         db, current_user, underlying=body.underlying, name=body.name,
         allow_calendar=body.allow_calendar, setup_tag=body.setup_tag,
+        product_type=body.product_type,
     )
     db.commit()
     db.refresh(orm)
@@ -236,6 +239,7 @@ def execute(
     position = ex.execute_strategy(db, current_user, strategy_id)
     db.commit()
     db.refresh(position)
+    notify_trading_update(current_user.id, "strategy_executed")
     orm = svc.get_strategy(db, current_user, strategy_id)
     return ExecuteResponse(
         strategy=StrategyResponse.model_validate(orm),
@@ -255,6 +259,7 @@ def close_leg(
     row = ex.close_leg(db, current_user, strategy_id, leg_id, exit_ltp=body.exit_ltp)
     db.commit()
     db.refresh(row)
+    notify_trading_update(current_user.id, "leg_closed")
     return LegResponse.model_validate(row)
 
 
@@ -268,6 +273,7 @@ def square_off(
     position = ex.square_off(db, current_user, strategy_id, reason=body.reason)
     db.commit()
     db.refresh(position)
+    notify_trading_update(current_user.id, "strategy_squareoff")
     return PositionResponse.model_validate(position)
 
 

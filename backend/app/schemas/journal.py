@@ -12,6 +12,13 @@ class JournalEntryResponse(BaseModel):
 
     id: uuid.UUID
     order_id: uuid.UUID
+    # Contract details, sourced from the owning order via model properties.
+    instrument: Optional[str] = None
+    strike_price: Optional[Decimal] = None
+    option_type: Optional[str] = None
+    action: Optional[str] = None
+    quantity: Optional[int] = None
+    product_type: Optional[str] = None
     entry_price: Decimal
     exit_price: Optional[Decimal] = None
     pnl: Optional[Decimal] = None

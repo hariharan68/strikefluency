@@ -5,7 +5,7 @@ Uses a deterministic in-memory fake provider (the real mock drifts spot every
 call, which is fine for a demo but useless for exact assertions).
 """
 
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
@@ -23,9 +23,11 @@ ATM = 24000
 class FakeProvider:
     """Deterministic 7-strike chain around ATM (24000), IV in percent."""
 
-    def __init__(self, source="live", timestamp="2026-07-21T10:00:00"):
+    def __init__(self, source="live", timestamp=None):
         self.source = source
-        self.timestamp = timestamp
+        # A fresh timestamp by default — a hardcoded date silently crosses the
+        # staleness threshold as wall-clock time advances (time-bomb fixture).
+        self.timestamp = timestamp or datetime.now().isoformat()
 
     def get_option_chain(self, instrument, expiry=None):
         strikes = []

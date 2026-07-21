@@ -13,6 +13,9 @@ class PlaceOrderRequest(BaseModel):
     option_type:  Literal["CE", "PE"]
     action:       Literal["BUY", "SELL"]
     quantity:     int = 1
+    # INTRADAY (auto-squared-off at EOD) or NRML (carry forward). Defaults to
+    # INTRADAY, preserving the pre-product-type behavior.
+    product_type: Literal["INTRADAY", "NRML"] = "INTRADAY"
     # SL and setup tag are optional at the schema level: when Discipline Mode is
     # ON, the engine's MANDATORY_SL / MANDATORY_SETUP_TAG rules still require them
     # (and raise a clear violation); when OFF, bare free-play orders are allowed.
@@ -48,6 +51,8 @@ class OrderResponse(BaseModel):
     action: str
     quantity: int
     lot_size: int
+    product_type: str
+    trading_day: date
     entry_ltp: Decimal
     entry_price: Decimal
     exit_price: Optional[Decimal] = None

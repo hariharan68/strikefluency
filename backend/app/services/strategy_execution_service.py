@@ -33,6 +33,7 @@ from app.core.constants import (
     LegStatus,
     OrderAction,
     OrderStatus,
+    ProductType,
     StrategyStatus,
 )
 from app.core.exceptions import (
@@ -43,7 +44,7 @@ from app.core.exceptions import (
     StrategyValidationError,
 )
 from app.core.instruments import get_spec
-from app.core.utils import is_market_open
+from app.core.utils import current_trading_day, is_market_open
 from app.market.provider_factory import get_market_provider
 from app.models.strategy import StrategyLeg as StrategyLegORM
 from app.models.strategy import StrategyPosition as StrategyPositionORM
@@ -263,7 +264,10 @@ def _mirror_order(db: Session, user: User, orm, leg_row: StrategyLegORM,
         quantity=fill.lots, lot_size=fill.lot_size,
         entry_ltp=Decimal(str(fill.quoted_ltp)), entry_price=Decimal(str(fill.fill_price)),
         sl_price=None,   # nullable since Phase 5 — no per-leg stop on a strategy
-        status=OrderStatus.OPEN, brokerage=Decimal(str(fill.brokerage)),
+        status=OrderStatus.OPEN,
+        product_type=getattr(orm, "product_type", None) or ProductType.INTRADAY,
+        trading_day=current_trading_day(),
+        brokerage=Decimal(str(fill.brokerage)),
         setup_tag=orm.setup_tag or "OTHER",
         is_discipline_compliant=True, strategy_id=orm.id,
         was_free_play=free_play,

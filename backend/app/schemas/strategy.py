@@ -16,6 +16,7 @@ Underlying = Literal["NIFTY", "BANKNIFTY", "SENSEX"]
 InstrumentType = Literal["CE", "PE", "FUT"]
 Action = Literal["BUY", "SELL"]
 SetupTag = Literal["OI_BASED", "PRICE_ACTION", "LEVEL_TRADE", "EXPIRY_PLAY", "OTHER"]
+ProductType = Literal["INTRADAY", "NRML"]
 
 
 # ── requests ──────────────────────────────────────────────────
@@ -26,6 +27,7 @@ class BuildFromTemplateRequest(BaseModel):
     # Optional — defaults to the provider's expiry list (nearest first).
     expiries: Optional[list[date]] = None
     setup_tag: Optional[SetupTag] = None
+    product_type: ProductType = "INTRADAY"
 
     @field_validator("lots")
     @classmethod
@@ -57,6 +59,7 @@ class CreateDraftRequest(BaseModel):
     name: Optional[str] = None
     allow_calendar: bool = False
     setup_tag: Optional[SetupTag] = None
+    product_type: ProductType = "INTRADAY"
 
 
 class AddLegRequest(BaseModel):
@@ -113,31 +116,6 @@ class LegResponse(BaseModel):
     realized_pnl: Decimal
 
 
-class StrategyResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    underlying: str
-    name: Optional[str] = None
-    template_id: Optional[str] = None
-    status: str
-    allow_calendar: bool
-    setup_tag: Optional[str] = None
-    net_premium: Optional[Decimal] = None
-    max_profit: Optional[Decimal] = None
-    max_loss: Optional[Decimal] = None
-    created_at: datetime
-    updated_at: datetime
-    legs: list[LegResponse] = []
-
-
-class StrategyListResponse(BaseModel):
-    strategies: list[StrategyResponse]
-    total: int
-    page: int
-    page_size: int
-
-
 class PositionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -150,6 +128,35 @@ class PositionResponse(BaseModel):
     is_open: bool
     opened_at: datetime
     closed_at: Optional[datetime] = None
+
+
+class StrategyResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    underlying: str
+    name: Optional[str] = None
+    template_id: Optional[str] = None
+    status: str
+    allow_calendar: bool
+    product_type: str = "INTRADAY"
+    setup_tag: Optional[str] = None
+    net_premium: Optional[Decimal] = None
+    max_profit: Optional[Decimal] = None
+    max_loss: Optional[Decimal] = None
+    created_at: datetime
+    updated_at: datetime
+    legs: list[LegResponse] = []
+    # The live execution record (margin, realized/unrealized P&L); None while a
+    # draft. Lets the Positions page show executed strategies without extra calls.
+    position: Optional[PositionResponse] = None
+
+
+class StrategyListResponse(BaseModel):
+    strategies: list[StrategyResponse]
+    total: int
+    page: int
+    page_size: int
 
 
 class ExecuteResponse(BaseModel):

@@ -218,9 +218,9 @@ export default function LandingPage() {
           <div className="mx-auto max-w-7xl px-5 md:px-8">
             <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#93C5FD]">Current project scope</p>
-                <h2 className="sf-serif mt-3 text-3xl font-bold">What you can practice with today.</h2>
-                <p className="mt-4 text-sm leading-7 text-[#B8CDEE]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--primary)]">Current project scope</p>
+                <h2 className="sf-serif mt-3 text-3xl font-bold text-[var(--text)]">What you can practice with today.</h2>
+                <p className="mt-4 text-sm leading-7 text-[var(--text-sub)]">
                   The current application scope is Phase 1 virtual trading with mock market data by default, plus Fyers token and market-data integration paths for configured environments.
                 </p>
               </div>
@@ -231,9 +231,9 @@ export default function LandingPage() {
                   ['Market data', 'Mock provider first; Fyers provider can be enabled through backend configuration and broker connection.'],
                   ['Data model', 'Every account, order, position, rule violation, and journal entry is tracked automatically — so nothing about your practice history gets lost.']
                 ].map(([title, text]) => (
-                  <div key={title} className="rounded-2xl border border-white/10 bg-white/5 p-5">
-                    <h3 className="text-sm font-bold text-white">{title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-[#B8CDEE]">{text}</p>
+                  <div key={title} className="rounded-2xl border border-[var(--border)] bg-[var(--color-surface2)] p-5">
+                    <h3 className="text-sm font-bold text-[var(--text)]">{title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-[var(--text-sub)]">{text}</p>
                   </div>
                 ))}
               </div>
@@ -249,7 +249,7 @@ export default function LandingPage() {
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {steps.map((step, index) => (
               <article key={step.title} className="rounded-2xl border border-[var(--border)] bg-[var(--color-surface)] p-5">
-                <div className="num mb-5 grid h-10 w-10 place-items-center rounded-xl bg-[var(--primary)] text-sm font-bold text-white">0{index + 1}</div>
+                <div className="num mb-5 grid h-10 w-10 place-items-center rounded-xl bg-[var(--primary)] text-sm font-bold text-[var(--on-primary)]">0{index + 1}</div>
                 <h3 className="text-sm font-bold text-[var(--text)]">{step.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-[var(--text-sub)]">{step.text}</p>
               </article>

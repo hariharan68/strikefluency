@@ -54,6 +54,15 @@ class ExitReason:
     EOD_SQUAREOFF = "EOD_SQUAREOFF"
 
 
+# ── Product type ─────────────────────────────────────────────
+# INTRADAY positions are auto-squared-off at EOD (15:29 IST). NRML positions
+# carry forward across trading days until manually closed or expiry-settled.
+class ProductType:
+    INTRADAY = "INTRADAY"
+    NRML = "NRML"
+    ALL = [INTRADAY, NRML]
+
+
 # ── Setup tags (required on every order) ─────────────────────
 class SetupTag:
     OI_BASED = "OI_BASED"
@@ -157,6 +166,20 @@ MARKET_CLOSE_MINUTE = 30
 # EOD square-off happens 1 minute before market close
 EOD_SQUAREOFF_HOUR   = 15
 EOD_SQUAREOFF_MINUTE = 29
+
+# Pre-market reset / new-trading-day boundary. Orders placed on/after this time
+# belong to the new trading day; before it they belong to the previous day. The
+# orderbook/tradebook views scope to the current trading day, so they appear
+# fresh each morning. A safety-net square-off job also runs at this time.
+PRE_MARKET_RESET_HOUR   = 8
+PRE_MARKET_RESET_MINUTE = 30
+
+
+# ── Order margin ──────────────────────────────────────────────
+# Leverage applied to single-leg order margin when the user's leverage_enabled
+# setting is ON: margin = contract value / LEVERAGE_MULTIPLIER. When OFF the
+# divisor is 1 (full contract value is blocked from the sandbox funds).
+LEVERAGE_MULTIPLIER = 5
 
 
 # ── Discipline scoring ────────────────────────────────────────

@@ -14,14 +14,19 @@ Covers the locked behaviour:
 
 from datetime import date, timedelta
 
+from app.market.provider_factory import get_market_provider
+
 P = "/api/v1"
 
 
 def _order(**over):
+    # Use the live ATM strike — a hardcoded strike falls outside the mock
+    # chain's drifting window and is (correctly) rejected as unquotable.
+    atm = int(get_market_provider().get_option_chain("NIFTY")["atm_strike"])
     base = {
         "instrument": "NIFTY",
         "expiry_date": str(date.today() + timedelta(days=7)),
-        "strike_price": 25000,
+        "strike_price": atm,
         "option_type": "CE",
         "action": "BUY",
         "quantity": 1,

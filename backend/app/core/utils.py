@@ -5,12 +5,14 @@ Small pure utility functions used across the app.
 No DB access, no imports from services — just helpers.
 """
 
-from datetime import datetime, timezone, time
+from datetime import datetime, timezone, time, timedelta, date
 from decimal import Decimal
+from typing import Optional
 
 from app.core.constants import (
     MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE,
     MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE,
+    PRE_MARKET_RESET_HOUR, PRE_MARKET_RESET_MINUTE,
 )
 
 
@@ -21,6 +23,26 @@ def get_ist_now() -> datetime:
     """
     from zoneinfo import ZoneInfo
     return datetime.now(ZoneInfo("Asia/Kolkata"))
+
+
+def current_trading_day(now: Optional[datetime] = None) -> date:
+    """
+    Return the trading-day date the given moment belongs to, using an 08:30 IST
+    cutoff. Before 08:30 IST a moment still belongs to the *previous* trading day;
+    at/after 08:30 it belongs to the current date.
+
+    This is the boundary the orderbook/tradebook views scope to, so they present
+    a fresh, empty view each morning before the 09:15 open. Orders are stamped
+    with this value at creation.
+    """
+    from zoneinfo import ZoneInfo
+    if now is None:
+        now = get_ist_now()
+    elif now.tzinfo is not None:
+        now = now.astimezone(ZoneInfo("Asia/Kolkata"))
+    if now.time() < time(PRE_MARKET_RESET_HOUR, PRE_MARKET_RESET_MINUTE):
+        return (now - timedelta(days=1)).date()
+    return now.date()
 
 
 def is_market_open() -> bool:

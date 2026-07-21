@@ -23,6 +23,7 @@ from app.core.exceptions import (
     OrderAlreadyClosedError,
     OrderNotFoundError,
     PositionNotFoundError,
+    QuoteUnavailableError,
     StrategyValidationError,
     TenantNotFoundError,
     TokenExpiredError,
@@ -93,6 +94,13 @@ def register_error_handlers(app):
         return JSONResponse(
             status_code=400,
             content={"error": "MARKET_CLOSED", "message": str(exc)},
+        )
+
+    @app.exception_handler(QuoteUnavailableError)
+    async def quote_unavailable_handler(request: Request, exc: QuoteUnavailableError):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "QUOTE_UNAVAILABLE", "message": str(exc)},
         )
 
     @app.exception_handler(DisciplineViolationError)

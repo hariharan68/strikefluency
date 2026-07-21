@@ -19,7 +19,7 @@ function JournalRow({ entry, onSave }) {
   const [notes, setNotes] = useState(entry.review_notes || '')
   const [saving, setSaving] = useState(false)
   const { success } = useToast()
-  const pnl = entry.net_pnl ?? 0
+  const pnl = Number(entry.pnl ?? entry.net_pnl ?? 0)
   const isGain = pnl > 0
 
   const handleSave = async () => {
@@ -40,12 +40,12 @@ function JournalRow({ entry, onSave }) {
             <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 12, background: entry.option_type === 'CE' ? 'var(--primary-bg)' : 'var(--loss-bg)', color: entry.option_type === 'CE' ? 'var(--primary-dark)' : 'var(--loss)' }}>
               {entry.option_type}
             </span>
-            <span className="num" style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>{entry.instrument} {entry.strike_price}</span>
+            <span className="num" style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>{entry.instrument} {entry.strike_price != null ? Math.round(entry.strike_price) : ''}</span>
             <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{entry.action}</span>
           </div>
         </td>
-        <td className="num" style={{ padding: '10px 10px', textAlign: 'right', color: 'var(--text-sub)', fontSize: 12 }}>{entry.entry_price?.toFixed(2)}</td>
-        <td className="num" style={{ padding: '10px 10px', textAlign: 'right', color: 'var(--text-sub)', fontSize: 12 }}>{entry.exit_price?.toFixed(2) || '—'}</td>
+        <td className="num" style={{ padding: '10px 10px', textAlign: 'right', color: 'var(--text-sub)', fontSize: 12 }}>{entry.entry_price != null ? Number(entry.entry_price).toFixed(2) : '—'}</td>
+        <td className="num" style={{ padding: '10px 10px', textAlign: 'right', color: 'var(--text-sub)', fontSize: 12 }}>{entry.exit_price != null ? Number(entry.exit_price).toFixed(2) : '—'}</td>
         <td className="num" style={{ padding: '10px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: isGain ? 'var(--gain)' : pnl < 0 ? 'var(--loss)' : 'var(--text-sub)' }}>
           {pnl !== 0 ? (isGain ? '+' : '') + formatCurrency(pnl) : '—'}
         </td>

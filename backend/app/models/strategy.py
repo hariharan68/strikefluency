@@ -33,6 +33,9 @@ class Strategy(Base):
     template_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="DRAFT", nullable=False)
     allow_calendar: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # INTRADAY strategies are auto-squared-off at EOD; NRML carry forward. Mirrored
+    # to each leg's VirtualOrder so the EOD job treats legs consistently.
+    product_type: Mapped[str] = mapped_column(String(10), default="INTRADAY", nullable=False)
 
     # Required at execution (discipline: MANDATORY_SETUP_TAG); null while a draft.
     setup_tag: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
@@ -60,6 +63,7 @@ class Strategy(Base):
 
     __table_args__ = (
         CheckConstraint("status IN ('DRAFT', 'EXECUTED', 'CLOSED')", name="ck_strategies_status"),
+        CheckConstraint("product_type IN ('INTRADAY', 'NRML')", name="ck_strategies_product_type"),
         Index("idx_strategies_user_id", "user_id"),
         Index("idx_strategies_tenant_id", "tenant_id"),
         Index("idx_strategies_user_status", "user_id", "status"),

@@ -145,6 +145,7 @@ function TradingPreferences() {
         confirm_close: prefs.confirm_close,
         show_risk_warnings: prefs.show_risk_warnings,
         auto_fill_ltp: prefs.auto_fill_ltp,
+        leverage_enabled: prefs.leverage_enabled,
       })
       success('Trading preferences saved')
     } catch {
@@ -176,8 +177,18 @@ function TradingPreferences() {
         <Toggle value={prefs.show_risk_warnings} onChange={v => set('show_risk_warnings', v)} />
       </SettingRow>
 
-      <SettingRow label="Auto-fill LTP from Chain" description="Prefill LTP when clicking option chain cells" noBorder>
+      <SettingRow label="Auto-fill LTP from Chain" description="Prefill LTP when clicking option chain cells">
         <Toggle value={prefs.auto_fill_ltp} onChange={v => set('auto_fill_ltp', v)} />
+      </SettingRow>
+
+      <SettingRow
+        label="Trading Margin — Leverage"
+        description={prefs.leverage_enabled === false
+          ? 'OFF · orders block the full contract value from your sandbox funds (1x)'
+          : 'ON · orders block only the leveraged margin (5x), freeing up sandbox funds'}
+        noBorder
+      >
+        <Toggle value={prefs.leverage_enabled !== false} onChange={v => set('leverage_enabled', v)} />
       </SettingRow>
 
       <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import useMarketStore from '../store/marketStore'
+import useTradingStore from '../store/tradingStore'
 import useAuthStore, { getAccessToken } from '../store/authStore'
 
 // Reconnect backoff — grows exponentially with jitter, capped so a long outage
@@ -26,6 +27,10 @@ function buildWsUrl(token) {
 export default function useMarketWebSocket() {
   const [isConnected, setIsConnected] = useState(false)
   const setOptionChain = useMarketStore(s => s.setOptionChain)
+  const setStatus = useMarketStore(s => s.setStatus)
+  const setMetrics = useMarketStore(s => s.setMetrics)
+  const setAnalytics = useMarketStore(s => s.setAnalytics)
+  const bumpEvent = useTradingStore(s => s.bumpEvent)
   const isAuthenticated = useAuthStore(s => s.isAuthenticated)
   const wsRef = useRef(null)
   const reconnectRef = useRef(null)
@@ -91,6 +96,10 @@ export default function useMarketWebSocket() {
           try {
             const msg = JSON.parse(e.data)
             if (msg.type === 'option_chain') setOptionChain(msg.data)
+            else if (msg.type === 'market_status') setStatus(msg.data)
+            else if (msg.type === 'option_metrics') setMetrics(msg.instrument, msg.data)
+            else if (msg.type === 'option_analytics') setAnalytics(msg.instrument, msg.data)
+            else if (msg.type === 'trading_update') bumpEvent(msg.reason)
           } catch {}
         }
         ws.onclose = () => {

@@ -84,7 +84,7 @@ function ScoreRing({ score, size = 116, stroke = 9 }) {
   const ringColor = pct >= 80 ? '#31dd6a' : pct >= 50 ? '#f5c451' : '#ff5c5c'
   return (
     <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(219,189,255,0.13)" strokeWidth={stroke} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(var(--primary-glow-rgb),0.13)" strokeWidth={stroke} />
       <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={ringColor} strokeWidth={stroke}
         strokeDasharray={c} strokeDashoffset={dash} strokeLinecap="round"
         style={{ transition: 'stroke-dashoffset 0.8s ease' }} />
@@ -117,7 +117,7 @@ function DisciplineHero({ name, score, streak, tier, toNextTier, navigate }) {
 
   return (
     <div className="sf-card" style={{
-      background: 'radial-gradient(120% 140% at 88% 0%, rgba(219,189,255,0.10) 0%, transparent 55%), var(--color-surface)',
+      background: 'radial-gradient(120% 140% at 88% 0%, rgba(var(--primary-glow-rgb),0.10) 0%, transparent 55%), var(--color-surface)',
       padding: '26px 30px', position: 'relative', overflow: 'hidden'
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap' }}>

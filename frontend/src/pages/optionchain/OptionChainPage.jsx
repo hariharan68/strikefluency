@@ -2,6 +2,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, ChevronDown, Clock,
   ArrowUpRight, ArrowDownRight, ArrowUp, ArrowDown } from 'lucide-react'
 import { getOptionMetrics, getOptionChainData } from '../../api/options'
+import useMarketStore from '../../store/marketStore'
+import usePreferencesStore from '../../store/preferencesStore'
+import useDiscipline from '../../hooks/useDiscipline'
+import { LOT_SIZES } from '../../utils/constants'
+import FloatingOrderTicket from '../../components/trading/FloatingOrderTicket'
+
+// WS metrics/analytics broadcasts cover the DEFAULT expiry only; when the user
+// picks another expiry the page falls back to plain REST polling as before.
+const WS_FRESH_MS = 45000
 
 const INSTRUMENTS = [
   { name: 'NIFTY', badge: '50' },
@@ -100,6 +109,18 @@ function VolCell({ value, rank, align }) {
   )
 }
 
+// Hover-revealed Buy/Sell for a chain leg (hidden until the row is hovered,
+// same 'culture' as the Strategy Builder). Stops row-click propagation.
+function ChainBS({ onBuy, onSell }) {
+  const base = { width: 22, height: 22, borderRadius: 6, fontSize: 11, fontWeight: 800, cursor: 'pointer', border: '1px solid transparent', lineHeight: 1 }
+  return (
+    <span className="bs-fade" style={{ display: 'inline-flex', gap: 3 }}>
+      <button title="Buy" onClick={(e) => { e.stopPropagation(); onBuy() }} style={{ ...base, background: 'var(--gain-bg)', color: 'var(--gain-text)', borderColor: 'rgba(49,221,106,0.3)' }}>B</button>
+      <button title="Sell" onClick={(e) => { e.stopPropagation(); onSell() }} style={{ ...base, background: 'var(--loss-bg)', color: 'var(--loss-text)', borderColor: 'rgba(255,92,92,0.3)' }}>S</button>
+    </span>
+  )
+}
+
 export default function OptionChainPage() {
   const [idx, setIdx] = useState(0)
   const [expiry, setExpiry] = useState(null)
@@ -109,15 +130,33 @@ export default function OptionChainPage() {
   const [strikeCount, setStrikeCount] = useState(5)
   const [now, setNow] = useState(new Date())
   const [err, setErr] = useState('')
+  const [ticket, setTicket] = useState(null)   // open order ticket, or null
   const timer = useRef(null)
   const instrument = INSTRUMENTS[idx].name
+
+  const prefs = usePreferencesStore(s => s.prefs)
+  const { mode, loadMode } = useDiscipline()
+  const disciplineOff = mode?.enabled === false
+  useEffect(() => { loadMode() }, [])
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(t)
   }, [])
 
+  // WS-pushed metrics + analytics for this instrument (default expiry only).
+  const wsM = useMarketStore(s => s.metrics[instrument])
+  const wsA = useMarketStore(s => s.analytics[instrument])
+  const wsFresh = (slot) => slot?.data && Date.now() - slot.at < WS_FRESH_MS
+  const wsCovers = (exp) => !exp || exp === wsA?.data?.expiry_date
+
   const load = async (inst, exp) => {
+    // Skip the REST pair while WS frames are fresh and cover this expiry.
+    if (inst === instrument && wsCovers(exp)) {
+      const m = useMarketStore.getState().metrics[inst]
+      const a = useMarketStore.getState().analytics[inst]
+      if (wsFresh(m) && wsFresh(a)) return
+    }
     try {
       const [m, c] = await Promise.all([getOptionMetrics(inst, exp), getOptionChainData(inst, exp)])
       setMetrics(m.data)
@@ -128,6 +167,16 @@ export default function OptionChainPage() {
     }
   }
 
+  // Feed the page from WS frames whenever they're fresh and cover the
+  // selected expiry — instant updates every 15s without a request.
+  useEffect(() => {
+    if (wsFresh(wsM) && wsFresh(wsA) && wsCovers(expiry)) {
+      setMetrics(wsM.data)
+      setChain(wsA.data)
+      setErr('')
+    }
+  }, [wsM, wsA, expiry]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // reset expiry when instrument changes
   useEffect(() => { setExpiry(null) }, [idx])
 
@@ -136,7 +185,7 @@ export default function OptionChainPage() {
     clearInterval(timer.current)
     timer.current = setInterval(() => load(instrument, expiry), POLL_MS)
     return () => clearInterval(timer.current)
-  }, [instrument, expiry])
+  }, [instrument, expiry]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const cycle = (dir) => setIdx(i => (i + dir + INSTRUMENTS.length) % INSTRUMENTS.length)
 
@@ -179,6 +228,15 @@ export default function OptionChainPage() {
 
   const th = { padding: '8px 12px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }
   const td = { padding: '9px 12px', fontSize: 12.5 }
+
+  const lotSize = chain?.lot_size || LOT_SIZES[instrument] || 50
+  const openTicket = (row, side, act) => {
+    const leg = side === 'CE' ? row.ce : row.pe
+    setTicket({
+      instrument, strike: row.strike, optionType: side, action: act,
+      ltp: leg?.ltp ?? 0, expiry: curExpiry, lotSize,
+    })
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -297,7 +355,12 @@ export default function OptionChainPage() {
                       <td style={{ ...td, textAlign: 'right', minWidth: 96, background: ceBg }}>
                         {row.ce && <><span className="num" style={{ fontSize: 12, color: 'var(--text-sub)' }}>{fmtOI(row.ce.oi)}</span><OIBar value={row.ce.oi} max={model.maxCe} side="ce" /></>}
                       </td>
-                      <td className="num" style={{ ...td, textAlign: 'right', color: 'var(--gain-text)', fontWeight: 600, background: ceBg }}>{fmtNum(row.ce?.ltp)}</td>
+                      <td style={{ ...td, background: ceBg }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                          {row.ce && <ChainBS onBuy={() => openTicket(row, 'CE', 'BUY')} onSell={() => openTicket(row, 'CE', 'SELL')} />}
+                          <span className="num" style={{ color: 'var(--gain-text)', fontWeight: 600 }}>{fmtNum(row.ce?.ltp)}</span>
+                        </div>
+                      </td>
                       {/* STRIKE + IV */}
                       <td style={{ ...td, textAlign: 'center', background: isAtm ? 'rgba(245,196,81,0.13)' : 'var(--color-surface2)' }}>
                         <span className="num" style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>{Math.round(row.strike)}</span>
@@ -306,7 +369,12 @@ export default function OptionChainPage() {
                       </td>
                       <td className="num" style={{ ...td, textAlign: 'center', color: 'var(--text-sub)', background: isAtm ? 'rgba(245,196,81,0.13)' : 'var(--color-surface2)' }}>{iv && iv > 0 ? iv.toFixed(1) : '—'}</td>
                       {/* PUT */}
-                      <td className="num" style={{ ...td, textAlign: 'left', color: 'var(--loss-text)', fontWeight: 600, background: peBg }}>{fmtNum(row.pe?.ltp)}</td>
+                      <td style={{ ...td, background: peBg }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 8 }}>
+                          <span className="num" style={{ color: 'var(--loss-text)', fontWeight: 600 }}>{fmtNum(row.pe?.ltp)}</span>
+                          {row.pe && <ChainBS onBuy={() => openTicket(row, 'PE', 'BUY')} onSell={() => openTicket(row, 'PE', 'SELL')} />}
+                        </div>
+                      </td>
                       <td style={{ ...td, textAlign: 'left', minWidth: 96, background: peBg }}>
                         {row.pe && <><span className="num" style={{ fontSize: 12, color: 'var(--text-sub)' }}>{fmtOI(row.pe.oi)}</span><OIBar value={row.pe.oi} max={model.maxPe} side="pe" /></>}
                       </td>
@@ -335,6 +403,16 @@ export default function OptionChainPage() {
           <span style={{ marginLeft: 'auto' }}>Top-3 volumes highlighted · Refreshes every 15s · OI lags exchange 1–3 min</span>
         </div>
       </Card>
+
+      {ticket && (
+        <FloatingOrderTicket
+          key={`${ticket.strike}-${ticket.optionType}-${ticket.action}`}
+          ticket={ticket}
+          disciplineOff={disciplineOff}
+          prefs={prefs}
+          onClose={() => setTicket(null)}
+        />
+      )}
     </div>
   )
 }

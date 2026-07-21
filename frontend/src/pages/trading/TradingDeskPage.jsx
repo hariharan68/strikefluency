@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import useMarketStore from '../../store/marketStore'
+import useTradingStore from '../../store/tradingStore'
 import usePreferencesStore from '../../store/preferencesStore'
 import useVirtualTrading from '../../hooks/useVirtualTrading'
 import { getOptionChain } from '../../api/market'
@@ -9,6 +10,7 @@ import OrderFormPanel from '../../components/trading/OrderFormPanel'
 import DisciplineModeToggle from '../../components/discipline/DisciplineModeToggle'
 import useDiscipline from '../../hooks/useDiscipline'
 import { formatCurrency } from '../../utils/formatters'
+import { ltpFromChain, livePnl } from '../../utils/livePnl'
 import { X, AlertTriangle } from 'lucide-react'
 import { useToast } from '../../components/common/Toast'
 
@@ -28,10 +30,15 @@ const PanelHead = ({ title, right }) => (
   </div>
 )
 
-function PositionRow({ pos, onClose, confirmClose }) {
+function PositionRow({ pos, onClose, confirmClose, chains }) {
   const [closing, setClosing] = useState(false)
   const [confirming, setConfirming] = useState(false)
-  const pnl = pos.unrealized_pnl ?? pos.net_pnl ?? 0
+  // Mark against the live WebSocket chain (3s ticks); fall back to the server's
+  // last stored values when the chain can't price this contract.
+  const liveLtp = ltpFromChain(chains?.[pos.instrument], pos.strike_price, pos.option_type)
+  const live = livePnl({ action: pos.action || 'BUY', entry: pos.avg_entry_price, ltp: liveLtp, lots: pos.quantity, lotSize: pos.lot_size })
+  const pnl = live ?? Number(pos.unrealized_pnl ?? pos.net_pnl ?? 0)
+  const shownLtp = liveLtp ?? (pos.current_ltp != null ? Number(pos.current_ltp) : null)
   const isGain = pnl >= 0
 
   const doClose = async () => {
@@ -53,11 +60,20 @@ function PositionRow({ pos, onClose, confirmClose }) {
             {pos.instrument} {pos.strike_price}
           </span>
           <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{pos.action || 'BUY'}</span>
+          {pos.product_type === 'NRML' && (
+            <span title="Carry-forward — held across trading days" style={{
+              fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 12,
+              background: 'var(--primary-bg)', color: 'var(--primary)',
+              textTransform: 'uppercase', letterSpacing: '0.04em'
+            }}>Carry</span>
+          )}
         </div>
-        <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{pos.quantity} lots · {pos.expiry_date || 'Weekly'}</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>
+          {pos.quantity} lots · {pos.expiry_date || 'Weekly'} · {pos.product_type === 'NRML' ? 'NRML' : 'Intraday'}
+        </div>
       </td>
-      <td className="num" style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text-sub)', fontSize: 12 }}>{pos.entry_price?.toFixed(2)}</td>
-      <td className="num" style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text-sub)', fontSize: 12 }}>{pos.current_price?.toFixed(2) ?? '—'}</td>
+      <td className="num" style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text-sub)', fontSize: 12 }}>{pos.avg_entry_price != null ? Number(pos.avg_entry_price).toFixed(2) : '—'}</td>
+      <td className="num" style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text-sub)', fontSize: 12 }}>{shownLtp != null ? shownLtp.toFixed(2) : '—'}</td>
       <td className="num" style={{ padding: '9px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: isGain ? 'var(--gain)' : 'var(--loss)' }}>
         {isGain ? '+' : ''}{formatCurrency(pnl)}
       </td>
@@ -89,6 +105,7 @@ export default function TradingDeskPage() {
   const [positions, setPositions] = useState([])
   // Select only the chain for the active tab — the WS pushes all three instruments.
   const optionChain = useMarketStore(s => s.chains[instrument]) || null
+  const allChains = useMarketStore(s => s.chains)
 
   // Trim the chain to ±strikeCount rows around ATM (or show all).
   const viewChain = useMemo(() => {
@@ -111,6 +128,15 @@ export default function TradingDeskPage() {
   }
 
   useEffect(() => { loadAccount(); loadPositions(); loadMode() }, [])
+
+  // WS trading events → refresh balance + positions after a short debounce.
+  // Covers auto-exits (SL/target hit server-side) that no user action triggers.
+  const eventSeq = useTradingStore(s => s.eventSeq)
+  useEffect(() => {
+    if (!eventSeq) return
+    const t = setTimeout(() => { loadAccount(); loadPositions() }, 300)
+    return () => clearTimeout(t)
+  }, [eventSeq])
 
   useEffect(() => {
     setChainLoading(true)
@@ -256,7 +282,7 @@ export default function TradingDeskPage() {
               </tr>
             </thead>
             <tbody>
-              {open.map(pos => <PositionRow key={pos.id} pos={pos} onClose={handleClose} confirmClose={prefs.confirm_close} />)}
+              {open.map(pos => <PositionRow key={pos.id} pos={pos} onClose={handleClose} confirmClose={prefs.confirm_close} chains={allChains} />)}
             </tbody>
           </table>
         )}

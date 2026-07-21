@@ -28,6 +28,21 @@ class VirtualPosition(Base):
     closed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     order: Mapped["VirtualOrder"] = relationship("VirtualOrder", back_populates="position")
     account: Mapped["VirtualAccount"] = relationship("VirtualAccount", back_populates="virtual_positions")
+
+    @property
+    def product_type(self) -> str:
+        """INTRADAY / NRML, sourced from the owning order (positions mirror it)."""
+        return self.order.product_type if self.order else "INTRADAY"
+
+    @property
+    def action(self) -> str:
+        """BUY / SELL from the owning order — used for live P&L direction."""
+        return self.order.action if self.order else "BUY"
+
+    @property
+    def lot_size(self) -> int:
+        """Units per lot snapshotted on the order — used for live P&L sizing."""
+        return self.order.lot_size if self.order else 50
     __table_args__ = (
         UniqueConstraint("order_id", name="uq_virtual_positions_order_id"),
         Index("idx_virtual_positions_user_open", "user_id", "is_open"),

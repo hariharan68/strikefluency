@@ -12,21 +12,23 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.core.constants import ExitReason, OrderStatus
+from app.core.constants import ExitReason, LEVERAGE_MULTIPLIER, OrderStatus, ProductType
 from app.core.instruments import get_spec
 from app.core.exceptions import (
     InsufficientBalanceError,
     MarketClosedError,
     OrderAlreadyClosedError,
     OrderNotFoundError,
+    QuoteUnavailableError,
 )
-from app.core.utils import calculate_pnl, is_market_open
+from app.core.utils import calculate_pnl, current_trading_day, is_market_open
 from app.market.provider_factory import get_market_provider
 from app.models.journal_entry import JournalEntry
 from app.models.virtual_account import VirtualAccount
 from app.models.virtual_order import VirtualOrder
 from app.models.virtual_position import VirtualPosition
 from app.models.user import User
+from app.models.user_settings import UserSettings
 from app.services.brokerage_calculator import calculate_brokerage
 from app.services.discipline_engine import DisciplineEngine
 from app.services.slippage_engine import calculate_slippage
@@ -73,9 +75,15 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
     action       = order_data["action"]
     quantity     = int(order_data["quantity"])
     lot_size     = order_data.get("lot_size") or get_spec(instrument).lot_size
+    product_type = order_data.get("product_type") or ProductType.INTRADAY
 
     chain = provider.get_option_chain(instrument)
     ltp, atm_strike = _get_ltp_from_chain(chain, strike_price, option_type)
+    if ltp is None:
+        raise QuoteUnavailableError(
+            f"No tradable quote for {instrument} {strike_price} {option_type} — "
+            f"the strike is outside the current chain. Pick a strike from the chain."
+        )
 
     order_data["ltp"] = ltp
 
@@ -94,9 +102,17 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
         instrument=instrument,
     )
 
-    # ── Calculate margin (5x leverage) ────────────────────
+    # ── Calculate margin ──────────────────────────────────
+    # Per-user leverage setting: ON → block leveraged margin (contract / 5x);
+    # OFF → block the full contract value (1x) from the sandbox funds.
+    settings_row = db.query(UserSettings).filter(
+        UserSettings.user_id == user.id
+    ).first()
+    leverage_enabled = (settings_row.data or {}).get("leverage_enabled", True) if settings_row else True
+    leverage = LEVERAGE_MULTIPLIER if leverage_enabled else 1
+
     gross_value     = fill_price * Decimal(lot_size) * Decimal(quantity)
-    margin_required = (gross_value / Decimal("5")).quantize(Decimal("0.01"))
+    margin_required = (gross_value / Decimal(leverage)).quantize(Decimal("0.01"))
 
     if account.balance < margin_required:
         raise InsufficientBalanceError(
@@ -128,6 +144,8 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
         sl_price=Decimal(str(sl_raw)) if sl_raw is not None else None,
         target_price=Decimal(str(order_data["target_price"])) if order_data.get("target_price") else None,
         status=OrderStatus.OPEN,
+        product_type=product_type,
+        trading_day=current_trading_day(),
         brokerage=entry_brokerage.total,
         slippage_points=slippage_points,
         setup_tag=order_data.get("setup_tag") or "OTHER",
@@ -203,14 +221,15 @@ def close_position(
     provider = get_market_provider()
     chain    = provider.get_option_chain(order.instrument)
 
-    if exit_ltp is None:
-        exit_ltp, _ = _get_ltp_from_chain(
-            chain, int(order.strike_price), order.option_type
-        )
-
-    _, atm_strike = _get_ltp_from_chain(
+    quoted, atm_strike = _get_ltp_from_chain(
         chain, int(order.strike_price), order.option_type
     )
+    if exit_ltp is None:
+        exit_ltp = quoted
+    if exit_ltp is None:
+        # Strike no longer in the chain window — exit at the last stored mark
+        # (never at spot). The user must always be able to close a position.
+        exit_ltp = position.current_ltp if position else order.entry_ltp
 
     # ── Exit fill price with slippage ──────────────────────
     exit_action = "SELL" if order.action == "BUY" else "BUY"
@@ -323,7 +342,14 @@ def update_position_ltp(
 def _get_ltp_from_chain(
     chain: dict, strike: int, option_type: str
 ) -> tuple:
-    """Extract LTP for a specific strike from the option chain. Returns (ltp, atm_strike)."""
+    """
+    Extract LTP for a specific strike from the option chain.
+    Returns (ltp, atm_strike); ltp is None when the strike is not in the chain.
+
+    Never falls back to spot: an index level is thousands of points away from an
+    option premium, so treating it as the LTP corrupts P&L and can falsely
+    trigger SL/target exits. Callers decide their own safe fallback.
+    """
     atm_strike = chain.get("atm_strike", strike)
 
     for strike_data in chain.get("strikes", []):
@@ -332,8 +358,7 @@ def _get_ltp_from_chain(
             ltp  = Decimal(str(strike_data[side].get("ltp", 0)))
             return ltp, atm_strike
 
-    spot = Decimal(str(chain.get("spot_price", 100)))
-    return spot, atm_strike
+    return None, atm_strike
 
 
 def _create_journal_entry(
@@ -342,8 +367,14 @@ def _create_journal_entry(
 ) -> None:
     """Auto-create journal entry on trade close."""
     try:
+        # entry_time comes from the DB (naive), exit_time is set as aware UTC.
+        # Normalize both to UTC-aware so the subtraction never raises.
         entry_time = order.entry_time
         exit_time  = order.exit_time or datetime.now(timezone.utc)
+        if entry_time.tzinfo is None:
+            entry_time = entry_time.replace(tzinfo=timezone.utc)
+        if exit_time.tzinfo is None:
+            exit_time = exit_time.replace(tzinfo=timezone.utc)
         duration   = int((exit_time - entry_time).total_seconds() / 60)
 
         journal = JournalEntry(

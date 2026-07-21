@@ -64,6 +64,11 @@ class MarketClosedError(StrikeFluencyError):
     pass
 
 
+class QuoteUnavailableError(StrikeFluencyError):
+    """The requested strike has no tradable quote in the current chain."""
+    pass
+
+
 class OrderNotFoundError(StrikeFluencyError):
     """No order found with given ID for this user."""
     pass

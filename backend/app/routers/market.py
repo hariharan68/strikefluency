@@ -60,20 +60,11 @@ def get_spot_price(
 def get_market_status():
     """
     Returns whether market is open, current IST time,
-    and which provider is active.
+    and which provider is active. Same payload the WS `market_status`
+    frame carries — one source of truth in market_scheduler.
     """
-    now_ist = get_ist_now()
-    provider = get_market_provider()
-
-    return {
-        "is_open":     is_market_open(),
-        "time_ist":    now_ist.strftime("%H:%M:%S"),
-        "date_ist":    now_ist.strftime("%Y-%m-%d"),
-        "provider":    type(provider).__name__,
-        "connected":   provider.is_connected(),
-        "market_open": "09:15",
-        "market_close": "15:30",
-    }
+    from app.market.market_scheduler import build_market_status
+    return build_market_status()
 
 
 @router.websocket("/ws")
@@ -97,7 +88,7 @@ async def websocket_market(websocket: WebSocket, user: User = Depends(get_ws_use
         "data": { ...canonical option chain format... }
       }
     """
-    await manager.connect(websocket)
+    await manager.connect(websocket, user.id)
     logger.info(f"Market WebSocket connected. Total: {manager.connection_count}")
 
     try:
@@ -109,11 +100,11 @@ async def websocket_market(websocket: WebSocket, user: User = Depends(get_ws_use
             await websocket.send_json({"type": "ack", "message": "received"})
 
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
         logger.info(f"Market WebSocket disconnected. Total: {manager.connection_count}")
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
-        manager.disconnect(websocket)
+    finally:
+        manager.disconnect(websocket, user.id)
 
 @router.get("/debug/raw-fyers", dependencies=[Depends(require_dev_environment)])
 def debug_raw_fyers(current_user: CurrentUser = None):
