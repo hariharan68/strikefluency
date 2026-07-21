@@ -62,6 +62,19 @@
   --shadow: var(--card-glow);
   --shadow-md: 0 10px 34px rgba(0,0,0,0.5), var(--card-glow);
   --shadow-pop: 0 24px 60px rgba(0,0,0,0.6);
+
+  /* Marketing footer palette (dark theme). */
+  --footer-bg: #0b0d12;
+  --footer-bg2: #080808;
+  --footer-text: #99a0ae;
+  --footer-heading: #ffffff;
+  --footer-link: #93c5fd;
+  --footer-link-hover: #ffffff;
+  --footer-muted: #b8cdee;
+  --footer-sub: #b6b9c7;
+  --footer-divider: rgba(255,255,255,0.15);
+  --footer-social-border: rgba(255,255,255,0.15);
+  --footer-social-hover: rgba(255,255,255,0.10);
 }
 
 /* ── Light theme ──────────────────────────────────────────────
@@ -126,6 +139,19 @@
   --shadow: 0 1px 2px rgba(16,24,40,0.06), var(--card-glow);
   --shadow-md: 0 10px 30px rgba(16,24,40,0.10), var(--card-glow);
   --shadow-pop: 0 24px 56px rgba(16,24,40,0.16);
+
+  /* Marketing footer palette (light theme — sandalwood). */
+  --footer-bg: #eae1cc;
+  --footer-bg2: #e1d5b6;
+  --footer-text: #5b5442;
+  --footer-heading: #2a2a2a;
+  --footer-link: #2563eb;
+  --footer-link-hover: #111827;
+  --footer-muted: #5b5442;
+  --footer-sub: #7c7358;
+  --footer-divider: rgba(0,0,0,0.12);
+  --footer-social-border: rgba(0,0,0,0.15);
+  --footer-social-hover: rgba(0,0,0,0.05);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

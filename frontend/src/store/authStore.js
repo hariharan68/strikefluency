@@ -14,20 +14,37 @@ export const beginLogout = () => {
   return authEpoch
 }
 
+// Read the persisted user without letting a corrupt value crash module load.
+// A stored literal "undefined" (from JSON.stringify(undefined) being written)
+// is not valid JSON, so JSON.parse would throw at evaluation time and blank the
+// whole app. Treat any unparseable value as "no user" and clear it.
+const readStoredUser = () => {
+  const raw = localStorage.getItem('sf_user')
+  if (!raw || raw === 'undefined' || raw === 'null') return null
+  try {
+    return JSON.parse(raw)
+  } catch {
+    localStorage.removeItem('sf_user')
+    return null
+  }
+}
+
 const useAuthStore = create((set) => ({
-  user: JSON.parse(localStorage.getItem('sf_user') || 'null'),
+  user: readStoredUser(),
   accessToken: null,
   isAuthenticated: false,
   initialized: false,
   setAuth: (user, accessToken) => {
     inMemoryToken = accessToken
-    localStorage.setItem('sf_user', JSON.stringify(user))
-    set({ user, accessToken, isAuthenticated: true, initialized: true })
+    if (user == null) localStorage.removeItem('sf_user')
+    else localStorage.setItem('sf_user', JSON.stringify(user))
+    set({ user: user ?? null, accessToken, isAuthenticated: true, initialized: true })
   },
   setInitialized: (initialized) => set({ initialized }),
   setUser: (user) => {
-    localStorage.setItem('sf_user', JSON.stringify(user))
-    set({ user })
+    if (user == null) localStorage.removeItem('sf_user')
+    else localStorage.setItem('sf_user', JSON.stringify(user))
+    set({ user: user ?? null })
   },
   clearAuth: () => {
     beginLogout()

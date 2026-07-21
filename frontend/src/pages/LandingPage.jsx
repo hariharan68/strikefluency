@@ -126,12 +126,26 @@ export default function LandingPage() {
       <main>
         <section className="mx-auto grid max-w-7xl gap-10 px-5 py-16 md:px-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:py-20">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--primary)]">Virtual options trading simulator</p>
+            <div className="group inline-flex rounded-full bg-gradient-to-r from-[var(--primary)] via-fuchsia-500 to-amber-400 p-[1.5px] shadow-[0_12px_34px_-10px_var(--primary)] transition-transform duration-300 hover:scale-[1.03]">
+              <span className="inline-flex items-center gap-2.5 rounded-full bg-[var(--color-surface)] px-3.5 py-1.5">
+                <span className="relative flex h-2.5 w-2.5 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-gradient-to-br from-amber-300 to-amber-500" />
+                </span>
+                <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--text)] sm:text-xs">
+                  Be proud to be in the
+                </span>
+                <span className="bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 bg-clip-text text-xs font-black uppercase tracking-tight text-transparent drop-shadow-[0_1px_6px_rgba(245,158,11,0.35)] sm:text-sm">
+                  Top 1%
+                </span>
+              </span>
+            </div>
+            <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--primary)]">Virtual options trading simulator</p>
             <h1 className="sf-serif mt-5 max-w-3xl text-5xl font-bold leading-[1.03] text-[var(--text)] md:text-6xl">
-              Become fluent in the strike zone before trading with real money.
+              Practice options trading where bad habits get blocked before they cost you a rupee.
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--text-sub)]">
-              StrikeFluency helps Indian retail traders practice NIFTY, BANKNIFTY, and SENSEX options in a virtual desk where discipline rules are enforced before each order and every result becomes feedback.
+              StrikeFluency helps Indian retail traders practice NIFTY, BANKNIFTY, and SENSEX options on a virtual desk that blocks revenge trades, no-SL entries, and overtrading — before you place the order, not after you've lost money.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link to={isAuthenticated ? '/dashboard' : '/register'} className="sf-btn-primary h-11 px-5">
@@ -140,6 +154,9 @@ export default function LandingPage() {
               </Link>
               <Link to="/login" className="sf-btn-outline h-11 px-5">Log in</Link>
             </div>
+            <p className="mt-4 max-w-xl text-xs leading-5 text-[var(--text-muted)]">
+              StrikeFluency is a practice simulator only. No real money, no live broker execution, no SEBI-regulated advice — just a safe place to build trading discipline before you risk capital.
+            </p>
             <div className="mt-8 grid max-w-xl grid-cols-3 gap-3">
               {[
                 ['Rs 1L+', 'virtual capital'],
@@ -184,7 +201,7 @@ export default function LandingPage() {
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--primary)]">Discipline scope</p>
             <h2 className="sf-serif mt-3 text-3xl font-bold text-[var(--text)]">Rules are part of the order flow, not an afterthought.</h2>
             <p className="mt-4 text-sm leading-7 text-[var(--text-sub)]">
-              Every virtual order is checked before placement. The goal is to block common behavior leaks such as revenge trades, no-SL entries, overtrading, and impulsive direction flips.
+              Every virtual order is checked before placement — the same way a disciplined trader would check themselves, except the system never lets it slide. These are the 7 leaks most retail traders don't realize are draining their account: revenge trades, no-SL entries, overtrading, impulsive direction flips, and more.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -202,7 +219,7 @@ export default function LandingPage() {
             <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#93C5FD]">Current project scope</p>
-                <h2 className="sf-serif mt-3 text-3xl font-bold">What StrikeFluency is built to do now.</h2>
+                <h2 className="sf-serif mt-3 text-3xl font-bold">What you can practice with today.</h2>
                 <p className="mt-4 text-sm leading-7 text-[#B8CDEE]">
                   The current application scope is Phase 1 virtual trading with mock market data by default, plus Fyers token and market-data integration paths for configured environments.
                 </p>
@@ -212,7 +229,7 @@ export default function LandingPage() {
                   ['Instruments', 'NIFTY, BANKNIFTY, and SENSEX options with canonical lot sizes.'],
                   ['Execution', 'Virtual order placement, slippage, brokerage estimates, margin checks, close flow, and P&L updates.'],
                   ['Market data', 'Mock provider first; Fyers provider can be enabled through backend configuration and broker connection.'],
-                  ['Data model', 'JWT auth, virtual accounts, orders, positions, sessions, rules, violations, journal, and analytics.']
+                  ['Data model', 'Every account, order, position, rule violation, and journal entry is tracked automatically — so nothing about your practice history gets lost.']
                 ].map(([title, text]) => (
                   <div key={title} className="rounded-2xl border border-white/10 bg-white/5 p-5">
                     <h3 className="text-sm font-bold text-white">{title}</h3>
