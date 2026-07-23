@@ -1,88 +1,127 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
-import useMarketStore from '../../store/marketStore'
-import useTradingStore from '../../store/tradingStore'
-import usePreferencesStore from '../../store/preferencesStore'
-import useVirtualTrading from '../../hooks/useVirtualTrading'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, Ban, LogIn, LogOut, RefreshCw, Wallet } from 'lucide-react'
 import { getOptionChain } from '../../api/market'
-import { getPositions, closeOrder } from '../../api/trading'
+import { closeOrder, getOrders, getPositions, getTradebook } from '../../api/trading'
+import { getTodayViolations } from '../../api/discipline'
 import OptionChainTable from '../../components/trading/OptionChainTable'
 import OrderFormPanel from '../../components/trading/OrderFormPanel'
 import DisciplineModeToggle from '../../components/discipline/DisciplineModeToggle'
-import useDiscipline from '../../hooks/useDiscipline'
-import { formatCurrency } from '../../utils/formatters'
-import { ltpFromChain, livePnl } from '../../utils/livePnl'
-import { X, AlertTriangle } from 'lucide-react'
 import { useToast } from '../../components/common/Toast'
+import useDiscipline from '../../hooks/useDiscipline'
+import useVirtualTrading from '../../hooks/useVirtualTrading'
+import useMarketStore from '../../store/marketStore'
+import usePreferencesStore from '../../store/preferencesStore'
+import useTradingStore from '../../store/tradingStore'
+import { livePnl, ltpFromChain } from '../../utils/livePnl'
+import './TradingDeskPage.css'
 
 const INSTRUMENTS = ['NIFTY', 'BANKNIFTY', 'SENSEX']
-const WINDOWS = [5, 10, 15, 20, 'All']   // strikes to show each side of ATM
+const WINDOWS = [5, 10, 15, 'All']
+const BOOK_TABS = [
+  { key: 'positions', label: 'Open Positions' },
+  { key: 'tradebook', label: 'Position Book' },
+  { key: 'orderbook', label: 'Orderbook' },
+  { key: 'activity', label: 'Activity' },
+]
 
-const Card = ({ children, style = {} }) => (
-  <div style={{ background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden', ...style }}>
-    {children}
-  </div>
-)
+const asNumber = value => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
 
-const PanelHead = ({ title, right }) => (
-  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--color-surface2)' }}>
-    <span style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>{title}</span>
-    {right}
-  </div>
-)
+const money = (value, digits = 2) => `₹${Math.abs(asNumber(value)).toLocaleString('en-IN', {
+  minimumFractionDigits: digits,
+  maximumFractionDigits: digits,
+})}`
 
-function PositionRow({ pos, onClose, confirmClose, chains }) {
+const signedMoney = (value, digits = 2) => {
+  const number = asNumber(value)
+  return `${number >= 0 ? '+' : '-'}${money(number, digits)}`
+}
+
+const formatTime = iso => {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+}
+
+function SideBadge({ side }) {
+  return <span className={`trade-side-badge ${side === 'SELL' ? 'sell' : ''}`}>{side || 'BUY'}</span>
+}
+
+function StatusBadge({ status = 'OPEN' }) {
+  const tone = status === 'TARGET_HIT' ? 'gain' : status === 'SL_HIT' ? 'loss' : status === 'OPEN' ? 'open' : ''
+  return <span className={`trade-status-badge ${tone}`}>{status.replaceAll('_', ' ')}</span>
+}
+
+function EmptyBook({ title, description }) {
+  return (
+    <div className="trade-book-empty">
+      <span><Wallet size={18} /></span>
+      <strong>{title}</strong>
+      <p>{description}</p>
+    </div>
+  )
+}
+
+function PositionRow({ position, chains, confirmClose, onClose }) {
   const [closing, setClosing] = useState(false)
   const [confirming, setConfirming] = useState(false)
-  // Mark against the live WebSocket chain (3s ticks); fall back to the server's
-  // last stored values when the chain can't price this contract.
-  const liveLtp = ltpFromChain(chains?.[pos.instrument], pos.strike_price, pos.option_type)
-  const live = livePnl({ action: pos.action || 'BUY', entry: pos.avg_entry_price, ltp: liveLtp, lots: pos.quantity, lotSize: pos.lot_size })
-  const pnl = live ?? Number(pos.unrealized_pnl ?? pos.net_pnl ?? 0)
-  const shownLtp = liveLtp ?? (pos.current_ltp != null ? Number(pos.current_ltp) : null)
-  const isGain = pnl >= 0
+  const streamLtp = ltpFromChain(chains?.[position.instrument], position.strike_price, position.option_type)
+  const calculatedPnl = livePnl({
+    action: position.action || 'BUY',
+    entry: position.avg_entry_price,
+    ltp: streamLtp,
+    lots: position.quantity,
+    lotSize: position.lot_size,
+  })
+  const shownLtp = streamLtp ?? asNumber(position.current_ltp)
+  const pnl = calculatedPnl ?? asNumber(position.unrealized_pnl)
+  const contracts = asNumber(position.quantity) * asNumber(position.lot_size)
 
-  const doClose = async () => {
-    if (confirmClose && !confirming) { setConfirming(true); return }
+  const handleExit = async () => {
+    if (confirmClose && !confirming) {
+      setConfirming(true)
+      return
+    }
     setClosing(true)
-    try { await onClose(pos.order_id || pos.id) } catch {}
-    setClosing(false); setConfirming(false)
+    try {
+      await onClose(position.order_id || position.id)
+    } finally {
+      setClosing(false)
+      setConfirming(false)
+    }
   }
+
   return (
-    <tr className="chain-row" style={{ borderBottom: '1px solid var(--color-surface2)' }}>
-      <td style={{ padding: '9px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{
-            fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 12,
-            background: pos.option_type === 'CE' ? 'var(--primary-bg)' : 'var(--loss-bg)',
-            color: pos.option_type === 'CE' ? 'var(--primary-dark)' : 'var(--loss)'
-          }}>{pos.option_type}</span>
-          <span className="num" style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>
-            {pos.instrument} {pos.strike_price}
-          </span>
-          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{pos.action || 'BUY'}</span>
-          {pos.product_type === 'NRML' && (
-            <span title="Carry-forward — held across trading days" style={{
-              fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 12,
-              background: 'var(--primary-bg)', color: 'var(--primary)',
-              textTransform: 'uppercase', letterSpacing: '0.04em'
-            }}>Carry</span>
-          )}
-        </div>
-        <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>
-          {pos.quantity} lots · {pos.expiry_date || 'Weekly'} · {pos.product_type === 'NRML' ? 'NRML' : 'Intraday'}
+    <tr>
+      <td>
+        <div className="trade-contract-cell">
+          <span className={`trade-option-badge ${position.option_type === 'PE' ? 'pe' : ''}`}>{position.option_type}</span>
+          <div>
+            <strong>{position.instrument} {Math.round(asNumber(position.strike_price))} {position.option_type}</strong>
+            <span>{position.product_type === 'NRML' ? 'Carry-forward' : 'Intraday'} · {position.expiry_date}</span>
+          </div>
         </div>
       </td>
-      <td className="num" style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text-sub)', fontSize: 12 }}>{pos.avg_entry_price != null ? Number(pos.avg_entry_price).toFixed(2) : '—'}</td>
-      <td className="num" style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text-sub)', fontSize: 12 }}>{shownLtp != null ? shownLtp.toFixed(2) : '—'}</td>
-      <td className="num" style={{ padding: '9px 16px', textAlign: 'right', fontSize: 13, fontWeight: 600, color: isGain ? 'var(--gain)' : 'var(--loss)' }}>
-        {isGain ? '+' : ''}{formatCurrency(pnl)}
-      </td>
-      <td style={{ padding: '9px 16px', textAlign: 'right' }}>
-        <button onClick={doClose}
-          onBlur={() => setConfirming(false)}
+      <td><SideBadge side={position.action} /></td>
+      <td className="num align-right">{contracts}</td>
+      <td className="num align-right">{money(position.avg_entry_price)}</td>
+      <td className="num align-right">{money(shownLtp)}</td>
+      <td className={`num align-right trade-pnl ${pnl >= 0 ? 'gain' : 'loss'}`}>{signedMoney(pnl)}</td>
+      <td className="align-right">
+        <button
+          type="button"
+          className="trade-exit-button"
           disabled={closing}
-          style={{ background: 'var(--loss-bg)', border: '1px solid var(--loss)', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', color: 'var(--loss)', fontSize: 11, fontWeight: 500 }}>
-          {closing ? '…' : confirming ? 'Confirm?' : 'Close'}
+          onBlur={() => setConfirming(false)}
+          onClick={handleExit}
+        >
+          {closing ? 'Closing…' : confirming ? 'Confirm?' : 'Exit'}
         </button>
       </td>
     </tr>
@@ -90,203 +129,382 @@ function PositionRow({ pos, onClose, confirmClose, chains }) {
 }
 
 export default function TradingDeskPage() {
-  const prefs = usePreferencesStore(s => s.prefs)
+  const prefs = usePreferencesStore(state => state.prefs)
+  const account = useTradingStore(state => state.account)
+  const eventSeq = useTradingStore(state => state.eventSeq)
+  const allChains = useMarketStore(state => state.chains)
+  const { loadAccount } = useVirtualTrading()
+  const { mode, loadMode } = useDiscipline()
+  const { success, error: toastError } = useToast()
+
   const [instrument, setInstrument] = useState(prefs.default_instrument || 'NIFTY')
-  // Apply the saved default instrument once prefs load — unless the user has
-  // already picked one this session.
-  const pickedRef = useRef(false)
-  useEffect(() => {
-    if (!pickedRef.current) setInstrument(prefs.default_instrument || 'NIFTY')
-  }, [prefs.default_instrument])
-  const pickInstrument = (ins) => { pickedRef.current = true; setInstrument(ins) }
-  const [strikeCount, setStrikeCount] = useState(5)   // ±ATM window, default ±5
+  const [strikeCount, setStrikeCount] = useState(5)
   const [prefill, setPrefill] = useState(null)
   const [chainLoading, setChainLoading] = useState(false)
   const [positions, setPositions] = useState([])
-  // Select only the chain for the active tab — the WS pushes all three instruments.
-  const optionChain = useMarketStore(s => s.chains[instrument]) || null
-  const allChains = useMarketStore(s => s.chains)
+  const [orders, setOrders] = useState([])
+  const [trades, setTrades] = useState([])
+  const [violations, setViolations] = useState([])
+  const [bookTab, setBookTab] = useState('positions')
+  const [bookLoading, setBookLoading] = useState(true)
+  const pickedInstrument = useRef(false)
 
-  // Trim the chain to ±strikeCount rows around ATM (or show all).
+  const optionChain = useMarketStore(state => state.chains[instrument]) || null
+  const disciplineOff = mode?.enabled === false
+
+  useEffect(() => {
+    if (!pickedInstrument.current) setInstrument(prefs.default_instrument || 'NIFTY')
+  }, [prefs.default_instrument])
+
+  const pickInstrument = value => {
+    pickedInstrument.current = true
+    setInstrument(value)
+  }
+
   const viewChain = useMemo(() => {
     const strikes = optionChain?.strikes
     if (!strikes?.length || strikeCount === 'All') return optionChain
     const atm = optionChain.atm_strike
-    const atmIdx = strikes.reduce(
-      (best, r, i) => Math.abs(r.strike - atm) < Math.abs(strikes[best].strike - atm) ? i : best, 0)
-    const sliced = strikes.slice(
-      Math.max(0, atmIdx - strikeCount), Math.min(strikes.length, atmIdx + strikeCount + 1))
-    return { ...optionChain, strikes: sliced }
+    const atmIndex = strikes.reduce(
+      (best, row, index) => Math.abs(row.strike - atm) < Math.abs(strikes[best].strike - atm) ? index : best,
+      0,
+    )
+    return {
+      ...optionChain,
+      strikes: strikes.slice(
+        Math.max(0, atmIndex - strikeCount),
+        Math.min(strikes.length, atmIndex + strikeCount + 1),
+      ),
+    }
   }, [optionChain, strikeCount])
-  const { loadAccount } = useVirtualTrading()
-  const { mode, loadMode } = useDiscipline()
-  const { success } = useToast()
-  const disciplineOff = mode?.enabled === false
 
-  const loadPositions = async () => {
-    try { const r = await getPositions(); setPositions(r.data?.positions || r.data || []) } catch {}
-  }
+  const loadTradingData = useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) setBookLoading(true)
+    const safe = promise => promise.then(response => response.data).catch(() => null)
+    const [positionData, orderData, tradeData, violationData] = await Promise.all([
+      safe(getPositions()),
+      safe(getOrders(1, null, 'today')),
+      safe(getTradebook(1, 'today')),
+      safe(getTodayViolations()),
+    ])
+    if (positionData) setPositions(positionData.positions || positionData || [])
+    if (orderData) setOrders(orderData.orders || [])
+    if (tradeData) setTrades(tradeData.orders || [])
+    if (Array.isArray(violationData)) setViolations(violationData)
+    if (!quiet) setBookLoading(false)
+  }, [])
 
-  useEffect(() => { loadAccount(); loadPositions(); loadMode() }, [])
-
-  // WS trading events → refresh balance + positions after a short debounce.
-  // Covers auto-exits (SL/target hit server-side) that no user action triggers.
-  const eventSeq = useTradingStore(s => s.eventSeq)
   useEffect(() => {
-    if (!eventSeq) return
-    const t = setTimeout(() => { loadAccount(); loadPositions() }, 300)
-    return () => clearTimeout(t)
-  }, [eventSeq])
+    loadAccount()
+    loadTradingData()
+    loadMode()
+  }, [])
+
+  useEffect(() => {
+    if (!eventSeq) return undefined
+    const timeout = setTimeout(() => {
+      loadAccount()
+      loadTradingData({ quiet: true })
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [eventSeq, loadTradingData])
 
   useEffect(() => {
     setChainLoading(true)
-    setPrefill(null)   // a stale prefill from the previous instrument is invalid here
+    setPrefill(null)
     getOptionChain(instrument)
-      // REST wraps the chain as { success, data }; the WS sends it bare. Unwrap
-      // so the store always holds the raw chain the table/prefill expect.
-      .then(r => useMarketStore.getState().setOptionChain(r.data?.data ?? r.data))
+      .then(response => useMarketStore.getState().setOptionChain(response.data?.data ?? response.data))
       .catch(() => {})
       .finally(() => setChainLoading(false))
   }, [instrument])
 
-  const handleClose = async (orderId) => {
-    await closeOrder(orderId)
-    success('Position closed')
-    loadAccount()
-    loadPositions()
+  const openPositions = positions.filter(position => position.is_open || position.status === 'OPEN')
+
+  const markPosition = position => {
+    const streamLtp = ltpFromChain(allChains?.[position.instrument], position.strike_price, position.option_type)
+    return livePnl({
+      action: position.action || 'BUY',
+      entry: position.avg_entry_price,
+      ltp: streamLtp,
+      lots: position.quantity,
+      lotSize: position.lot_size,
+    }) ?? asNumber(position.unrealized_pnl)
   }
 
-  const open = positions.filter(p => p.is_open || p.status === 'OPEN')
-  const totalPnL = open.reduce((s, p) => s + (p.unrealized_pnl ?? 0), 0)
+  const openPnl = openPositions.reduce((sum, position) => sum + markPosition(position), 0)
+  const tradebookPnl = trades.reduce((sum, trade) => sum + asNumber(trade.pnl), 0)
+  const bookedPnl = account?.today_realized_pnl != null ? asNumber(account.today_realized_pnl) : tradebookPnl
+  const winners = trades.filter(trade => asNumber(trade.pnl) > 0).length
+  const winRate = trades.length ? winners / trades.length * 100 : 0
+
+  const activity = useMemo(() => {
+    const rows = orders.map(order => ({
+      id: `order-${order.id}`,
+      at: order.entry_time,
+      type: 'ORDER',
+      icon: LogIn,
+      text: `${order.action} ${order.instrument} ${Math.round(asNumber(order.strike_price))} ${order.option_type} · ${order.quantity} lot${order.quantity === 1 ? '' : 's'}`,
+      tone: order.action === 'BUY' ? 'gain' : 'loss',
+    }))
+    orders.filter(order => order.status !== 'OPEN').forEach(order => rows.push({
+      id: `exit-${order.id}`,
+      at: order.exit_time || order.entry_time,
+      type: order.status,
+      icon: LogOut,
+      text: `${order.instrument} ${Math.round(asNumber(order.strike_price))} ${order.option_type} · ${(order.exit_reason || order.status).replaceAll('_', ' ')}`,
+      pnl: order.pnl,
+      tone: asNumber(order.pnl) >= 0 ? 'gain' : 'loss',
+    }))
+    violations.forEach(violation => rows.push({
+      id: `violation-${violation.id}`,
+      at: violation.created_at,
+      type: 'BLOCKED',
+      icon: Ban,
+      text: violation.rule_code.replaceAll('_', ' '),
+      tone: 'loss',
+    }))
+    return rows.sort((a, b) => new Date(b.at) - new Date(a.at))
+  }, [orders, violations])
+
+  const counts = {
+    positions: openPositions.length,
+    tradebook: trades.length,
+    orderbook: orders.length,
+    activity: activity.length,
+  }
+
+  const handleClose = async orderId => {
+    try {
+      await closeOrder(orderId)
+      success('Position closed')
+      await Promise.all([loadAccount(), loadTradingData({ quiet: true })])
+    } catch {
+      toastError('Could not close position')
+    }
+  }
+
+  const refreshAfterOrder = async () => {
+    setPrefill(null)
+    await Promise.all([loadAccount(), loadTradingData({ quiet: true })])
+  }
+
+  const renderBook = () => {
+    if (bookLoading) {
+      return (
+        <div className="trade-book-loading">
+          <RefreshCw size={15} className="sf-spin" /> Refreshing trading books…
+        </div>
+      )
+    }
+
+    if (bookTab === 'positions') {
+      if (!openPositions.length) {
+        return <EmptyBook title="No open positions" description="Tap an option-chain LTP and place a virtual order to begin." />
+      }
+      return (
+        <div className="trade-book-scroll">
+          <table className="trade-book-table">
+            <thead><tr>
+              <th>Position</th><th>Side</th><th className="align-right">Qty</th>
+              <th className="align-right">Entry</th><th className="align-right">Current</th>
+              <th className="align-right">Open P&amp;L</th><th className="align-right">Action</th>
+            </tr></thead>
+            <tbody>{openPositions.map(position => (
+              <PositionRow
+                key={position.id}
+                position={position}
+                chains={allChains}
+                confirmClose={prefs.confirm_close}
+                onClose={handleClose}
+              />
+            ))}</tbody>
+          </table>
+        </div>
+      )
+    }
+
+    if (bookTab === 'tradebook') {
+      if (!trades.length) return <EmptyBook title="No completed positions today" description="Closed trades will appear here with their realized result." />
+      return (
+        <div className="trade-book-scroll">
+          <table className="trade-book-table">
+            <thead><tr>
+              <th>Time</th><th>Contract</th><th>Side</th><th className="align-right">Entry</th>
+              <th className="align-right">Exit</th><th className="align-right">Booked P&amp;L</th><th>Status</th>
+            </tr></thead>
+            <tbody>{trades.map(trade => {
+              const pnl = asNumber(trade.pnl)
+              return (
+                <tr key={trade.id}>
+                  <td className="num muted">{formatTime(trade.exit_time || trade.entry_time)}</td>
+                  <td><strong>{trade.instrument} {Math.round(asNumber(trade.strike_price))} {trade.option_type}</strong></td>
+                  <td><SideBadge side={trade.action} /></td>
+                  <td className="num align-right">{money(trade.entry_price)}</td>
+                  <td className="num align-right">{trade.exit_price == null ? '—' : money(trade.exit_price)}</td>
+                  <td className={`num align-right trade-pnl ${pnl >= 0 ? 'gain' : 'loss'}`}>{signedMoney(pnl)}</td>
+                  <td><StatusBadge status={trade.status} /></td>
+                </tr>
+              )
+            })}</tbody>
+          </table>
+        </div>
+      )
+    }
+
+    if (bookTab === 'orderbook') {
+      if (!orders.length) return <EmptyBook title="No orders today" description="Accepted and completed virtual orders will appear here." />
+      return (
+        <div className="trade-book-scroll">
+          <table className="trade-book-table">
+            <thead><tr>
+              <th>Time</th><th>Contract</th><th>Side</th><th>Product</th>
+              <th className="align-right">Lots</th><th className="align-right">Entry</th>
+              <th className="align-right">SL / Target</th><th>Status</th>
+            </tr></thead>
+            <tbody>{orders.map(order => (
+              <tr key={order.id}>
+                <td className="num muted">{formatTime(order.entry_time)}</td>
+                <td><strong>{order.instrument} {Math.round(asNumber(order.strike_price))} {order.option_type}</strong></td>
+                <td><SideBadge side={order.action} /></td>
+                <td>{order.product_type === 'NRML' ? 'Carry' : 'Intraday'}</td>
+                <td className="num align-right">{order.quantity}</td>
+                <td className="num align-right">{money(order.entry_price)}</td>
+                <td className="num align-right">{order.sl_price == null ? '—' : `${money(order.sl_price, 0)} / ${order.target_price == null ? '—' : money(order.target_price, 0)}`}</td>
+                <td><StatusBadge status={order.status} /></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )
+    }
+
+    if (!activity.length) return <EmptyBook title="No activity yet" description="Orders, exits, and discipline events will appear here." />
+    return (
+      <div className="trade-activity-list">
+        {activity.map(item => {
+          const Icon = item.icon
+          return (
+            <div className="trade-activity-row" key={item.id}>
+              <span className={item.tone}><Icon size={14} /></span>
+              <time className="num">{formatTime(item.at)}</time>
+              <div><strong>{item.type.replaceAll('_', ' ')}</strong><p>{item.text}</p></div>
+              {item.pnl != null && <b className={`num ${item.tone}`}>{signedMoney(item.pnl)}</b>}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Instrument tabs + status */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3, gap: 2 }}>
-          {INSTRUMENTS.map(ins => (
-            <button key={ins} onClick={() => pickInstrument(ins)}
-              className="toggle-btn"
-              style={{
-                minWidth: 90, fontSize: 13,
-                background: instrument === ins ? 'var(--primary)' : 'transparent',
-                color: instrument === ins ? 'var(--on-primary)' : 'var(--text-sub)',
-              }}>
-              {ins}
+    <div className="trading-desk-page">
+      <section className="trade-instrument-bar">
+        <div className="trade-instrument-tabs" role="tablist" aria-label="Underlying instrument">
+          {INSTRUMENTS.map(item => (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={instrument === item}
+              className={instrument === item ? 'active' : ''}
+              key={item}
+              onClick={() => pickInstrument(item)}
+            >
+              {item}
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          {open.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: 'var(--text-sub)', fontSize: 12 }}>Open P&L:</span>
-              <span className="num" style={{ fontSize: 14, fontWeight: 600, color: totalPnL >= 0 ? 'var(--gain)' : 'var(--loss)' }}>
-                {totalPnL >= 0 ? '+' : ''}{formatCurrency(totalPnL)}
-              </span>
-            </div>
-          )}
+        <div className="trade-status-strip">
+          <span>Open P&amp;L:</span>
+          <strong className={`num ${openPnl >= 0 ? 'gain' : 'loss'}`}>{signedMoney(openPnl)}</strong>
           <DisciplineModeToggle variant="compact" onChange={loadMode} />
         </div>
-      </div>
+      </section>
 
-      {/* Free-play banner */}
       {disciplineOff && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--warn-bg)', border: '1px solid var(--warn)', borderRadius: 10, padding: '10px 14px', color: 'var(--warn)', fontSize: 12.5, fontWeight: 600 }}>
+        <div className="trade-free-play-banner">
           <AlertTriangle size={15} />
-          Discipline Mode is OFF — free play. Rules are bypassed, full capital is unlocked, and these trades don't affect your discipline score.
+          Discipline Mode is off. Rules are bypassed, full virtual capital is unlocked, and these trades do not affect your discipline score.
         </div>
       )}
 
-      {/* Main: chain + order form */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 14, alignItems: 'start' }}>
-        <Card>
-          <PanelHead
-            title={`Option Chain — ${instrument}`}
-            right={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="eyebrow" style={{ fontSize: 10 }}>Strikes ±ATM</span>
-                <div style={{ display: 'flex', background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3, gap: 2 }}>
-                  {WINDOWS.map(w => (
-                    <button key={w} onClick={() => setStrikeCount(w)} className="toggle-btn"
-                      style={{ fontSize: 11.5, padding: '3px 9px', minWidth: 0,
-                        background: strikeCount === w ? 'var(--primary)' : 'transparent',
-                        color: strikeCount === w ? 'var(--on-primary)' : 'var(--text-sub)' }}>
-                      {w === 'All' ? 'All' : `±${w}`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            }
-          />
+      <section className="trade-execution-grid">
+        <article className="trade-chain-card">
+          <header className="trade-panel-header">
+            <div>
+              <h2>Option Chain — {instrument}</h2>
+              <p>Tap any LTP to prefill the order ticket</p>
+            </div>
+            <div className="trade-window-control">
+              <span>Strikes ±ATM</span>
+              {WINDOWS.map(window => (
+                <button
+                  type="button"
+                  key={window}
+                  className={strikeCount === window ? 'active' : ''}
+                  onClick={() => setStrikeCount(window)}
+                >
+                  {window === 'All' ? 'All' : `±${window}`}
+                </button>
+              ))}
+            </div>
+          </header>
           <OptionChainTable
             data={viewChain}
-            onCellClick={(s, t, l) => setPrefill({
-              strike: s, optionType: t,
-              // Auto-fill LTP only when the preference is on; otherwise the
-              // trader types it deliberately.
-              ltp: prefs.auto_fill_ltp ? l : null,
-              expiry: optionChain?.expiry, lotSize: optionChain?.lot_size,
+            instrument={instrument}
+            loading={chainLoading && !optionChain}
+            onCellClick={(strike, optionType, ltp) => setPrefill({
+              strike,
+              optionType,
+              ltp: prefs.auto_fill_ltp ? ltp : null,
+              expiry: optionChain?.expiry,
+              lotSize: optionChain?.lot_size,
             })}
-            instrument={instrument} loading={chainLoading && !optionChain}
           />
-        </Card>
+        </article>
 
-        <Card>
-          <PanelHead
-            title="Place Order"
-            right={prefill && (
-              <button onClick={() => setPrefill(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                <X size={14} />
+        <aside className="trade-order-card">
+          <header className="trade-panel-header quick-order-header">
+            <h2>Quick Order</h2>
+            <span>Virtual</span>
+          </header>
+          <div className="trade-order-body">
+            <OrderFormPanel
+              prefill={prefill}
+              instrument={instrument}
+              disciplineOff={disciplineOff}
+              prefs={prefs}
+              chainExpiry={optionChain?.expiry}
+              chainLotSize={optionChain?.lot_size}
+              onSuccess={refreshAfterOrder}
+            />
+          </div>
+        </aside>
+      </section>
+
+      <section className="trade-books-card">
+        <header className="trade-books-header">
+          <div className="trade-book-tabs" role="tablist" aria-label="Trading books">
+            {BOOK_TABS.map(item => (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={bookTab === item.key}
+                className={bookTab === item.key ? 'active' : ''}
+                key={item.key}
+                onClick={() => setBookTab(item.key)}
+              >
+                {item.label} <span>{counts[item.key]}</span>
               </button>
-            )}
-          />
-          {prefill && (
-            <div style={{ padding: '6px 16px', borderBottom: '1px solid var(--border)', background: 'var(--primary-bg)' }}>
-              <span style={{ color: 'var(--primary)', fontSize: 11 }}>
-                Prefilled: {instrument} {prefill.strike} {prefill.optionType}{prefill.ltp != null ? ` @ ${prefill.ltp.toFixed(2)}` : ''}
-              </span>
-            </div>
-          )}
-          <div style={{ padding: 16 }}>
-            <OrderFormPanel prefill={prefill} instrument={instrument} disciplineOff={disciplineOff} prefs={prefs} onSuccess={() => { setPrefill(null); loadAccount(); loadPositions() }} />
+            ))}
           </div>
-        </Card>
-      </div>
-
-      {/* Positions */}
-      <Card>
-        <PanelHead
-          title={`Open Positions${open.length > 0 ? ` (${open.length})` : ''}`}
-          right={open.length > 0 && (
-            <span className="num" style={{ fontSize: 13, fontWeight: 600, color: totalPnL >= 0 ? 'var(--gain)' : 'var(--loss)' }}>
-              {totalPnL >= 0 ? '+' : ''}{formatCurrency(totalPnL)}
-            </span>
-          )}
-        />
-        {open.length === 0 ? (
-          <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
-            No open positions — place an order above
+          <div className="trade-book-summary">
+            <div><span>Open P&amp;L</span><strong className={openPnl >= 0 ? 'gain' : 'loss'}>{signedMoney(openPnl, 0)}</strong></div>
+            <div><span>Booked P&amp;L</span><strong className={bookedPnl >= 0 ? 'gain' : 'loss'}>{signedMoney(bookedPnl, 0)}</strong></div>
+            <div><span>Win Rate</span><strong>{winRate.toFixed(1)}%</strong></div>
           </div>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'var(--color-surface2)' }}>
-                {['Position', 'Entry', 'Current', 'P&L', 'Action'].map((h, i) => (
-                  <th key={h} style={{
-                    padding: '8px 16px', textAlign: i >= 1 ? 'right' : 'left',
-                    color: 'var(--text-muted)', fontSize: 11, fontWeight: 600,
-                    textTransform: 'uppercase', letterSpacing: '0.05em',
-                    borderBottom: '1px solid var(--border)'
-                  }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {open.map(pos => <PositionRow key={pos.id} pos={pos} onClose={handleClose} confirmClose={prefs.confirm_close} chains={allChains} />)}
-            </tbody>
-          </table>
-        )}
-      </Card>
+        </header>
+        <div className="trade-book-content">{renderBook()}</div>
+      </section>
     </div>
   )
 }

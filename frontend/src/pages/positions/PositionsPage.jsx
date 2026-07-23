@@ -1,501 +1,828 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  getPositions, getOrders, getTradebook, closeOrder,
-} from '../../api/trading'
-import { listStrategies, squareOff } from '../../api/strategy'
-import { getTodayViolations } from '../../api/discipline'
-import useMarketStore from '../../store/marketStore'
-import useTradingStore from '../../store/tradingStore'
-import { ltpFromChain, livePnl } from '../../utils/livePnl'
-import { formatCurrency } from '../../utils/formatters'
-import { useToast } from '../../components/common/Toast'
-import {
-  Wallet, BookOpen, Table2, ScrollText, RefreshCw, ArrowDownRight,
-  ArrowUpRight, Ban, LogIn, LogOut, Layers,
+  ArrowDownRight,
+  ArrowUpRight,
+  Ban,
+  Download,
+  Layers,
+  LogIn,
+  LogOut,
+  Plus,
+  RefreshCw,
+  ScrollText,
+  ShieldCheck,
+  Table2,
+  Wallet,
 } from 'lucide-react'
+import {
+  closeOrder,
+  getAccount,
+  getOrders,
+  getPositions,
+  getTradebook,
+} from '../../api/trading'
+import { getRules, getTodayViolations } from '../../api/discipline'
+import { listStrategies, squareOff } from '../../api/strategy'
+import { useToast } from '../../components/common/Toast'
+import useMarketStore from '../../store/marketStore'
+import usePreferencesStore from '../../store/preferencesStore'
+import useTradingStore from '../../store/tradingStore'
+import { livePnl, ltpFromChain } from '../../utils/livePnl'
+import './PositionsPage.css'
 
 const TABS = [
-  { key: 'positions', label: 'Live Positions', icon: Wallet },
-  { key: 'orderbook', label: 'Orderbook', icon: BookOpen },
-  { key: 'tradebook', label: 'Tradebook', icon: Table2 },
-  { key: 'logs', label: 'Logs', icon: ScrollText },
+  { key: 'positions', label: 'Live Positions' },
+  { key: 'tradebook', label: 'Position Book' },
+  { key: 'orderbook', label: 'Orderbook' },
+  { key: 'logs', label: 'Logs' },
 ]
 
-const fmtTime = (iso) => {
+const LOG_META = {
+  ENTRY: { icon: LogIn, color: 'var(--primary)' },
+  CLOSED: { icon: LogOut, color: 'var(--text-sub)' },
+  TARGET_HIT: { icon: ArrowUpRight, color: 'var(--gain)' },
+  SL_HIT: { icon: ArrowDownRight, color: 'var(--loss)' },
+  CANCELLED: { icon: LogOut, color: 'var(--text-muted)' },
+  BLOCKED: { icon: Ban, color: 'var(--loss)' },
+}
+
+const asNumber = value => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+const money = (value, digits = 2) => `₹${Math.abs(asNumber(value)).toLocaleString('en-IN', {
+  minimumFractionDigits: digits,
+  maximumFractionDigits: digits,
+})}`
+
+const signedMoney = (value, digits = 2) => {
+  const number = asNumber(value)
+  return `${number >= 0 ? '+' : '-'}${money(number, digits)}`
+}
+
+const percent = value => `${asNumber(value).toFixed(1).replace('.0', '')}%`
+
+const formatTime = iso => {
   if (!iso) return '—'
-  const d = new Date(iso)
-  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+  return new Date(iso).toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
 }
 
-const num = (v, dp = 2) => (v == null || isNaN(v) ? '—' : Number(v).toFixed(dp))
-
-// ── small presentational bits ──────────────────────────────────
-const Card = ({ children }) => (
-  <div style={{ background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', boxShadow: 'var(--shadow)' }}>
-    {children}
-  </div>
-)
-
-const TypeBadge = ({ t }) => (
-  <span style={{
-    fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 12,
-    background: t === 'CE' ? 'var(--primary-bg)' : 'var(--loss-bg)',
-    color: t === 'CE' ? 'var(--primary)' : 'var(--loss)',
-  }}>{t}</span>
-)
-
-const ProductBadge = ({ p }) => (
-  <span title={p === 'NRML' ? 'Carry-forward — held across trading days' : 'Intraday — auto-squared-off at EOD'} style={{
-    fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 12, textTransform: 'uppercase', letterSpacing: '0.04em',
-    background: p === 'NRML' ? 'var(--primary-bg)' : 'var(--color-surface2)',
-    color: p === 'NRML' ? 'var(--primary)' : 'var(--text-muted)',
-  }}>{p === 'NRML' ? 'NRML' : 'MIS'}</span>
-)
-
-const StatusPill = ({ s }) => {
-  const map = {
-    OPEN: ['var(--primary-bg)', 'var(--primary)'],
-    CLOSED: ['var(--color-surface2)', 'var(--text-sub)'],
-    TARGET_HIT: ['var(--gain-bg)', 'var(--gain-text)'],
-    SL_HIT: ['var(--loss-bg)', 'var(--loss)'],
-    CANCELLED: ['var(--color-surface2)', 'var(--text-muted)'],
-  }
-  const [bg, fg] = map[s] || map.CLOSED
-  return <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 12, background: bg, color: fg }}>{s?.replace('_', ' ')}</span>
+const formatDate = iso => {
+  if (!iso) return '—'
+  return new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
 }
 
-const Th = ({ children, align = 'left' }) => (
-  <th style={{ padding: '10px 14px', textAlign: align, color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid var(--border)', background: 'var(--color-surface2)', position: 'sticky', top: 0 }}>{children}</th>
-)
-const Td = ({ children, align = 'left', style = {} }) => (
-  <td style={{ padding: '10px 14px', textAlign: align, fontSize: 12.5, color: 'var(--text-sub)', ...style }}>{children}</td>
-)
+const productLabel = product => product === 'NRML' ? 'Carry-forward' : 'Intraday'
 
-const Empty = ({ icon: Icon, text }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '52px 20px', color: 'var(--text-muted)' }}>
-    <Icon size={26} strokeWidth={1.6} />
-    <span style={{ fontSize: 13 }}>{text}</span>
-  </div>
-)
+function MetricCard({ label, value, note, flag, tone = 'default' }) {
+  return (
+    <article className="positions-metric-card">
+      <div className="positions-metric-label">
+        <span>{label}</span>
+        <span>{flag}</span>
+      </div>
+      <strong className={`positions-metric-value ${tone}`}>{value}</strong>
+      <p>{note}</p>
+    </article>
+  )
+}
 
-const Contract = ({ o }) => (
-  <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-    <TypeBadge t={o.option_type} />
-    <span className="num" style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>{o.instrument} {Number(o.strike_price)}</span>
-  </div>
-)
+function TypeBadge({ type }) {
+  return <span className={`positions-type-badge ${type === 'PE' ? 'pe' : ''}`}>{type || 'OPT'}</span>
+}
 
-// ── page ───────────────────────────────────────────────────────
+function SideBadge({ side }) {
+  return <span className={`positions-side-badge ${side === 'SELL' ? 'sell' : ''}`}>{side || 'BUY'}</span>
+}
+
+function StatusPill({ status = 'OPEN' }) {
+  const className = status === 'OPEN'
+    ? 'open'
+    : status === 'TARGET_HIT'
+      ? 'gain'
+      : status === 'SL_HIT'
+        ? 'loss'
+        : ''
+  return <span className={`positions-status-pill ${className}`}>{status.replaceAll('_', ' ')}</span>
+}
+
+function EmptyState({ icon: Icon, title, description }) {
+  return (
+    <div className="positions-empty-state">
+      <span><Icon size={22} /></span>
+      <strong>{title}</strong>
+      <p>{description}</p>
+    </div>
+  )
+}
+
+function InstrumentCell({ item }) {
+  return (
+    <div className="positions-instrument">
+      <TypeBadge type={item.option_type} />
+      <div>
+        <strong>{item.instrument} {Math.round(asNumber(item.strike_price))} {item.option_type}</strong>
+        <span>{formatDate(item.expiry_date)} · {productLabel(item.product_type)}</span>
+      </div>
+    </div>
+  )
+}
+
+function StrategyCell({ strategy }) {
+  const openLegs = (strategy.legs || []).filter(leg => leg.status === 'OPEN')
+  return (
+    <div className="positions-instrument">
+      <span className="positions-type-badge strategy"><Layers size={14} /></span>
+      <div>
+        <strong>{strategy.name || strategy.template_id?.replaceAll('_', ' ') || `${strategy.underlying} strategy`}</strong>
+        <span>{openLegs.length} open legs · {productLabel(strategy.product_type)}</span>
+      </div>
+    </div>
+  )
+}
+
+const csvCell = value => `"${String(value ?? '').replaceAll('"', '""')}"`
+
 export default function PositionsPage() {
+  const navigate = useNavigate()
   const { success, error: toastError } = useToast()
+  const confirmClose = usePreferencesStore(state => state.prefs.confirm_close)
+  const chains = useMarketStore(state => state.chains)
+  const lastUpdate = useMarketStore(state => state.lastUpdate)
+  const eventSeq = useTradingStore(state => state.eventSeq)
+
   const [tab, setTab] = useState('positions')
+  const [instrumentFilter, setInstrumentFilter] = useState('ALL')
+  const [productFilter, setProductFilter] = useState('ALL')
   const [positions, setPositions] = useState([])
-  const [strategies, setStrategies] = useState([])   // executed multi-leg strategies
-  const [posTotals, setPosTotals] = useState({ pnl: 0, margin: 0 })
+  const [strategies, setStrategies] = useState([])
   const [orders, setOrders] = useState([])
   const [trades, setTrades] = useState([])
   const [violations, setViolations] = useState([])
-  const [loading, setLoading] = useState(false)
+  const [rules, setRules] = useState([])
+  const [account, setAccount] = useState(null)
+  const [positionMargin, setPositionMargin] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [closingId, setClosingId] = useState(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const [p, s, o, t, v] = await Promise.all([
-        getPositions().catch(() => ({ data: {} })),
-        listStrategies('EXECUTED').catch(() => ({ data: {} })),
-        getOrders(1, null, 'today').catch(() => ({ data: {} })),
-        getTradebook(1, 'today').catch(() => ({ data: {} })),
-        getTodayViolations().catch(() => ({ data: [] })),
+  const load = useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true)
+    setLoadError('')
+
+    const safe = promise => promise
+      .then(response => ({ ok: true, data: response.data }))
+      .catch(error => ({ ok: false, data: null, error }))
+
+    const [positionsResult, strategiesResult, ordersResult, tradesResult, violationsResult, accountResult, rulesResult] =
+      await Promise.all([
+        safe(getPositions()),
+        safe(listStrategies('EXECUTED')),
+        safe(getOrders(1, null, 'today')),
+        safe(getTradebook(1, 'today')),
+        safe(getTodayViolations()),
+        safe(getAccount()),
+        safe(getRules()),
       ])
-      setPositions(p.data?.positions || [])
-      setStrategies(s.data?.strategies || [])
-      setPosTotals({
-        pnl: Number(p.data?.total_unrealized_pnl || 0),
-        margin: Number(p.data?.total_margin_blocked || 0),
-      })
-      setOrders(o.data?.orders || [])
-      setTrades(t.data?.orders || [])
-      setViolations(Array.isArray(v.data) ? v.data : [])
-    } finally {
-      setLoading(false)
+
+    if (positionsResult.ok) {
+      setPositions(positionsResult.data?.positions || [])
+      setPositionMargin(asNumber(positionsResult.data?.total_margin_blocked))
     }
+    if (strategiesResult.ok) setStrategies(strategiesResult.data?.strategies || [])
+    if (ordersResult.ok) setOrders(ordersResult.data?.orders || [])
+    if (tradesResult.ok) setTrades(tradesResult.data?.orders || [])
+    if (violationsResult.ok) setViolations(Array.isArray(violationsResult.data) ? violationsResult.data : [])
+    if (accountResult.ok) setAccount(accountResult.data)
+    if (rulesResult.ok) setRules(Array.isArray(rulesResult.data) ? rulesResult.data : [])
+
+    const coreFailed = !positionsResult.ok || !ordersResult.ok || !tradesResult.ok
+    if (coreFailed) setLoadError('Some trading data could not be refreshed. Showing the latest available values.')
+    if (!quiet) setLoading(false)
   }, [])
 
-  useEffect(() => { load() }, [load])
-
-  // WS trading events (order placed/closed, auto-exit, strategy actions) →
-  // refetch everything after a short debounce. This is what makes an SL hit
-  // appear here within a second instead of waiting for the next poll.
-  const eventSeq = useTradingStore(s => s.eventSeq)
   useEffect(() => {
-    if (!eventSeq) return
-    const t = setTimeout(() => { load() }, 300)
-    return () => clearTimeout(t)
+    load()
+  }, [load])
+
+  useEffect(() => {
+    if (!eventSeq) return undefined
+    const timeout = setTimeout(() => load({ quiet: true }), 300)
+    return () => clearTimeout(timeout)
   }, [eventSeq, load])
 
-  // Slow fallback poll — display P&L is already live from the WS chains, and
-  // trading events trigger instant refetches; this only re-syncs server marks
-  // when the socket is down.
   useEffect(() => {
-    const id = setInterval(() => {
-      getPositions()
-        .then(r => {
-          setPositions(r.data?.positions || [])
-          setPosTotals({
-            pnl: Number(r.data?.total_unrealized_pnl || 0),
-            margin: Number(r.data?.total_margin_blocked || 0),
-          })
-        })
-        .catch(() => {})
-      listStrategies('EXECUTED')
-        .then(r => setStrategies(r.data?.strategies || []))
-        .catch(() => {})
-    }, 30000)
-    return () => clearInterval(id)
-  }, [])
+    const interval = setInterval(() => load({ quiet: true }), 30000)
+    return () => clearInterval(interval)
+  }, [load])
 
-  const handleClose = async (orderId) => {
+  const orderById = useMemo(
+    () => new Map(orders.map(order => [String(order.id), order])),
+    [orders],
+  )
+
+  const liveForPosition = position => {
+    const streamedLtp = ltpFromChain(chains[position.instrument], position.strike_price, position.option_type)
+    const pnl = livePnl({
+      action: position.action || 'BUY',
+      entry: position.avg_entry_price,
+      ltp: streamedLtp,
+      lots: position.quantity,
+      lotSize: position.lot_size,
+    })
+    return {
+      ltp: streamedLtp ?? asNumber(position.current_ltp),
+      pnl: pnl ?? asNumber(position.unrealized_pnl),
+    }
+  }
+
+  const liveForStrategy = strategy => {
+    const chain = chains[strategy.underlying]
+    let unrealized = 0
+    let allPriced = true
+    let hasOpenLeg = false
+
+    for (const leg of strategy.legs || []) {
+      if (leg.status !== 'OPEN') continue
+      hasOpenLeg = true
+      const ltp = leg.instrument_type === 'FUT'
+        ? (chain?.spot_price != null ? asNumber(chain.spot_price) : null)
+        : ltpFromChain(chain, leg.strike_price, leg.instrument_type)
+      const pnl = livePnl({
+        action: leg.action,
+        entry: leg.entry_price,
+        ltp,
+        lots: leg.lots,
+        lotSize: leg.lot_size,
+      })
+      if (pnl == null) {
+        allPriced = false
+        break
+      }
+      unrealized += pnl
+    }
+
+    if (!hasOpenLeg || !allPriced) unrealized = asNumber(strategy.position?.unrealized_pnl)
+    return unrealized + asNumber(strategy.position?.realized_pnl)
+  }
+
+  const filteredPositions = useMemo(() => positions.filter(position => (
+    (instrumentFilter === 'ALL' || position.instrument === instrumentFilter)
+    && (productFilter === 'ALL' || position.product_type === productFilter)
+  )), [instrumentFilter, positions, productFilter])
+
+  const filteredStrategies = useMemo(() => strategies.filter(strategy => (
+    (instrumentFilter === 'ALL' || strategy.underlying === instrumentFilter)
+    && (productFilter === 'ALL' || strategy.product_type === productFilter)
+  )), [instrumentFilter, productFilter, strategies])
+
+  const filterBook = useCallback(items => items.filter(item => (
+    (instrumentFilter === 'ALL' || item.instrument === instrumentFilter)
+    && (productFilter === 'ALL' || item.product_type === productFilter)
+  )), [instrumentFilter, productFilter])
+
+  const visibleOrders = useMemo(() => filterBook(orders), [filterBook, orders])
+  const visibleTrades = useMemo(() => filterBook(trades), [filterBook, trades])
+
+  const logs = useMemo(() => {
+    const events = []
+    orders.forEach(order => {
+      events.push({
+        id: `${order.id}-entry`,
+        at: order.entry_time,
+        kind: 'ENTRY',
+        instrument: order.instrument,
+        product: order.product_type,
+        text: `${order.action} ${order.instrument} ${Math.round(asNumber(order.strike_price))} ${order.option_type} × ${order.quantity} lot${order.quantity === 1 ? '' : 's'} @ ${money(order.entry_price)}`,
+      })
+      if (order.status !== 'OPEN') {
+        events.push({
+          id: `${order.id}-exit`,
+          at: order.exit_time || order.entry_time,
+          kind: order.status,
+          instrument: order.instrument,
+          product: order.product_type,
+          text: `${(order.exit_reason || order.status).replaceAll('_', ' ')} · ${order.instrument} ${Math.round(asNumber(order.strike_price))} ${order.option_type}`,
+          pnl: order.pnl,
+        })
+      }
+    })
+    violations.forEach(violation => {
+      events.push({
+        id: `violation-${violation.id}`,
+        at: violation.created_at,
+        kind: 'BLOCKED',
+        instrument: violation.attempted_action?.instrument,
+        product: violation.attempted_action?.product_type,
+        text: `Blocked by ${violation.rule_code.replaceAll('_', ' ').toLowerCase()}`,
+      })
+    })
+    return events
+      .filter(event => (
+        (instrumentFilter === 'ALL' || event.instrument === instrumentFilter)
+        && (productFilter === 'ALL' || event.product === productFilter)
+      ))
+      .sort((a, b) => new Date(b.at) - new Date(a.at))
+  }, [instrumentFilter, orders, productFilter, violations])
+
+  const openPnl = positions.reduce((sum, position) => sum + liveForPosition(position).pnl, 0)
+    + strategies.reduce((sum, strategy) => sum + liveForStrategy(strategy), 0)
+  const tradebookPnl = trades.reduce((sum, trade) => sum + asNumber(trade.pnl), 0)
+  const bookedPnl = account?.today_realized_pnl != null
+    ? asNumber(account.today_realized_pnl)
+    : tradebookPnl
+  const combinedPnl = openPnl + bookedPnl
+  const strategyMargin = strategies.reduce((sum, strategy) => sum + asNumber(strategy.position?.margin_blocked), 0)
+  const capitalUsed = positionMargin + strategyMargin
+  const initialCapital = asNumber(account?.account?.initial_balance) || asNumber(account?.account?.balance)
+  const capitalUsedPct = initialCapital > 0 ? capitalUsed / initialCapital * 100 : 0
+
+  const riskAtStop = positions.reduce((sum, position) => {
+    const order = orderById.get(String(position.order_id))
+    if (order?.sl_price == null) return sum
+    return sum + Math.abs(asNumber(position.avg_entry_price) - asNumber(order.sl_price))
+      * asNumber(position.quantity) * asNumber(position.lot_size)
+  }, 0) + strategies.reduce((sum, strategy) => (
+    strategy.max_loss == null ? sum : sum + Math.abs(asNumber(strategy.max_loss))
+  ), 0)
+
+  const lossRule = rules.find(rule => rule.rule_code === 'MAX_DAILY_LOSS')
+  const dailyLossPct = asNumber(lossRule?.rule_value?.loss_pct) || 2
+  const dailyLossLimit = initialCapital * dailyLossPct / 100
+  const riskUsedPct = dailyLossLimit > 0 ? Math.min(100, riskAtStop / dailyLossLimit * 100) : 0
+  const remainingBuffer = Math.max(0, dailyLossLimit - riskAtStop)
+  const riskLevel = riskUsedPct >= 80 ? 'High' : riskUsedPct >= 50 ? 'Moderate' : 'Low'
+  const hasOpenExposure = positions.length > 0 || strategies.length > 0
+  const allProtected = hasOpenExposure
+    && positions.every(position => orderById.get(String(position.order_id))?.sl_price != null)
+    && strategies.every(strategy => strategy.max_loss != null)
+
+  const winningTrades = trades.filter(trade => asNumber(trade.pnl) > 0)
+  const losingTrades = trades.filter(trade => asNumber(trade.pnl) <= 0)
+  const winRate = trades.length ? winningTrades.length / trades.length * 100 : 0
+  const bestTrade = trades.length ? Math.max(...trades.map(trade => asNumber(trade.pnl))) : 0
+  const maxDrawdown = trades.length ? Math.min(0, ...trades.map(trade => asNumber(trade.pnl))) : 0
+  const rewardRiskValues = trades.map(trade => {
+    const entry = asNumber(trade.entry_price)
+    const risk = Math.abs(entry - asNumber(trade.sl_price))
+    const reward = Math.abs(asNumber(trade.target_price) - entry)
+    return risk > 0 && reward > 0 ? reward / risk : null
+  }).filter(value => value != null)
+  const averageRewardRisk = rewardRiskValues.length
+    ? rewardRiskValues.reduce((sum, value) => sum + value, 0) / rewardRiskValues.length
+    : 0
+  const wsLive = lastUpdate != null && Date.now() - lastUpdate < 12000
+
+  const counts = {
+    positions: positions.length + strategies.length,
+    orderbook: orders.length,
+    tradebook: trades.length,
+    logs: orders.length + orders.filter(order => order.status !== 'OPEN').length + violations.length,
+  }
+
+  const handleClose = async orderId => {
+    if (confirmClose && !window.confirm('Exit this virtual position at the current market price?')) return
     setClosingId(orderId)
     try {
       await closeOrder(orderId)
       success('Position closed')
-      await load()
-    } catch (e) {
+      await load({ quiet: true })
+    } catch {
       toastError('Could not close position')
     } finally {
       setClosingId(null)
     }
   }
 
-  const handleSquareOff = async (strategyId) => {
+  const handleSquareOff = async strategyId => {
+    if (confirmClose && !window.confirm('Square off every open leg in this strategy?')) return
     setClosingId(strategyId)
     try {
       await squareOff(strategyId)
       success('Strategy squared off')
-      await load()
-    } catch (e) {
+      await load({ quiet: true })
+    } catch {
       toastError('Could not square off strategy')
     } finally {
       setClosingId(null)
     }
   }
 
-  // Build the activity log from today's orders + blocked violations.
-  const logs = useMemo(() => {
-    const events = []
-    for (const o of orders) {
-      events.push({
-        id: `${o.id}-in`, at: o.entry_time, kind: 'ENTRY',
-        text: `${o.action} ${o.instrument} ${Number(o.strike_price)} ${o.option_type} × ${o.quantity} @ ₹${num(o.entry_price)}`,
-        tag: o.product_type,
+  const handleExport = () => {
+    let headers = []
+    let rows = []
+
+    if (tab === 'positions') {
+      headers = ['Instrument', 'Side', 'Quantity', 'Average price', 'LTP', 'Invested', 'Open P&L', 'Stop loss', 'Target', 'Status']
+      rows = filteredPositions.map(position => {
+        const live = liveForPosition(position)
+        const order = orderById.get(String(position.order_id))
+        return [
+          `${position.instrument} ${Math.round(asNumber(position.strike_price))} ${position.option_type}`,
+          position.action,
+          asNumber(position.quantity) * asNumber(position.lot_size),
+          asNumber(position.avg_entry_price),
+          live.ltp,
+          asNumber(position.avg_entry_price) * asNumber(position.quantity) * asNumber(position.lot_size),
+          live.pnl,
+          order?.sl_price,
+          order?.target_price,
+          'OPEN',
+        ]
       })
-      if (o.status && o.status !== 'OPEN') {
-        events.push({
-          id: `${o.id}-out`, at: o.exit_time || o.entry_time, kind: o.status,
-          text: `${(o.exit_reason || o.status).replace('_', ' ')} · ${o.instrument} ${Number(o.strike_price)} ${o.option_type}`,
-          pnl: o.pnl,
-        })
+    } else if (tab === 'orderbook') {
+      headers = ['Time', 'Instrument', 'Side', 'Product', 'Lots', 'Entry', 'Stop loss', 'Target', 'Status']
+      rows = visibleOrders.map(order => [
+        formatTime(order.entry_time),
+        `${order.instrument} ${Math.round(asNumber(order.strike_price))} ${order.option_type}`,
+        order.action,
+        order.product_type,
+        order.quantity,
+        order.entry_price,
+        order.sl_price,
+        order.target_price,
+        order.status,
+      ])
+    } else if (tab === 'tradebook') {
+      headers = ['Time', 'Instrument', 'Side', 'Lots', 'Entry', 'Exit', 'P&L', 'Reason']
+      rows = visibleTrades.map(trade => [
+        formatTime(trade.exit_time || trade.entry_time),
+        `${trade.instrument} ${Math.round(asNumber(trade.strike_price))} ${trade.option_type}`,
+        trade.action,
+        trade.quantity,
+        trade.entry_price,
+        trade.exit_price,
+        trade.pnl,
+        trade.exit_reason || trade.status,
+      ])
+    } else {
+      headers = ['Time', 'Type', 'Activity', 'P&L']
+      rows = logs.map(log => [formatTime(log.at), log.kind, log.text, log.pnl])
+    }
+
+    const csv = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `strikefluency-${tab}-${new Date().toISOString().slice(0, 10)}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const tableContent = () => {
+    if (loading) {
+      return (
+        <div className="positions-loading">
+          <RefreshCw size={18} className="sf-spin" />
+          Loading your trading book…
+        </div>
+      )
+    }
+
+    if (tab === 'positions') {
+      if (!filteredPositions.length && !filteredStrategies.length) {
+        return (
+          <EmptyState
+            icon={Wallet}
+            title="No matching open positions"
+            description="Place a virtual trade or change the filters to see open exposure."
+          />
+        )
       }
-    }
-    for (const v of violations) {
-      events.push({
-        id: `v-${v.id}`, at: v.created_at, kind: 'BLOCKED',
-        text: `Blocked by rule ${v.rule_code.replace(/_/g, ' ')}`,
-      })
-    }
-    return events.sort((a, b) => new Date(b.at) - new Date(a.at))
-  }, [orders, violations])
-
-  const logMeta = {
-    ENTRY: { icon: LogIn, color: 'var(--primary)' },
-    CLOSED: { icon: LogOut, color: 'var(--text-sub)' },
-    TARGET_HIT: { icon: ArrowUpRight, color: 'var(--gain)' },
-    SL_HIT: { icon: ArrowDownRight, color: 'var(--loss)' },
-    CANCELLED: { icon: LogOut, color: 'var(--text-muted)' },
-    BLOCKED: { icon: Ban, color: 'var(--loss)' },
-  }
-
-  // ── live marks from the market WebSocket (3s ticks) ─────────
-  const chains = useMarketStore(s => s.chains)
-  const lastUpdate = useMarketStore(s => s.lastUpdate)
-  const wsLive = lastUpdate != null && Date.now() - lastUpdate < 12000
-
-  // Live LTP + P&L for a single-leg position; falls back to the server's last
-  // stored mark when the broadcast chain can't price the contract.
-  const liveForPosition = (p) => {
-    const ltp = ltpFromChain(chains[p.instrument], p.strike_price, p.option_type)
-    const pnl = livePnl({ action: p.action || 'BUY', entry: p.avg_entry_price, ltp, lots: p.quantity, lotSize: p.lot_size })
-    return {
-      ltp: ltp ?? (p.current_ltp != null ? Number(p.current_ltp) : null),
-      pnl: pnl ?? Number(p.unrealized_pnl || 0),
-    }
-  }
-
-  // Live combined P&L (unrealized + realized) for an executed strategy. If any
-  // open leg can't be priced from the broadcast chain, fall back to the
-  // server-side mark for the whole strategy (never mix live and stale legs).
-  const liveForStrategy = (s) => {
-    const chain = chains[s.underlying]
-    let unrealized = 0
-    let allPriced = true
-    let hasOpen = false
-    for (const l of s.legs || []) {
-      if (l.status !== 'OPEN') continue
-      hasOpen = true
-      const ltp = l.instrument_type === 'FUT'
-        ? (chain?.spot_price != null ? Number(chain.spot_price) : null)
-        : ltpFromChain(chain, l.strike_price, l.instrument_type)
-      const pnl = livePnl({ action: l.action, entry: l.entry_price, ltp, lots: l.lots, lotSize: l.lot_size })
-      if (pnl == null) { allPriced = false; break }
-      unrealized += pnl
-    }
-    if (!hasOpen || !allPriced) unrealized = Number(s.position?.unrealized_pnl || 0)
-    return unrealized + Number(s.position?.realized_pnl || 0)
-  }
-
-  const singlePnl = positions.reduce((sum, p) => sum + liveForPosition(p).pnl, 0)
-  const stratPnl = strategies.reduce((sum, s) => sum + liveForStrategy(s), 0)
-  const openPnl = singlePnl + stratPnl
-
-  const counts = {
-    positions: positions.length + strategies.length,
-    orderbook: orders.length,
-    tradebook: trades.length,
-    logs: logs.length,
-  }
-
-  return (
-    <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18, flexWrap: 'wrap' }}>
-        <div>
-          <h1 className="sf-serif" style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)' }}>Positions &amp; Books</h1>
-          <p style={{ color: 'var(--text-sub)', fontSize: 13, marginTop: 4 }}>
-            Live positions, today’s orderbook, tradebook, and activity log. Books reset each morning at 08:30 IST.
-          </p>
+      return (
+        <div className="positions-table-scroll">
+          <table className="positions-table">
+            <thead>
+              <tr>
+                <th>Instrument</th><th>Side</th><th className="align-right">Qty</th>
+                <th className="align-right">Avg Price</th><th className="align-right">LTP</th>
+                <th className="align-right">Invested</th><th className="align-right">Open P&amp;L</th>
+                <th>SL / Target</th><th>Status</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredStrategies.map(strategy => {
+                const pnl = liveForStrategy(strategy)
+                return (
+                  <tr key={`strategy-${strategy.id}`}>
+                    <td><StrategyCell strategy={strategy} /></td>
+                    <td><span className="positions-side-badge multi">MULTI</span></td>
+                    <td className="align-right num">{(strategy.legs || []).filter(leg => leg.status === 'OPEN').length}</td>
+                    <td className="align-right num">{strategy.net_premium == null ? '—' : money(strategy.net_premium)}</td>
+                    <td className="align-right num">—</td>
+                    <td className="align-right num">{money(strategy.position?.margin_blocked, 0)}</td>
+                    <td className={`align-right num pnl ${pnl >= 0 ? 'gain' : 'loss'}`}>{signedMoney(pnl)}</td>
+                    <td className="positions-protection num">
+                      <strong>{strategy.max_loss == null ? 'Uncapped' : money(strategy.max_loss, 0)}</strong>
+                      <span>{strategy.max_profit == null ? 'Unlimited target' : `${money(strategy.max_profit, 0)} target`}</span>
+                    </td>
+                    <td><StatusPill /></td>
+                    <td>
+                      <div className="positions-row-actions">
+                        <button type="button" onClick={() => navigate(`/strategy-builder?strategy=${strategy.id}`)}>Modify</button>
+                        <button type="button" className="exit" disabled={closingId === strategy.id} onClick={() => handleSquareOff(strategy.id)}>
+                          {closingId === strategy.id ? '…' : 'Exit'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+              {filteredPositions.map(position => {
+                const live = liveForPosition(position)
+                const order = orderById.get(String(position.order_id))
+                const contracts = asNumber(position.quantity) * asNumber(position.lot_size)
+                const invested = asNumber(position.avg_entry_price) * contracts
+                return (
+                  <tr key={position.id}>
+                    <td><InstrumentCell item={position} /></td>
+                    <td><SideBadge side={position.action} /></td>
+                    <td className="align-right num" title={`${position.quantity} lot${position.quantity === 1 ? '' : 's'} × ${position.lot_size}`}>{contracts}</td>
+                    <td className="align-right num">{money(position.avg_entry_price)}</td>
+                    <td className="align-right num">{money(live.ltp)}</td>
+                    <td className="align-right num">{money(invested)}</td>
+                    <td className={`align-right num pnl ${live.pnl >= 0 ? 'gain' : 'loss'}`}>{signedMoney(live.pnl)}</td>
+                    <td className="positions-protection num">
+                      <strong>{order?.sl_price == null ? 'No SL' : money(order.sl_price, 0)}</strong>
+                      <span>{order?.target_price == null ? 'No target' : `${money(order.target_price, 0)} target`}</span>
+                    </td>
+                    <td><StatusPill /></td>
+                    <td>
+                      <div className="positions-row-actions">
+                        <button type="button" onClick={() => navigate(`/trading?order=${position.order_id}`)}>Modify</button>
+                        <button type="button" className="exit" disabled={closingId === position.order_id} onClick={() => handleClose(position.order_id)}>
+                          {closingId === position.order_id ? '…' : 'Exit'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              {wsLive && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--gain)', fontWeight: 700 }}>
-                  <span style={{ height: 6, width: 6, borderRadius: '50%', background: 'var(--gain)' }} className="sf-pulse" />
-                  Live
-                </span>
-              )}
-              Open P&amp;L
-            </div>
-            <div className="num" style={{ fontSize: 16, fontWeight: 700, color: openPnl >= 0 ? 'var(--gain)' : 'var(--loss)' }}>
-              {openPnl >= 0 ? '+' : ''}{formatCurrency(openPnl)}
-            </div>
-          </div>
-          <button onClick={load} disabled={loading} title="Refresh" className="sf-icon-button"
-            style={{ display: 'grid', placeItems: 'center', height: 36, width: 36, borderRadius: 9, border: '1px solid var(--border)', background: 'var(--color-surface)', cursor: loading ? 'wait' : 'pointer', color: 'var(--text-sub)' }}>
-            <RefreshCw size={16} className={loading ? 'sf-spin' : ''} />
-          </button>
-        </div>
-      </div>
+      )
+    }
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-        {TABS.map(({ key, label, icon: Icon }) => {
-          const active = tab === key
+    if (tab === 'orderbook') {
+      if (!visibleOrders.length) {
+        return <EmptyState icon={Table2} title="No matching orders today" description="The orderbook resets at 08:30 IST each trading day." />
+      }
+      return (
+        <div className="positions-table-scroll">
+          <table className="positions-table book-table">
+            <thead><tr>
+              <th>Time</th><th>Instrument</th><th>Side</th><th>Product</th>
+              <th className="align-right">Lots</th><th className="align-right">Entry</th>
+              <th className="align-right">Stop Loss</th><th className="align-right">Target</th><th>Status</th>
+            </tr></thead>
+            <tbody>{visibleOrders.map(order => (
+              <tr key={order.id}>
+                <td className="num muted">{formatTime(order.entry_time)}</td>
+                <td><InstrumentCell item={order} /></td>
+                <td><SideBadge side={order.action} /></td>
+                <td>{productLabel(order.product_type)}</td>
+                <td className="align-right num">{order.quantity}</td>
+                <td className="align-right num">{money(order.entry_price)}</td>
+                <td className="align-right num">{order.sl_price == null ? '—' : money(order.sl_price)}</td>
+                <td className="align-right num">{order.target_price == null ? '—' : money(order.target_price)}</td>
+                <td><StatusPill status={order.status} /></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )
+    }
+
+    if (tab === 'tradebook') {
+      if (!visibleTrades.length) {
+        return <EmptyState icon={Wallet} title="No closed positions today" description="Completed trades will appear here with their realized result." />
+      }
+      return (
+        <div className="positions-table-scroll">
+          <table className="positions-table book-table">
+            <thead><tr>
+              <th>Exit Time</th><th>Instrument</th><th>Side</th><th className="align-right">Lots</th>
+              <th className="align-right">Entry</th><th className="align-right">Exit</th>
+              <th className="align-right">Booked P&amp;L</th><th>Reason</th>
+            </tr></thead>
+            <tbody>{visibleTrades.map(trade => {
+              const pnl = asNumber(trade.pnl)
+              return (
+                <tr key={trade.id}>
+                  <td className="num muted">{formatTime(trade.exit_time || trade.entry_time)}</td>
+                  <td><InstrumentCell item={trade} /></td>
+                  <td><SideBadge side={trade.action} /></td>
+                  <td className="align-right num">{trade.quantity}</td>
+                  <td className="align-right num">{money(trade.entry_price)}</td>
+                  <td className="align-right num">{trade.exit_price == null ? '—' : money(trade.exit_price)}</td>
+                  <td className={`align-right num pnl ${pnl >= 0 ? 'gain' : 'loss'}`}>{signedMoney(pnl)}</td>
+                  <td><StatusPill status={trade.status} /></td>
+                </tr>
+              )
+            })}</tbody>
+          </table>
+        </div>
+      )
+    }
+
+    if (!logs.length) {
+      return <EmptyState icon={ScrollText} title="No activity logged today" description="Orders, exits, and blocked discipline events will appear here." />
+    }
+    return (
+      <div className="positions-log-list">
+        {logs.map(log => {
+          const meta = LOG_META[log.kind] || LOG_META.ENTRY
+          const Icon = meta.icon
           return (
-            <button key={key} onClick={() => setTab(key)}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999,
-                border: `1px solid ${active ? 'var(--primary-border)' : 'var(--border)'}`,
-                background: active ? 'var(--primary-bg)' : 'var(--color-surface)',
-                color: active ? 'var(--primary)' : 'var(--text-sub)',
-                fontSize: 12.5, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
-              }}>
-              <Icon size={15} />
-              {label}
-              <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: active ? 'var(--primary)' : 'var(--color-surface2)', color: active ? 'var(--on-primary)' : 'var(--text-muted)' }}>{counts[key]}</span>
-            </button>
+            <div className="positions-log-row" key={log.id}>
+              <span className="positions-log-icon" style={{ color: meta.color }}><Icon size={15} /></span>
+              <time className="num">{formatTime(log.at)}</time>
+              <div>
+                <strong>{log.kind.replaceAll('_', ' ')}</strong>
+                <p>{log.text}</p>
+              </div>
+              {log.pnl != null && <span className={`num pnl ${asNumber(log.pnl) >= 0 ? 'gain' : 'loss'}`}>{signedMoney(log.pnl)}</span>}
+            </div>
           )
         })}
       </div>
+    )
+  }
 
-      <Card>
-        <div style={{ overflowX: 'auto' }}>
-          {/* ── Live Positions ── */}
-          {tab === 'positions' && positions.length === 0 && strategies.length === 0 && (
-            <Empty icon={Wallet} text="No open positions right now." />
-          )}
-
-          {/* Executed multi-leg strategies (margin + P&L live at strategy level) */}
-          {tab === 'positions' && strategies.length > 0 && (
-            <div style={{ borderBottom: positions.length ? '1px solid var(--border)' : 'none' }}>
-              <div style={{ padding: '10px 16px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', background: 'var(--color-surface2)', borderBottom: '1px solid var(--border)' }}>
-                Strategy Positions
-              </div>
-              {strategies.map(s => {
-                const pnl = liveForStrategy(s)
-                const openLegs = (s.legs || []).filter(l => l.status === 'OPEN')
-                return (
-                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderBottom: '1px solid var(--color-surface2)', flexWrap: 'wrap' }}>
-                    <span style={{ display: 'grid', placeItems: 'center', height: 30, width: 30, flexShrink: 0, borderRadius: 8, background: 'var(--primary-bg)', color: 'var(--primary)' }}>
-                      <Layers size={15} />
-                    </span>
-                    <div style={{ flex: 1, minWidth: 180 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-                          {s.name || (s.template_id ? s.template_id.replace(/_/g, ' ') : `${s.underlying} strategy`)}
-                        </span>
-                        <ProductBadge p={s.product_type} />
-                      </div>
-                      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 3 }}>
-                        {openLegs.map(l => `${l.action === 'BUY' ? 'B' : 'S'} ${l.strike_price != null ? Math.round(l.strike_price) : 'FUT'} ${l.instrument_type}`).join(' · ') || 'All legs closed'}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>P&amp;L</div>
-                      <div className="num" style={{ fontSize: 13.5, fontWeight: 700, color: pnl >= 0 ? 'var(--gain)' : 'var(--loss)' }}>
-                        {pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Margin</div>
-                      <div className="num" style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-sub)' }}>₹{num(s.position?.margin_blocked, 0)}</div>
-                    </div>
-                    <button onClick={() => handleSquareOff(s.id)} disabled={closingId === s.id}
-                      style={{ background: 'var(--loss-bg)', border: '1px solid var(--loss)', borderRadius: 6, padding: '5px 14px', cursor: 'pointer', color: 'var(--loss)', fontSize: 11, fontWeight: 600 }}>
-                      {closingId === s.id ? '…' : 'Square off'}
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {tab === 'positions' && positions.length > 0 && (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead><tr>
-                    <Th>Position</Th><Th>Product</Th><Th align="right">Qty</Th>
-                    <Th align="right">Avg Entry</Th><Th align="right">LTP</Th>
-                    <Th align="right">Unrealized P&amp;L</Th><Th align="right">Margin</Th><Th align="right">Action</Th>
-                  </tr></thead>
-                  <tbody>
-                    {positions.map(p => {
-                      const live = liveForPosition(p)
-                      const pnl = live.pnl
-                      return (
-                        <tr key={p.id} className="chain-row" style={{ borderBottom: '1px solid var(--color-surface2)' }}>
-                          <Td><Contract o={p} /></Td>
-                          <Td><ProductBadge p={p.product_type} /></Td>
-                          <Td align="right" style={{ color: 'var(--text)' }}>{p.quantity}</Td>
-                          <Td align="right">₹{num(p.avg_entry_price)}</Td>
-                          <Td align="right">₹{num(live.ltp)}</Td>
-                          <Td align="right" style={{ fontWeight: 700, color: pnl >= 0 ? 'var(--gain)' : 'var(--loss)' }}>{pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}</Td>
-                          <Td align="right">₹{num(p.margin_blocked, 0)}</Td>
-                          <Td align="right">
-                            <button onClick={() => handleClose(p.order_id)} disabled={closingId === p.order_id}
-                              style={{ background: 'var(--loss-bg)', border: '1px solid var(--loss)', borderRadius: 6, padding: '4px 12px', cursor: 'pointer', color: 'var(--loss)', fontSize: 11, fontWeight: 600 }}>
-                              {closingId === p.order_id ? '…' : 'Close'}
-                            </button>
-                          </Td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-          )}
-
-          {/* ── Orderbook ── */}
-          {tab === 'orderbook' && (
-            orders.length === 0
-              ? <Empty icon={BookOpen} text="No orders yet today. The orderbook resets at 08:30 IST." />
-              : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead><tr>
-                    <Th>Time</Th><Th>Order</Th><Th>Side</Th><Th>Product</Th>
-                    <Th align="right">Qty</Th><Th align="right">Entry</Th><Th align="right">SL</Th><Th align="right">Target</Th><Th align="right">Status</Th>
-                  </tr></thead>
-                  <tbody>
-                    {orders.map(o => (
-                      <tr key={o.id} className="chain-row" style={{ borderBottom: '1px solid var(--color-surface2)' }}>
-                        <Td style={{ color: 'var(--text-muted)' }} >{fmtTime(o.entry_time)}</Td>
-                        <Td><Contract o={o} /></Td>
-                        <Td style={{ color: o.action === 'BUY' ? 'var(--gain)' : 'var(--loss)', fontWeight: 600 }}>{o.action}</Td>
-                        <Td><ProductBadge p={o.product_type} /></Td>
-                        <Td align="right" style={{ color: 'var(--text)' }}>{o.quantity}</Td>
-                        <Td align="right">₹{num(o.entry_price)}</Td>
-                        <Td align="right">{o.sl_price ? `₹${num(o.sl_price)}` : '—'}</Td>
-                        <Td align="right">{o.target_price ? `₹${num(o.target_price)}` : '—'}</Td>
-                        <Td align="right"><StatusPill s={o.status} /></Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )
-          )}
-
-          {/* ── Tradebook ── */}
-          {tab === 'tradebook' && (
-            trades.length === 0
-              ? <Empty icon={Table2} text="No executed trades yet today." />
-              : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead><tr>
-                    <Th>Time</Th><Th>Trade</Th><Th>Side</Th><Th>Product</Th>
-                    <Th align="right">Qty</Th><Th align="right">Entry</Th><Th align="right">Exit</Th><Th align="right">P&amp;L</Th><Th align="right">Reason</Th>
-                  </tr></thead>
-                  <tbody>
-                    {trades.map(o => {
-                      const pnl = Number(o.pnl || 0)
-                      return (
-                        <tr key={o.id} className="chain-row" style={{ borderBottom: '1px solid var(--color-surface2)' }}>
-                          <Td style={{ color: 'var(--text-muted)' }}>{fmtTime(o.exit_time || o.entry_time)}</Td>
-                          <Td><Contract o={o} /></Td>
-                          <Td style={{ color: o.action === 'BUY' ? 'var(--gain)' : 'var(--loss)', fontWeight: 600 }}>{o.action}</Td>
-                          <Td><ProductBadge p={o.product_type} /></Td>
-                          <Td align="right" style={{ color: 'var(--text)' }}>{o.quantity}</Td>
-                          <Td align="right">₹{num(o.entry_price)}</Td>
-                          <Td align="right">{o.exit_price ? `₹${num(o.exit_price)}` : '—'}</Td>
-                          <Td align="right" style={{ fontWeight: 700, color: pnl >= 0 ? 'var(--gain)' : 'var(--loss)' }}>{pnl >= 0 ? '+' : ''}{formatCurrency(pnl)}</Td>
-                          <Td align="right"><StatusPill s={o.status} /></Td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              )
-          )}
-
-          {/* ── Logs ── */}
-          {tab === 'logs' && (
-            logs.length === 0
-              ? <Empty icon={ScrollText} text="No activity logged yet today." />
-              : (
-                <div style={{ padding: '6px 0' }}>
-                  {logs.map(l => {
-                    const meta = logMeta[l.kind] || logMeta.ENTRY
-                    const Icon = meta.icon
-                    return (
-                      <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid var(--color-surface2)' }}>
-                        <span style={{ display: 'grid', placeItems: 'center', height: 28, width: 28, flexShrink: 0, borderRadius: 8, background: 'var(--color-surface2)', color: meta.color }}>
-                          <Icon size={15} />
-                        </span>
-                        <span style={{ color: 'var(--text-muted)', fontSize: 11.5, width: 66, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{fmtTime(l.at)}</span>
-                        <span style={{ color: 'var(--text)', fontSize: 12.5, flex: 1 }}>
-                          {l.text}
-                          {l.tag && <span style={{ marginLeft: 8 }}><ProductBadge p={l.tag} /></span>}
-                        </span>
-                        {l.pnl != null && (
-                          <span className="num" style={{ fontSize: 12.5, fontWeight: 700, color: Number(l.pnl) >= 0 ? 'var(--gain)' : 'var(--loss)' }}>
-                            {Number(l.pnl) >= 0 ? '+' : ''}{formatCurrency(Number(l.pnl))}
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-          )}
+  return (
+    <div className="positions-page">
+      <section className="positions-page-heading">
+        <div>
+          <h1>Positions &amp; Position Book</h1>
+          <p>Track live exposure, review executed trades, and manage every position from one clean workspace.</p>
         </div>
-      </Card>
+        <div className="positions-page-actions">
+          <button type="button" className="positions-secondary-button" onClick={handleExport}>
+            <Download size={14} /> Export CSV
+          </button>
+          <button type="button" className="positions-primary-button" onClick={() => navigate('/trading')}>
+            <Plus size={15} /> New Virtual Trade
+          </button>
+        </div>
+      </section>
+
+      <section className="positions-metric-grid" aria-label="Position summary">
+        <MetricCard
+          label="Open P&L"
+          flag={wsLive ? 'Live' : 'Last price'}
+          value={signedMoney(openPnl)}
+          note={`${openPnl >= 0 ? '+' : ''}${percent(capitalUsed > 0 ? openPnl / capitalUsed * 100 : 0)} on deployed capital`}
+          tone={openPnl >= 0 ? 'gain' : 'loss'}
+        />
+        <MetricCard
+          label="Booked P&L"
+          flag="Today"
+          value={signedMoney(bookedPnl)}
+          note={`${trades.length} closed trade${trades.length === 1 ? '' : 's'} · ${percent(winRate)} win rate`}
+          tone={bookedPnl >= 0 ? 'default' : 'loss'}
+        />
+        <MetricCard
+          label="Capital Used"
+          flag={percent(capitalUsedPct)}
+          value={money(capitalUsed, 0)}
+          note={`of ${money(initialCapital, 0)} virtual capital`}
+        />
+        <MetricCard
+          label="Risk at Stop"
+          flag={!hasOpenExposure ? 'No exposure' : allProtected ? 'Protected' : 'Review'}
+          value={money(riskAtStop, 0)}
+          note={`${percent(initialCapital > 0 ? riskAtStop / initialCapital * 100 : 0)} of total account`}
+          tone={riskAtStop > dailyLossLimit && dailyLossLimit > 0 ? 'loss' : 'risk'}
+        />
+      </section>
+
+      {loadError && (
+        <div className="positions-error-banner">
+          <span>{loadError}</span>
+          <button type="button" onClick={() => load()}>Try again</button>
+        </div>
+      )}
+
+      <section className="positions-workspace">
+        <article className="positions-book-card">
+          <header className="positions-book-header">
+            <div>
+              <h2>Trading Book</h2>
+              <p>Live positions, orders, completed trades, and activity records</p>
+            </div>
+            <div className="positions-tabs" role="tablist" aria-label="Trading book views">
+              {TABS.map(item => (
+                <button
+                  type="button"
+                  key={item.key}
+                  className={tab === item.key ? 'active' : ''}
+                  onClick={() => setTab(item.key)}
+                  role="tab"
+                  aria-selected={tab === item.key}
+                >
+                  {item.label} <span>({counts[item.key]})</span>
+                </button>
+              ))}
+            </div>
+          </header>
+
+          <div className="positions-book-controls">
+            <div className="positions-filters">
+              <label>
+                <span className="sr-only">Instrument</span>
+                <select value={instrumentFilter} onChange={event => setInstrumentFilter(event.target.value)}>
+                  <option value="ALL">All Instruments</option>
+                  <option value="NIFTY">NIFTY</option>
+                  <option value="BANKNIFTY">BANKNIFTY</option>
+                  <option value="SENSEX">SENSEX</option>
+                </select>
+              </label>
+              <label>
+                <span className="sr-only">Product</span>
+                <select value={productFilter} onChange={event => setProductFilter(event.target.value)}>
+                  <option value="ALL">All Products</option>
+                  <option value="INTRADAY">Intraday</option>
+                  <option value="NRML">Carry-forward</option>
+                </select>
+              </label>
+              <span className="positions-today-filter">Today</span>
+            </div>
+            <button type="button" className="positions-refresh-button" disabled={loading} onClick={() => load()}>
+              <RefreshCw size={13} className={loading ? 'sf-spin' : ''} /> Refresh
+            </button>
+          </div>
+
+          <div className="positions-book-content">{tableContent()}</div>
+        </article>
+
+        <aside className="positions-insights">
+          <article className="positions-insight-card">
+            <header>
+              <div>
+                <h2>Today&apos;s Performance</h2>
+                <p>Live account snapshot</p>
+              </div>
+              <span className={`positions-track-pill ${combinedPnl < -dailyLossLimit * 0.8 ? 'off-track' : ''}`}>
+                {combinedPnl < -dailyLossLimit * 0.8 ? 'AT RISK' : 'ON TRACK'}
+              </span>
+            </header>
+            <div className="positions-combined-pnl">
+              <span>Combined P&amp;L</span>
+              <strong className={combinedPnl >= 0 ? 'gain' : 'loss'}>{signedMoney(combinedPnl)}</strong>
+              <p>Booked + open profit</p>
+            </div>
+            <dl className="positions-insight-list">
+              <div><dt>Wins / Losses</dt><dd>{winningTrades.length} / {losingTrades.length}</dd></div>
+              <div><dt>Average R:R</dt><dd>{averageRewardRisk > 0 ? `1 : ${averageRewardRisk.toFixed(2)}` : '—'}</dd></div>
+              <div><dt>Best trade</dt><dd className={bestTrade >= 0 ? 'gain' : 'loss'}>{signedMoney(bestTrade, 0)}</dd></div>
+              <div><dt>Max drawdown</dt><dd className="loss">{signedMoney(maxDrawdown, 0)}</dd></div>
+            </dl>
+          </article>
+
+          <article className="positions-insight-card risk-card">
+            <header>
+              <div>
+                <h2>Risk Monitor</h2>
+                <p>Based on current open positions</p>
+              </div>
+              <strong className={`positions-risk-level ${riskLevel.toLowerCase()}`}>{riskLevel}</strong>
+            </header>
+            <dl className="positions-insight-list">
+              <div><dt>Risk used</dt><dd>{percent(riskUsedPct)}</dd></div>
+            </dl>
+            <div className="positions-risk-track" aria-label={`${percent(riskUsedPct)} of daily risk used`}>
+              <span style={{ width: `${riskUsedPct}%` }} />
+            </div>
+            <dl className="positions-insight-list">
+              <div><dt>Daily loss limit</dt><dd>{money(dailyLossLimit, 0)}</dd></div>
+              <div><dt>Remaining buffer</dt><dd className={remainingBuffer > 0 ? 'gain' : 'loss'}>{money(remainingBuffer, 0)}</dd></div>
+            </dl>
+            <div className="positions-risk-note">
+              <ShieldCheck size={15} />
+              <span>
+                {!hasOpenExposure
+                  ? 'No open positions are using the daily risk buffer.'
+                  : allProtected
+                    ? 'Every open position has defined protection.'
+                    : 'One or more positions need stop-loss protection.'}
+              </span>
+            </div>
+          </article>
+        </aside>
+      </section>
     </div>
   )
 }

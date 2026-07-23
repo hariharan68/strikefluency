@@ -379,6 +379,7 @@ input:focus, select:focus, textarea:focus { outline: none; }
 .sf-sidebar { transition: transform 0.24s ease; }
 .sf-app-shell.sidebar-collapsed .sf-sidebar { transform: translateX(-100%); }
 .sf-app-shell.sidebar-collapsed .sf-main-shell { margin-left: 0; }
+.sf-app-shell.sidebar-collapsed .sf-page-title-block { margin-left: 16px; }
 
 /* Toggle button rides the sidebar's right edge and follows it in/out */
 .sf-sidebar-toggle {
@@ -485,6 +486,10 @@ input:focus, select:focus, textarea:focus { outline: none; }
 }
 .sf-page-title-block h1 { color: var(--text); font-family: 'Inter', -apple-system, sans-serif; font-size: 24px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; }
 .sf-page-title-block p { margin-top: 2px; color: var(--text-muted); font-size: 12px; line-height: 1.35; }
+.sf-page-title-block.compact h1 { margin-top: 2px; font-size: 15px; line-height: 1.2; }
+.sf-page-title-block.compact p { margin-top: 0; font-size: 10px; }
+.sf-page-title-block.dense h1 { font-size: 17px; line-height: 1.15; }
+.sf-page-title-block.dense p { margin-top: 3px; font-size: 9.5px; }
 .sf-topbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
 .sf-market-pill { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 7px; row-gap: 1px; color: var(--text-sub); font-size: 12px; white-space: nowrap; }
 .sf-market-pill strong { grid-column: 2; color: var(--text-muted); font-size: 11px; font-weight: 500; }
@@ -515,6 +520,7 @@ input:focus, select:focus, textarea:focus { outline: none; }
   .sf-sidebar-toggle { display: none; }
   .sf-app-shell.sidebar-collapsed .sf-sidebar { transform: none; }
   .sf-app-shell.sidebar-collapsed .sf-main-shell { margin-left: 0; }
+  .sf-app-shell.sidebar-collapsed .sf-page-title-block { margin-left: 0; }
   .sf-brand { margin: 0 8px 0 0; flex: 0 0 auto; border-bottom: 0; padding-bottom: 0; }
   .sf-brand span { display: inline; font-size: 15px; }
   .sf-side-nav { flex-direction: row; gap: 6px; flex: 1 0 auto; }

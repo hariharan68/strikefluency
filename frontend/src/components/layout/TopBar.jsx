@@ -5,9 +5,10 @@ import { getMode } from '../../api/discipline'
 import { Bell, Mail, Moon, Search, Settings, Sun, ShieldOff } from 'lucide-react'
 
 const PAGE_META = {
+  '/positions': { title: 'Positions & Books', subtitle: 'Trading workspace', compact: true },
   '/dashboard': { title: 'Dashboard', subtitle: 'Track performance, risk, and today\'s trading discipline.' },
   '/terminal-1': { title: 'Terminal 1', subtitle: 'Live spot index prices — NIFTY, BANK NIFTY, and SENSEX.' },
-  '/trading': { title: 'Trading Desk', subtitle: 'Scan the option chain, place virtual orders, and manage positions.' },
+  '/trading': { title: 'Trading Desk', subtitle: 'Scan the option chain, place virtual orders, and manage positions.', dense: true },
   '/journal': { title: 'Trade Journal', subtitle: 'Review setups, emotions, mistakes, and lessons from each trade.' },
   '/analytics': { title: 'Analytics', subtitle: 'Measure P&L, discipline trends, and execution quality over time.' },
   '/discipline': { title: 'Reports', subtitle: 'Monitor rule compliance, violations, and discipline score health.' },
@@ -54,9 +55,10 @@ export default function TopBar() {
 
   return (
     <header className="sf-topbar">
-      <div className="sf-page-title-block">
+      <div className={`sf-page-title-block${meta.compact ? ' compact' : ''}${meta.dense ? ' dense' : ''}`}>
+        {meta.compact && <p>{meta.subtitle}</p>}
         <h1>{meta.title}</h1>
-        <p>{meta.subtitle}</p>
+        {!meta.compact && <p>{meta.subtitle}</p>}
       </div>
 
       <div className="sf-topbar-actions">

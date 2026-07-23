@@ -81,6 +81,7 @@ log/
 .claude
 .agents
 image.png
+ui-prototypes
 
 # ── IDE / Editor ──────────────────────────────────
 .vscode/
