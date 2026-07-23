@@ -7,7 +7,8 @@ import { clearFyersToken, getFyersProfile, getFyersStatus, revokeFyersCredential
 import FyersSetupWizard from '../../components/broker/FyersSetupWizard'
 import DisciplineModeToggle from '../../components/discipline/DisciplineModeToggle'
 import { getSessions, logout, logoutAll, revokeSession, updateProfile } from '../../api/auth'
-import { User, Bell, Shield, ShieldCheck, Globe, LogOut, ChevronRight, Link as LinkIcon, RefreshCw, Unplug, Trash2 } from 'lucide-react'
+import useTheme, { DARK_THEME, FOREST_LIGHT_THEME, MISTY_LIGHT_THEME } from '../../hooks/useTheme'
+import { User, Bell, Shield, ShieldCheck, Globe, LogOut, ChevronRight, Link as LinkIcon, RefreshCw, Unplug, Trash2, Palette, Check } from 'lucide-react'
 
 const Card = ({ children, style = {} }) => (
   <div style={{
@@ -529,11 +530,151 @@ function DisciplineModeSection() {
   )
 }
 
+const THEME_OPTIONS = [
+  {
+    id: DARK_THEME,
+    name: 'Obsidian Dark',
+    badge: 'Original',
+    description: 'Charcoal surfaces with the original lavender accent.',
+    canvas: '#131313',
+    surface: '#1f1f1f',
+    line: '#333333',
+    primary: '#dbbdff',
+    text: '#e3e3e3',
+    previewBackground: 'linear-gradient(145deg, #131313, #1a1a1a)',
+  },
+  {
+    id: MISTY_LIGHT_THEME,
+    name: 'Misty Teal',
+    badge: 'Existing light',
+    description: 'Cool glass surfaces with teal and sky-blue texture.',
+    canvas: '#f4f8fb',
+    surface: 'rgba(255,255,255,0.88)',
+    line: 'rgba(24,76,89,0.16)',
+    primary: '#0f8f83',
+    text: '#12212d',
+    previewBackground: 'radial-gradient(circle at 85% 15%, rgba(56,189,248,0.24), transparent 46%), radial-gradient(circle at 10% 90%, rgba(45,212,191,0.24), transparent 48%), #f4f8fb',
+  },
+  {
+    id: FOREST_LIGHT_THEME,
+    name: 'Forest Paper',
+    badge: 'New light',
+    description: 'Warm paper surfaces with forest, mint, and amber tones.',
+    canvas: '#f6f3ea',
+    surface: 'rgba(255,253,247,0.92)',
+    line: 'rgba(16,35,29,0.16)',
+    primary: '#123e32',
+    text: '#10231d',
+    previewBackground: 'radial-gradient(circle at 88% 8%, rgba(69,199,149,0.25), transparent 48%), radial-gradient(circle at 8% 92%, rgba(210,138,50,0.16), transparent 44%), #f6f3ea',
+  },
+]
+
+function CustomizationSection() {
+  const { theme, setTheme } = useTheme()
+
+  return (
+    <Card>
+      <SectionHeader icon={Palette} title="Theme" subtitle="Choose the color and texture used across StrikeFluency" />
+      <div style={{ padding: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
+          {THEME_OPTIONS.map(option => {
+            const selected = theme === option.id
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setTheme(option.id)}
+                style={{
+                  minWidth: 0, padding: 0, overflow: 'hidden', textAlign: 'left', cursor: 'pointer',
+                  borderRadius: 14,
+                  border: selected ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  background: 'var(--color-surface)',
+                  boxShadow: selected ? '0 0 0 3px var(--primary-bg), var(--shadow)' : 'var(--shadow)',
+                  fontFamily: 'Inter,sans-serif',
+                }}
+              >
+                <div style={{
+                  height: 112, padding: 12, position: 'relative',
+                  background: option.previewBackground,
+                  borderBottom: `1px solid ${option.line}`,
+                }}>
+                  <div style={{
+                    height: '100%', display: 'grid', gridTemplateColumns: '34px 1fr', overflow: 'hidden',
+                    border: `1px solid ${option.line}`, borderRadius: 10, background: option.surface,
+                    boxShadow: '0 8px 24px rgba(13,42,33,0.08)',
+                  }}>
+                    <div style={{ padding: '9px 6px', borderRight: `1px solid ${option.line}`, background: option.surface }}>
+                      <div style={{ width: 17, height: 17, borderRadius: 5, marginBottom: 10, background: option.primary }} />
+                      {[0, 1, 2].map(item => (
+                        <div key={item} style={{ width: item === 1 ? 18 : 21, height: 3, borderRadius: 99, marginBottom: 7, background: item === 0 ? option.primary : option.line }} />
+                      ))}
+                    </div>
+                    <div style={{ padding: 9 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 9 }}>
+                        <div style={{ width: 48, height: 5, borderRadius: 99, background: option.text, opacity: 0.82 }} />
+                        <div style={{ width: 24, height: 8, borderRadius: 99, background: option.primary }} />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+                        {[0, 1, 2, 3].map(item => (
+                          <div key={item} style={{ height: 24, border: `1px solid ${option.line}`, borderRadius: 6, background: option.surface, padding: 5 }}>
+                            <div style={{ width: item % 2 ? '62%' : '78%', height: 3, borderRadius: 99, background: item === 0 ? option.primary : option.line }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  {selected && (
+                    <span style={{
+                      position: 'absolute', top: 8, right: 8, width: 22, height: 22,
+                      display: 'grid', placeItems: 'center', borderRadius: '50%',
+                      color: 'var(--on-primary)', background: 'var(--primary)',
+                      boxShadow: '0 4px 12px rgba(var(--primary-glow-rgb),0.28)',
+                    }}>
+                      <Check size={13} strokeWidth={3} />
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ padding: '13px 14px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ color: 'var(--text)', fontSize: 13, fontWeight: 700 }}>{option.name}</span>
+                    <span style={{
+                      flexShrink: 0, padding: '2px 7px', borderRadius: 999,
+                      color: selected ? 'var(--primary)' : 'var(--text-muted)',
+                      background: selected ? 'var(--primary-bg)' : 'var(--color-surface2)',
+                      fontSize: 9, fontWeight: 700, letterSpacing: '0.02em',
+                    }}>
+                      {selected ? 'Selected' : option.badge}
+                    </span>
+                  </div>
+                  <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: 10.5, lineHeight: 1.5, marginTop: 6 }}>
+                    {option.description}
+                  </span>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        <div style={{
+          marginTop: 16, padding: '10px 12px', borderRadius: 10,
+          color: 'var(--text-muted)', background: 'var(--color-surface2)',
+          border: '1px solid var(--border)', fontSize: 11, lineHeight: 1.5,
+        }}>
+          Your selection is saved on this device. The header theme button switches between dark mode and your most recently selected light theme.
+        </div>
+      </div>
+    </Card>
+  )
+}
+
 const SECTIONS = [
   { id: 'profile', icon: User, label: 'Profile' },
   { id: 'trading', icon: Globe, label: 'Trading Preferences' },
   { id: 'discipline', icon: ShieldCheck, label: 'Discipline Mode' },
   { id: 'notifications', icon: Bell, label: 'Notifications' },
+  { id: 'customization', icon: Palette, label: 'Customization' },
   { id: 'broker', icon: LinkIcon, label: 'Broker Integration' },
   { id: 'account', icon: Shield, label: 'Account & Security' },
 ]
@@ -543,6 +684,7 @@ const SECTION_META = {
   trading: 'Desk defaults & margin',
   discipline: 'Rules that gate your orders',
   notifications: 'In-app alerts & toasts',
+  customization: 'Personalize your workspace',
   broker: 'Live market data via Fyers',
   account: 'Sessions & sign-out',
 }
@@ -610,6 +752,7 @@ export default function SettingsPage() {
           {active === 'trading' && <TradingPreferences />}
           {active === 'discipline' && <DisciplineModeSection />}
           {active === 'notifications' && <NotificationSettings />}
+          {active === 'customization' && <CustomizationSection />}
           {active === 'broker' && <BrokerIntegrationSection />}
           {active === 'account' && <SessionsSection clearAuth={clearAuth} />}
           {active === 'account' && <AccountSection clearAuth={clearAuth} />}

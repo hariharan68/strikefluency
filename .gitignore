@@ -46,7 +46,6 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
-AGENTS.md
 
 # MyPy / type checkers
 .mypy_cache/
@@ -80,9 +79,6 @@ log/
 .codex
 .claude
 .agents
-image.png
-ui-prototypes
-
 # ── IDE / Editor ──────────────────────────────────
 .vscode/
 !.vscode/extensions.json

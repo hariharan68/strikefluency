@@ -5,12 +5,7 @@ import {
   Linkedin, Menu, MessageCircle, Moon, Music2, PhoneCall, Sun, TrendingUp, X
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
-
-// Same theme mechanism the app TopBar uses (root class + localStorage).
-function getInitialTheme() {
-  if (typeof window === 'undefined') return 'dark'
-  return localStorage.getItem('sf-theme') || 'dark'
-}
+import useTheme from '../../hooks/useTheme'
 
 // All marketing pages, each its own route.
 const PAGES = [
@@ -39,15 +34,8 @@ export function useHashScroll() {
 export function LandingNav() {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated)
   const { pathname } = useLocation()
-  const [theme, setTheme] = useState(getInitialTheme)
+  const { isDark, toggleTheme } = useTheme()
   const [menuOpen, setMenuOpen] = useState(false)
-
-  useEffect(() => {
-    const root = document.documentElement
-    root.classList.toggle('dark', theme === 'dark')
-    root.classList.toggle('light', theme === 'light')
-    localStorage.setItem('sf-theme', theme)
-  }, [theme])
 
   // Close the mobile menu on navigation and lock body scroll while it's open.
   useEffect(() => { setMenuOpen(false) }, [pathname])
@@ -55,8 +43,6 @@ export function LandingNav() {
     document.body.style.overflow = menuOpen ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [menuOpen])
-
-  const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'))
 
   const themeButton = (
     <button
@@ -66,7 +52,7 @@ export function LandingNav() {
       title="Toggle theme"
       className="grid h-9 w-9 place-items-center rounded-full border border-[var(--border)] text-[var(--text-sub)] transition hover:text-[var(--primary)] hover:border-[var(--primary-border)] hover:bg-[var(--primary-bg)]"
     >
-      {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+      {isDark ? <Sun size={16} /> : <Moon size={16} />}
     </button>
   )
 

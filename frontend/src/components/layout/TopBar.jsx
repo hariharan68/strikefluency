@@ -3,6 +3,7 @@ import { useLocation, Link } from 'react-router-dom'
 import useMarketStore from '../../store/marketStore'
 import { getMode } from '../../api/discipline'
 import { Bell, Mail, Moon, Search, Settings, Sun, ShieldOff } from 'lucide-react'
+import useTheme from '../../hooks/useTheme'
 
 const PAGE_META = {
   '/positions': { title: 'Positions & Books', subtitle: 'Trading workspace', compact: true },
@@ -16,16 +17,11 @@ const PAGE_META = {
   '/settings': { title: 'Settings', subtitle: 'Manage profile, broker integration, preferences, and account controls.' },
 }
 
-function getInitialTheme() {
-  if (typeof window === 'undefined') return 'dark'
-  return localStorage.getItem('sf-theme') || 'dark'
-}
-
 export default function TopBar() {
   const location = useLocation()
   const isMarketOpen = useMarketStore(s => s.isMarketOpen)
   const meta = PAGE_META[location.pathname] || { title: 'StrikeFluency', subtitle: 'Virtual options trading dashboard.' }
-  const [theme, setTheme] = useState(getInitialTheme)
+  const { isDark, toggleTheme } = useTheme()
   const [time, setTime] = useState('')
   const [disciplineOff, setDisciplineOff] = useState(false)
 
@@ -36,13 +32,6 @@ export default function TopBar() {
     getMode().then(r => { if (active) setDisciplineOff(r.data?.enabled === false) }).catch(() => {})
     return () => { active = false }
   }, [location.pathname])
-
-  useEffect(() => {
-    const root = document.documentElement
-    root.classList.toggle('dark', theme === 'dark')
-    root.classList.toggle('light', theme === 'light')
-    localStorage.setItem('sf-theme', theme)
-  }, [theme])
 
   useEffect(() => {
     const tick = () => setTime(new Date().toLocaleTimeString('en-IN', {
@@ -84,11 +73,11 @@ export default function TopBar() {
         <button
           type="button"
           className="sf-icon-button"
-          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-          onClick={() => setTheme(current => current === 'dark' ? 'light' : 'dark')}
-          title={theme === 'dark' ? 'Light theme' : 'Dark theme'}
+          aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+          onClick={toggleTheme}
+          title={isDark ? 'Light theme' : 'Dark theme'}
         >
-          {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+          {isDark ? <Sun size={17} /> : <Moon size={17} />}
         </button>
         <Link to="/settings" className="sf-icon-button" aria-label="Settings" title="Settings">
           <Settings size={17} />
