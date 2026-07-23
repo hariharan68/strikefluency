@@ -1,0 +1,920 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="StrikeFluency theme-only landing page redesign. Existing layout preserved.">
+  <title>StrikeFluency — Theme-Only Redesign</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07111f;
+      --bg-deep: #040a13;
+      --surface: rgba(15, 27, 45, 0.76);
+      --surface-solid: #101d2f;
+      --surface-2: rgba(22, 37, 59, 0.72);
+      --tile: rgba(9, 19, 33, 0.72);
+      --text: #f4f7fb;
+      --text-2: #c6d1df;
+      --muted: #8191a7;
+      --border: rgba(166, 196, 224, 0.14);
+      --border-strong: rgba(94, 234, 212, 0.3);
+      --primary: #2dd4bf;
+      --primary-strong: #14b8a6;
+      --primary-soft: rgba(45, 212, 191, 0.13);
+      --secondary: #38bdf8;
+      --secondary-soft: rgba(56, 189, 248, 0.12);
+      --amber: #f6b94a;
+      --gain: #42d69a;
+      --gain-soft: rgba(66, 214, 154, 0.12);
+      --loss: #fb7185;
+      --header: rgba(7, 17, 31, 0.72);
+      --shadow: 0 32px 90px rgba(0, 0, 0, 0.48);
+      --shadow-soft: 0 18px 46px rgba(0, 0, 0, 0.24);
+      --mesh-1: rgba(45, 212, 191, 0.15);
+      --mesh-2: rgba(56, 189, 248, 0.12);
+      --mesh-3: rgba(246, 185, 74, 0.055);
+      --grid-dot: rgba(162, 186, 212, 0.11);
+    }
+
+    html[data-theme="light"] {
+      color-scheme: light;
+      --bg: #f4f8fb;
+      --bg-deep: #eaf1f6;
+      --surface: rgba(255, 255, 255, 0.8);
+      --surface-solid: #ffffff;
+      --surface-2: rgba(239, 246, 249, 0.82);
+      --tile: rgba(255, 255, 255, 0.8);
+      --text: #12212d;
+      --text-2: #405463;
+      --muted: #758692;
+      --border: rgba(24, 76, 89, 0.12);
+      --border-strong: rgba(13, 148, 136, 0.28);
+      --primary: #0f8f83;
+      --primary-strong: #08786f;
+      --primary-soft: rgba(15, 143, 131, 0.09);
+      --secondary: #167cac;
+      --secondary-soft: rgba(22, 124, 172, 0.09);
+      --amber: #c98011;
+      --gain: #0b9668;
+      --gain-soft: rgba(11, 150, 104, 0.1);
+      --loss: #dd445d;
+      --header: rgba(247, 251, 252, 0.8);
+      --shadow: 0 30px 80px rgba(24, 65, 77, 0.17);
+      --shadow-soft: 0 16px 40px rgba(24, 65, 77, 0.1);
+      --mesh-1: rgba(45, 212, 191, 0.19);
+      --mesh-2: rgba(56, 189, 248, 0.15);
+      --mesh-3: rgba(246, 185, 74, 0.09);
+      --grid-dot: rgba(24, 76, 89, 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      min-width: 320px;
+      margin: 0;
+      color: var(--text);
+      background: var(--bg);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      transition: color 240ms ease, background 240ms ease;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -3;
+      background:
+        radial-gradient(75% 65% at 88% 20%, var(--mesh-2), transparent 66%),
+        radial-gradient(68% 62% at 8% 54%, var(--mesh-1), transparent 68%),
+        radial-gradient(35% 40% at 56% 98%, var(--mesh-3), transparent 70%),
+        linear-gradient(145deg, var(--bg) 0%, var(--bg-deep) 100%);
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -2;
+      opacity: 0.5;
+      background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1px);
+      background-size: 26px 26px;
+      mask-image: linear-gradient(to bottom, black 0%, transparent 78%);
+      pointer-events: none;
+    }
+
+    button,
+    a {
+      font: inherit;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button:focus-visible,
+    a:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--primary), transparent 64%);
+      outline-offset: 4px;
+    }
+
+    .container {
+      width: min(calc(100% - 40px), 1280px);
+      margin-inline: auto;
+    }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      border-bottom: 1px solid var(--border);
+      background: var(--header);
+      backdrop-filter: blur(18px) saturate(145%);
+    }
+
+    .nav {
+      min-height: 80px;
+      display: flex;
+      align-items: center;
+      gap: 26px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin-right: auto;
+      font-size: 22px;
+      font-weight: 850;
+      letter-spacing: -0.045em;
+    }
+
+    .brand-mark {
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      background: linear-gradient(145deg, var(--primary), var(--secondary));
+      box-shadow: 0 12px 30px color-mix(in srgb, var(--primary), transparent 68%);
+    }
+
+    .brand-mark span {
+      position: absolute;
+      width: 18px;
+      height: 2px;
+      border-radius: 10px;
+      background: #fff;
+      transform: rotate(-38deg);
+    }
+
+    .brand-mark span::before,
+    .brand-mark span::after {
+      content: "";
+      position: absolute;
+      width: 8px;
+      height: 2px;
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    .brand-mark span::before {
+      left: -1px;
+      top: 5px;
+      transform: rotate(74deg);
+    }
+
+    .brand-mark span::after {
+      right: -1px;
+      top: -3px;
+      transform: rotate(74deg);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      color: var(--text-2);
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .nav-links a {
+      transition: color 160ms ease;
+    }
+
+    .nav-links a:first-child,
+    .nav-links a:hover {
+      color: var(--primary);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn {
+      min-height: 46px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 0 19px;
+      border: 1px solid transparent;
+      border-radius: 13px;
+      font-size: 14px;
+      font-weight: 780;
+      cursor: pointer;
+      transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+    }
+
+    .btn-primary {
+      color: #04221f;
+      background: linear-gradient(135deg, #5eead4, var(--primary));
+      box-shadow: 0 13px 34px color-mix(in srgb, var(--primary), transparent 70%);
+    }
+
+    html[data-theme="light"] .btn-primary {
+      color: #fff;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 17px 38px color-mix(in srgb, var(--primary), transparent 61%);
+    }
+
+    .btn-outline {
+      color: var(--text);
+      border-color: var(--border);
+      background: var(--surface);
+      backdrop-filter: blur(12px);
+    }
+
+    .btn-outline:hover {
+      border-color: var(--border-strong);
+      background: var(--surface-2);
+    }
+
+    .theme-toggle {
+      width: 46px;
+      padding: 0;
+      color: var(--text);
+      border-color: var(--border);
+      background: var(--surface);
+      font-size: 18px;
+    }
+
+    .hero {
+      min-height: calc(100vh - 80px);
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(560px, 1.1fr);
+      align-items: center;
+      gap: 64px;
+      padding-block: 64px 72px;
+    }
+
+    .hero-copy-area {
+      position: relative;
+      z-index: 2;
+    }
+
+    .badge-frame {
+      width: fit-content;
+      padding: 1px;
+      border-radius: 999px;
+      background: linear-gradient(100deg, var(--primary), var(--secondary) 52%, var(--amber));
+      box-shadow: 0 12px 34px color-mix(in srgb, var(--primary), transparent 78%);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 15px 9px 10px;
+      border-radius: inherit;
+      color: var(--text);
+      background: color-mix(in srgb, var(--surface-solid), transparent 4%);
+      font-size: 12px;
+      font-weight: 820;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .badge strong {
+      color: var(--amber);
+      font-weight: 900;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-dot {
+      width: 12px;
+      height: 12px;
+      position: relative;
+      border-radius: 50%;
+      background: var(--amber);
+      box-shadow: 0 0 0 5px color-mix(in srgb, var(--amber), transparent 82%);
+    }
+
+    .badge-dot::after {
+      content: "";
+      position: absolute;
+      inset: -5px;
+      border: 1px solid var(--amber);
+      border-radius: 50%;
+      animation: ping 2s ease-out infinite;
+    }
+
+    @keyframes ping {
+      0% { opacity: 0.8; transform: scale(0.75); }
+      70%, 100% { opacity: 0; transform: scale(1.55); }
+    }
+
+    .kicker {
+      margin: 24px 0 0;
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 850;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 680px;
+      margin: 28px 0 0;
+      font-size: clamp(54px, 5.15vw, 78px);
+      line-height: 1.015;
+      letter-spacing: -0.052em;
+    }
+
+    .gradient-word {
+      color: transparent;
+      background: linear-gradient(92deg, var(--primary) 0%, var(--secondary) 75%);
+      background-clip: text;
+      -webkit-background-clip: text;
+    }
+
+    .hero-description {
+      max-width: 680px;
+      margin: 28px 0 0;
+      color: var(--text-2);
+      font-size: 18px;
+      line-height: 1.75;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 32px;
+    }
+
+    .disclaimer {
+      max-width: 650px;
+      margin: 17px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .stats {
+      max-width: 650px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .stat {
+      padding: 17px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: linear-gradient(145deg, var(--surface), color-mix(in srgb, var(--surface-2), transparent 15%));
+      box-shadow: inset 0 1px rgba(255, 255, 255, 0.045);
+      backdrop-filter: blur(14px);
+    }
+
+    .stat strong {
+      display: block;
+      color: var(--text);
+      font-size: 22px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .mockup-wrap {
+      position: relative;
+    }
+
+    .mockup-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 8% 4% -8% 4%;
+      z-index: -1;
+      border-radius: 40px;
+      background: linear-gradient(120deg, var(--mesh-1), var(--mesh-2));
+      filter: blur(45px);
+    }
+
+    .mockup {
+      position: relative;
+      padding: 13px;
+      overflow: hidden;
+      border: 1px solid var(--border-strong);
+      border-radius: 26px;
+      background: linear-gradient(145deg, var(--surface), color-mix(in srgb, var(--surface-2), transparent 8%));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(26px) saturate(140%);
+    }
+
+    .mockup::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 13%;
+      width: 54%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--primary), transparent);
+    }
+
+    .desk {
+      padding: 19px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: color-mix(in srgb, var(--surface-2), transparent 5%);
+    }
+
+    .desk-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 17px;
+    }
+
+    .desk-label {
+      margin: 0;
+      color: var(--primary);
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .desk-title {
+      margin: 7px 0 0;
+      color: var(--text);
+      font-size: 16px;
+    }
+
+    .market-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 12px;
+      border: 1px solid color-mix(in srgb, var(--gain), transparent 66%);
+      border-radius: 999px;
+      color: var(--gain);
+      background: var(--gain-soft);
+      font-size: 11px;
+      font-weight: 750;
+    }
+
+    .market-status::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--gain);
+      box-shadow: 0 0 12px var(--gain);
+    }
+
+    .desk-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 200px;
+      gap: 14px;
+    }
+
+    .chain,
+    .order-check {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 17px;
+      background: var(--tile);
+      box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
+    }
+
+    .chain-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .chain-table th {
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      background: color-mix(in srgb, var(--surface-2), transparent 15%);
+      font-size: 9px;
+      font-weight: 850;
+      letter-spacing: 0.11em;
+      text-align: left;
+      text-transform: uppercase;
+    }
+
+    .chain-table th:nth-child(3),
+    .chain-table td:nth-child(3) {
+      text-align: center;
+    }
+
+    .chain-table th:last-child,
+    .chain-table td:last-child {
+      text-align: right;
+    }
+
+    .chain-table td {
+      padding: 11px 10px;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .chain-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .chain-table tr.atm td {
+      background: var(--primary-soft);
+    }
+
+    .call {
+      color: var(--gain) !important;
+      font-weight: 780;
+    }
+
+    .put {
+      color: var(--loss) !important;
+      font-weight: 780;
+    }
+
+    .strike {
+      color: var(--text) !important;
+      font-weight: 850;
+    }
+
+    .order-check {
+      display: flex;
+      flex-direction: column;
+      padding: 18px;
+    }
+
+    .order-check h3 {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+    }
+
+    .checks {
+      display: grid;
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .check-icon {
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      color: var(--gain);
+      background: var(--gain-soft);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .order-button {
+      min-height: 43px;
+      margin-top: auto;
+      border: 0;
+      border-radius: 12px;
+      color: #04221f;
+      background: linear-gradient(135deg, #5eead4, var(--primary));
+      box-shadow: 0 12px 26px color-mix(in srgb, var(--primary), transparent 76%);
+      font-size: 11px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+
+    html[data-theme="light"] .order-button {
+      color: #fff;
+    }
+
+    .palette-note {
+      position: absolute;
+      right: 24px;
+      bottom: -25px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 13px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      color: var(--muted);
+      background: var(--surface-solid);
+      box-shadow: var(--shadow-soft);
+      font-size: 10px;
+      font-weight: 750;
+    }
+
+    .swatches {
+      display: flex;
+    }
+
+    .swatch {
+      width: 15px;
+      height: 15px;
+      margin-left: -3px;
+      border: 2px solid var(--surface-solid);
+      border-radius: 50%;
+    }
+
+    .swatch:nth-child(1) { background: var(--primary); }
+    .swatch:nth-child(2) { background: var(--secondary); }
+    .swatch:nth-child(3) { background: var(--amber); }
+
+    .theme-label {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      z-index: 20;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      color: var(--muted);
+      background: var(--surface);
+      backdrop-filter: blur(14px);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 1120px) {
+      .nav-links {
+        display: none;
+      }
+
+      .hero {
+        min-height: 0;
+        grid-template-columns: 1fr;
+        gap: 54px;
+      }
+
+      .hero-copy-area,
+      h1,
+      .hero-description {
+        max-width: 830px;
+      }
+
+      .mockup-wrap {
+        width: min(820px, 100%);
+        margin-inline: auto;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .container {
+        width: min(calc(100% - 28px), 1280px);
+      }
+
+      .nav {
+        min-height: 70px;
+      }
+
+      .brand {
+        font-size: 19px;
+      }
+
+      .brand-mark {
+        width: 40px;
+        height: 40px;
+      }
+
+      .nav-actions .btn-outline:not(.theme-toggle),
+      .nav-actions .btn-primary {
+        display: none;
+      }
+
+      .hero {
+        padding-block: 48px 70px;
+      }
+
+      .badge {
+        gap: 7px;
+        padding-right: 11px;
+        font-size: 9px;
+      }
+
+      h1 {
+        font-size: clamp(43px, 13vw, 62px);
+      }
+
+      .hero-description {
+        font-size: 16px;
+        line-height: 1.68;
+      }
+
+      .stats {
+        grid-template-columns: 1fr;
+      }
+
+      .desk-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .chain {
+        overflow-x: auto;
+      }
+
+      .chain-table {
+        min-width: 480px;
+      }
+
+      .order-check {
+        min-height: 250px;
+      }
+
+      .palette-note {
+        right: 10px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav container" aria-label="Primary navigation">
+      <a class="brand" href="#top" aria-label="StrikeFluency home">
+        <span class="brand-mark" aria-hidden="true"><span></span></span>
+        StrikeFluency
+      </a>
+
+      <div class="nav-links">
+        <a href="#top">Home</a>
+        <a href="#product">Product</a>
+        <a href="#discipline">Discipline</a>
+        <a href="#scope">Scope</a>
+        <a href="#docs">Docs</a>
+        <a href="#blogs">Blogs</a>
+        <a href="#varsity">Strike Varsity</a>
+        <a href="#pricing">Pricing</a>
+      </div>
+
+      <div class="nav-actions">
+        <button class="btn theme-toggle" id="themeToggle" type="button" aria-label="Switch to light theme" title="Preview the light theme">☀</button>
+        <a class="btn btn-outline" href="#login">Log in</a>
+        <a class="btn btn-primary" href="#start">Start free</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero container">
+      <div class="hero-copy-area">
+        <div class="badge-frame">
+          <div class="badge">
+            <span class="badge-dot" aria-hidden="true"></span>
+            Be proud to be in the <strong>Top 1%</strong>
+          </div>
+        </div>
+
+        <p class="kicker">Virtual options trading simulator</p>
+        <h1>Practice options trading where bad habits get <span class="gradient-word">blocked</span> before they cost you a rupee.</h1>
+        <p class="hero-description">
+          StrikeFluency helps Indian retail traders practice NIFTY, BANKNIFTY, and SENSEX options on a virtual desk that blocks revenge trades, no-SL entries, and overtrading — before you place the order, not after you've lost money.
+        </p>
+
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#start">Start free practice <span aria-hidden="true">→</span></a>
+          <a class="btn btn-outline" href="#login">Log in</a>
+        </div>
+
+        <p class="disclaimer">StrikeFluency is a practice simulator only. No real money, no live broker execution, no SEBI-regulated advice — just a safe place to build trading discipline before you risk capital.</p>
+
+        <div class="stats" aria-label="Product statistics">
+          <div class="stat"><strong>₹1L+</strong><span>virtual capital</span></div>
+          <div class="stat"><strong>7</strong><span>discipline rules</span></div>
+          <div class="stat"><strong>3s</strong><span>market broadcast cycle</span></div>
+        </div>
+      </div>
+
+      <div class="mockup-wrap" aria-label="Trading desk preview">
+        <article class="mockup">
+          <div class="desk">
+            <div class="desk-head">
+              <div>
+                <p class="desk-label">Trading desk</p>
+                <h2 class="desk-title">NIFTY option chain</h2>
+              </div>
+              <span class="market-status">Market simulation</span>
+            </div>
+
+            <div class="desk-grid">
+              <div class="chain">
+                <table class="chain-table">
+                  <thead>
+                    <tr><th>CE LTP</th><th>OI</th><th>Strike</th><th>OI</th><th>PE LTP</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="call">132.00</td><td>8.2L</td><td class="strike">24850</td><td>7.5L</td><td class="put">118.00</td></tr>
+                    <tr><td class="call">124.00</td><td>9.2L</td><td class="strike">24900</td><td>8.6L</td><td class="put">125.00</td></tr>
+                    <tr><td class="call">116.00</td><td>10.2L</td><td class="strike">24950</td><td>9.7L</td><td class="put">132.00</td></tr>
+                    <tr class="atm"><td class="call">108.00</td><td>11.2L</td><td class="strike">25000</td><td>10.8L</td><td class="put">139.00</td></tr>
+                    <tr><td class="call">100.00</td><td>12.2L</td><td class="strike">25050</td><td>11.9L</td><td class="put">146.00</td></tr>
+                    <tr><td class="call">92.00</td><td>13.2L</td><td class="strike">25100</td><td>13.0L</td><td class="put">153.00</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <aside class="order-check">
+                <h3>Order check</h3>
+                <div class="checks">
+                  <div class="check"><span class="check-icon">✓</span> Stop loss added</div>
+                  <div class="check"><span class="check-icon">✓</span> Setup tag selected</div>
+                  <div class="check"><span class="check-icon">✓</span> Daily loss within limit</div>
+                </div>
+                <button class="order-button" type="button">BUY NIFTY 25000 CE</button>
+              </aside>
+            </div>
+          </div>
+        </article>
+
+        <div class="palette-note">
+          <span class="swatches" aria-hidden="true"><i class="swatch"></i><i class="swatch"></i><i class="swatch"></i></span>
+          Theme changed. Layout preserved.
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="theme-label" id="themeLabel">Obsidian teal · Dark</div>
+
+  <script>
+    const root = document.documentElement;
+    const toggle = document.getElementById('themeToggle');
+    const label = document.getElementById('themeLabel');
+
+    toggle.addEventListener('click', () => {
+      const isDark = root.dataset.theme === 'dark';
+      root.dataset.theme = isDark ? 'light' : 'dark';
+      toggle.textContent = isDark ? '☾' : '☀';
+      toggle.setAttribute('aria-label', isDark ? 'Switch to dark theme' : 'Switch to light theme');
+      toggle.title = isDark ? 'Preview the dark theme' : 'Preview the light theme';
+      label.textContent = isDark ? 'Arctic glass · Light' : 'Obsidian teal · Dark';
+    });
+  </script>
+</body>
+</html>
