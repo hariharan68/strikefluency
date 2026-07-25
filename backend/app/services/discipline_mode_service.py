@@ -84,6 +84,12 @@ def set_mode(db: Session, user: User, enabled: bool) -> dict:
             account.balance = target
         account.tier = Tier.TIER_3
         account.capital_unlocked = True
+        # MAX_DAILY_LOSS is a percentage of initial_balance. Raising the balance
+        # without raising this would leave a ₹10L account capped at 2% of ₹1L —
+        # the rule would fire ~₹2,000 into the day once rules come back ON.
+        unlocked_capital = Decimal(str(FULL_SANDBOX_CAPITAL))
+        if unlocked_capital > account.initial_balance:
+            account.initial_balance = unlocked_capital
         logger.info(
             "Discipline Mode OFF for user %s — capital unlocked, balance ₹%s",
             user.id, account.balance,
