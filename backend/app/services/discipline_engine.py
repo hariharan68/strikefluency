@@ -26,6 +26,7 @@ Usage:
 import logging
 from decimal import Decimal
 
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from app.core.constants import DisciplineRuleCode, OrderStatus
@@ -240,7 +241,7 @@ class DisciplineEngine:
                 user_id=self.user.id,
                 tenant_id=self.user.tenant_id,
                 rule_code=rule_code,
-                attempted_action=order_data,
+                attempted_action=jsonable_encoder(order_data),
                 was_blocked=was_blocked,
             )
             self.db.add(violation)
@@ -251,7 +252,9 @@ class DisciplineEngine:
         self, account: VirtualAccount, was_compliant: bool
     ) -> None:
         from app.core.constants import DISCIPLINE_SCORE_WINDOW
+        from app.models.discipline_score import DisciplineScore
         from app.models.virtual_order import VirtualOrder
+        from datetime import date
 
         if was_compliant:
             account.consecutive_disciplined_trades += 1
@@ -275,4 +278,36 @@ class DisciplineEngine:
             total = len(recent_orders)
             account.discipline_score = Decimal(
                 str(round(compliant / total * 100, 2))
+            )
+
+            today = date.today()
+            daily_score = (
+                self.db.query(DisciplineScore)
+                .filter(
+                    DisciplineScore.user_id == self.user.id,
+                    DisciplineScore.score_date == today,
+                )
+                .first()
+            )
+            if daily_score is None:
+                daily_score = DisciplineScore(
+                    user_id=self.user.id,
+                    tenant_id=self.user.tenant_id,
+                    score_date=today,
+                    score=account.discipline_score,
+                )
+                self.db.add(daily_score)
+
+            daily_score.score = account.discipline_score
+            daily_score.trades_analyzed = total
+            daily_score.violations_count = (
+                self.db.query(DisciplineViolation)
+                .filter(
+                    DisciplineViolation.user_id == self.user.id,
+                    DisciplineViolation.session_date == today,
+                )
+                .count()
+            )
+            daily_score.consecutive_disciplined_streak = (
+                account.consecutive_disciplined_trades
             )

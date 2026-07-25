@@ -12,6 +12,12 @@ fyers_logs/
 fyers_token.json
 access_token.txt
 
+# Nuvama APIConnect local session / contract cache
+data_*.txt
+instruments.zip
+instruments/
+.nuvama-contract-inspect/
+
 # ── Python bytecode ───────────────────────────────
 __pycache__/
 *.py[cod]

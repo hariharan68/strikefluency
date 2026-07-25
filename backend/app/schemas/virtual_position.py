@@ -16,6 +16,9 @@ class PositionResponse(BaseModel):
     strike_price: Decimal
     option_type: str
     quantity: int
+    product_type: str = "INTRADAY"
+    action: str = "BUY"
+    lot_size: int = 50
     avg_entry_price: Decimal
     current_ltp: Decimal
     unrealized_pnl: Decimal

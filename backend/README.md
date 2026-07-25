@@ -6,6 +6,7 @@ FastAPI backend for the StrikeFluency virtual options trading simulator.
 - **Docs:** `http://localhost:8000/docs` (Swagger UI)
 - **Database:** PostgreSQL 16
 - **Python:** 3.11+
+- **Execution:** permanent paper-only mode; broker integrations are read-only market-data clients
 
 ---
 
@@ -32,6 +33,8 @@ All variables are documented in `.env.example`. Minimum required to run:
 ```env
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/strikefluency
 SECRET_KEY=change-this-to-a-random-32-char-string
+EXECUTION_MODE=paper_only
+BROKER_ACCESS_MODE=market_data_read_only
 ```
 
 Set `MARKET_DATA_PROVIDER=mock` (default) to run without a Fyers account.

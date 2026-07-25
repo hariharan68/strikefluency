@@ -198,6 +198,23 @@ def store_access_token(access_token: str, source: str = "manual", meta: dict[str
     if not token:
         raise ValueError("access_token is required")
 
+    # Mutual exclusivity: switching to Fyers revokes the Nuvama session. Done
+    # BEFORE we set the shared token store so ordering can't leave the store
+    # holding Nuvama's token. Lazy import avoids an import cycle; Nuvama's
+    # clear_saved_token never calls back into store_access_token (no recursion).
+    try:
+        from app.services import nuvama_auth_service
+
+        nuvama_auth_service.clear_saved_token(revoke_db=True)
+    except Exception as exc:
+        logger.warning("Could not auto-disconnect Nuvama while switching to Fyers: %s", exc)
+    try:
+        from app.services import kite_auth_service
+
+        kite_auth_service.clear_saved_token()
+    except Exception as exc:
+        logger.warning("Could not auto-disconnect Kite while switching to Fyers: %s", exc)
+
     _IGNORE_LEGACY_TOKEN = False
     token_store.set_access_token(token, source=source)
     persisted = save_fyers_token_best_effort(token, meta=meta or {"source": source})

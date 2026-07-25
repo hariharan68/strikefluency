@@ -51,6 +51,21 @@ class UserProfile(BaseModel):
     is_active: bool
 
 
+class ProfileUpdate(BaseModel):
+    """Body for PUT /auth/me — the only editable profile field for now."""
+    full_name: str
+
+    @field_validator("full_name")
+    @classmethod
+    def full_name_not_empty(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Full name cannot be empty")
+        if len(v) > 100:
+            raise ValueError("Full name is too long")
+        return v
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str

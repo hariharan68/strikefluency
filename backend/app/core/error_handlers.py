@@ -17,12 +17,14 @@ from fastapi.responses import JSONResponse
 
 from app.core.exceptions import (
     DisciplineViolationError,
+    IdempotencyConflictError,
     InsufficientBalanceError,
     InvalidCredentialsError,
     MarketClosedError,
     OrderAlreadyClosedError,
     OrderNotFoundError,
     PositionNotFoundError,
+    QuoteUnavailableError,
     StrategyValidationError,
     TenantNotFoundError,
     TokenExpiredError,
@@ -95,6 +97,13 @@ def register_error_handlers(app):
             content={"error": "MARKET_CLOSED", "message": str(exc)},
         )
 
+    @app.exception_handler(QuoteUnavailableError)
+    async def quote_unavailable_handler(request: Request, exc: QuoteUnavailableError):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "QUOTE_UNAVAILABLE", "message": str(exc)},
+        )
+
     @app.exception_handler(DisciplineViolationError)
     async def discipline_violation_handler(request: Request, exc: DisciplineViolationError):
         return JSONResponse(
@@ -147,6 +156,13 @@ def register_error_handlers(app):
         return JSONResponse(
             status_code=400,
             content={"error": "ORDER_ALREADY_CLOSED", "message": str(exc)},
+        )
+
+    @app.exception_handler(IdempotencyConflictError)
+    async def idempotency_conflict_handler(request: Request, exc: IdempotencyConflictError):
+        return JSONResponse(
+            status_code=409,
+            content={"error": "IDEMPOTENCY_CONFLICT", "message": str(exc)},
         )
 
     @app.exception_handler(PositionNotFoundError)

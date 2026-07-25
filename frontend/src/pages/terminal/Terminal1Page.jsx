@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { getSpot, getStatus } from '../../api/market'
 import { getOptionMetrics } from '../../api/options'
+import useMarketStore from '../../store/marketStore'
 import { Radio, ArrowUp, ArrowDown, Minus, Clock, Activity, Scale, Target } from 'lucide-react'
 
 const INDICES = [
@@ -12,6 +13,9 @@ const INDICES = [
 const POLL_MS = 3000
 const METRICS_POLL_MS = 15000
 const MAX_TICKS = 40
+// WS freshness windows — REST polling only kicks in when frames stop arriving.
+const CHAIN_FRESH_MS = 10000     // chains tick every 3s
+const SLOW_FRESH_MS = 45000      // metrics/status tick every 15s / 3s
 
 function fmt(n) {
   if (n == null || Number.isNaN(n) || n === 0) return '—'
@@ -208,10 +212,65 @@ export default function Terminal1Page() {
   const [metricsErr, setMetricsErr] = useState('')
   const baselineRef = useRef({})            // first observed price per index
 
+  // Shared tick reducer — both the WS feed and the REST fallback funnel their
+  // spot prices through this, so direction/history/high-low logic lives once.
+  const applySpots = useCallback((spotsByKey) => {
+    setTicks(prev => {
+      const next = { ...prev }
+      INDICES.forEach((idx) => {
+        const ltp = Number(spotsByKey[idx.key] ?? 0)
+        if (!ltp) { next[idx.key] = prev[idx.key]; return }
+        if (baselineRef.current[idx.key] == null) baselineRef.current[idx.key] = ltp
+        const base = baselineRef.current[idx.key]
+        const before = prev[idx.key]
+        const prevLtp = before?.ltp
+        const dir = prevLtp == null ? 'flat' : ltp > prevLtp ? 'up' : ltp < prevLtp ? 'down' : (before?.dir || 'flat')
+        const hist = [...(before?.hist || []), ltp].slice(-MAX_TICKS)
+        next[idx.key] = {
+          ltp, dir,
+          chg: ltp - base,
+          chgPct: base ? ((ltp - base) / base) * 100 : 0,
+          hist,
+          high: Math.max(before?.high ?? ltp, ltp),
+          low: Math.min(before?.low ?? ltp, ltp),
+          ts: Date.now(),
+        }
+      })
+      return next
+    })
+  }, [])
+
+  // ── WS feed: spots from the 3s chain broadcast, status from its own frame ──
+  const chains = useMarketStore(s => s.chains)
+  const chainAt = useMarketStore(s => s.lastUpdate)
+  const wsStatus = useMarketStore(s => s.status)
+  const statusAt = useMarketStore(s => s.statusAt)
+  const wsMetrics = useMarketStore(s => s.metrics[selected])
+
+  useEffect(() => {
+    if (!chainAt || Date.now() - chainAt > CHAIN_FRESH_MS) return
+    const spots = {}
+    INDICES.forEach(idx => { spots[idx.key] = chains[idx.key]?.spot_price })
+    if (Object.values(spots).some(v => v != null)) {
+      applySpots(spots)
+      setConnected(true)
+    }
+  }, [chains, chainAt, applySpots])
+
+  useEffect(() => {
+    if (wsStatus && statusAt && Date.now() - statusAt < SLOW_FRESH_MS) {
+      setStatus(wsStatus)
+      setConnected(true)
+    }
+  }, [wsStatus, statusAt])
+
+  // ── REST fallback: identical behavior to before, but only when WS is stale ──
   useEffect(() => {
     let cancelled = false
 
     async function poll() {
+      const { lastUpdate } = useMarketStore.getState()
+      if (lastUpdate && Date.now() - lastUpdate < CHAIN_FRESH_MS) return
       try {
         const [statusRes, ...spotRes] = await Promise.all([
           getStatus(),
@@ -220,30 +279,9 @@ export default function Terminal1Page() {
         if (cancelled) return
         setStatus(statusRes.data)
         setConnected(true)
-
-        setTicks(prev => {
-          const next = { ...prev }
-          INDICES.forEach((idx, i) => {
-            const ltp = Number(spotRes[i]?.data?.spot_price ?? 0)
-            if (!ltp) { next[idx.key] = prev[idx.key]; return }
-            if (baselineRef.current[idx.key] == null) baselineRef.current[idx.key] = ltp
-            const base = baselineRef.current[idx.key]
-            const before = prev[idx.key]
-            const prevLtp = before?.ltp
-            const dir = prevLtp == null ? 'flat' : ltp > prevLtp ? 'up' : ltp < prevLtp ? 'down' : (before?.dir || 'flat')
-            const hist = [...(before?.hist || []), ltp].slice(-MAX_TICKS)
-            next[idx.key] = {
-              ltp, dir,
-              chg: ltp - base,
-              chgPct: base ? ((ltp - base) / base) * 100 : 0,
-              hist,
-              high: Math.max(before?.high ?? ltp, ltp),
-              low: Math.min(before?.low ?? ltp, ltp),
-              ts: Date.now(),
-            }
-          })
-          return next
-        })
+        const spots = {}
+        INDICES.forEach((idx, i) => { spots[idx.key] = spotRes[i]?.data?.spot_price })
+        applySpots(spots)
       } catch {
         if (!cancelled) setConnected(false)
       }
@@ -252,15 +290,29 @@ export default function Terminal1Page() {
     poll()
     const id = setInterval(poll, POLL_MS)
     return () => { cancelled = true; clearInterval(id) }
-  }, [])
+  }, [applySpots])
 
-  // essentials (PCR / max pain / IV …) for the selected index
+  // ── essentials (PCR / max pain / IV …) for the selected index ──
+  // WS metrics frames feed the panel directly; REST fills in when stale.
+  useEffect(() => {
+    if (wsMetrics?.data && Date.now() - wsMetrics.at < SLOW_FRESH_MS) {
+      setMetrics(wsMetrics.data)
+      setMetricsErr('')
+      setMetricsLoading(false)
+    }
+  }, [wsMetrics])
+
   useEffect(() => {
     let cancelled = false
     setMetricsLoading(true)
     setMetrics(null)
 
     async function pollMetrics() {
+      const ws = useMarketStore.getState().metrics[selected]
+      if (ws?.data && Date.now() - ws.at < SLOW_FRESH_MS) {
+        if (!cancelled) { setMetrics(ws.data); setMetricsErr(''); setMetricsLoading(false) }
+        return
+      }
       try {
         const res = await getOptionMetrics(selected)
         if (cancelled) return

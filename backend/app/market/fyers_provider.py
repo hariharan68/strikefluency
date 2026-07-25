@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from app.core.instruments import get_spec
+from app.core.paper_trading_policy import read_only_broker_client
 from app.market.base import MarketDataProvider
 from app.market.mock_provider import MockMarketDataProvider
 
@@ -37,11 +38,15 @@ class FyersMarketDataProvider(MarketDataProvider):
         try:
             from fyers_apiv3 import fyersModel
 
-            self._fyers = fyersModel.FyersModel(
+            client = fyersModel.FyersModel(
                 client_id=self.app_id,
                 is_async=False,
                 token=self.access_token,
                 log_path="",
+            )
+            self._fyers = read_only_broker_client(
+                client,
+                allowed_operations={"get_profile", "quotes", "optionchain"},
             )
 
             test = self._fyers.get_profile()

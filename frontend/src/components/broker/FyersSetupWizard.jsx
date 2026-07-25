@@ -24,13 +24,13 @@ function StepIndicator({ step }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 13, fontWeight: 700,
                 background: done || active ? 'var(--primary)' : 'var(--primary-bg)',
-                color: done || active ? 'var(--on-primary)' : '#93C5FD',
+                color: done || active ? 'var(--on-primary)' : 'var(--primary)',
                 boxShadow: active ? '0 0 0 4px rgba(37,99,235,0.15)' : 'none',
                 transition: 'all 0.2s'
               }}>
                 {done ? <Check size={15} strokeWidth={3} /> : n}
               </div>
-              <span style={{ fontSize: 10, fontWeight: 600, color: active ? 'var(--primary)' : '#8B93A7' }}>{label}</span>
+              <span style={{ fontSize: 10, fontWeight: 600, color: active ? 'var(--primary)' : 'var(--text-muted)' }}>{label}</span>
             </div>
             {i < STEPS.length - 1 && (
               <div style={{ width: 46, height: 2, borderRadius: 2, marginBottom: 18, background: step > n ? 'var(--primary)' : 'var(--border)' }} />
@@ -167,7 +167,7 @@ export default function FyersSetupWizard({ isOpen, onClose, onConnected }) {
 
       {step === 1 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <p style={{ fontSize: 12, color: '#8B93A7', lineHeight: 1.5 }}>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
             First, create a (free) API app in your Fyers account. It takes about a minute.
           </p>
           <InstructionRow n={1}>
@@ -184,7 +184,7 @@ export default function FyersSetupWizard({ isOpen, onClose, onConnected }) {
             Paste this exact <b>Redirect URL</b> into the form:
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <input className="sf-input" readOnly value={redirectUri}
-                style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, background: '#F8FBFF', color: 'var(--primary-dark)' }} />
+                style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }} />
               <button type="button" onClick={copyRedirect} className="sf-btn-outline"
                 style={{ height: 40, padding: '0 14px', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, color: copied ? 'var(--gain)' : undefined }}>
                 {copied ? <Check size={14} /> : <Copy size={14} />}
@@ -208,11 +208,11 @@ export default function FyersSetupWizard({ isOpen, onClose, onConnected }) {
 
       {step === 2 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <p style={{ fontSize: 12, color: '#8B93A7', lineHeight: 1.5 }}>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
             Paste the keys from your Fyers app. They are stored in the server&apos;s configuration file automatically — you never have to edit anything by hand.
           </p>
           {existing?.configured && (
-            <div style={{ background: 'var(--primary-bg)', border: '1px solid #BFDBFE', borderRadius: 10, padding: '9px 12px', fontSize: 12, color: 'var(--primary-dark)' }}>
+            <div style={{ background: 'var(--primary-bg)', border: '1px solid var(--primary-border)', borderRadius: 10, padding: '9px 12px', fontSize: 12, color: 'var(--primary)' }}>
               Currently configured: <b>{existing.app_id_masked}</b> — entering new keys will replace it.
             </div>
           )}
@@ -230,7 +230,7 @@ export default function FyersSetupWizard({ isOpen, onClose, onConnected }) {
               placeholder="Paste the Secret ID" autoComplete="off" />
           </div>
           {formError && (
-            <div style={{ background: '#fee2e2', border: '1px solid var(--loss)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--loss-text)' }}>
+            <div style={{ background: 'var(--loss-bg)', border: '1px solid color-mix(in srgb, var(--loss) 40%, transparent)', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: 'var(--loss-text)' }}>
               {formError}
             </div>
           )}
@@ -255,7 +255,7 @@ export default function FyersSetupWizard({ isOpen, onClose, onConnected }) {
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>
               {existing?.configured ? 'Credentials ready' : 'Credentials saved'}
             </div>
-            <p style={{ fontSize: 12, color: '#8B93A7', marginTop: 6, lineHeight: 1.55, maxWidth: 380 }}>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.55, maxWidth: 380 }}>
               {existing?.configured
                 ? <>Using your saved Fyers app <b>{existing.app_id_masked}</b>. Sign in to reconnect — a popup will open and a fresh access token is stored automatically.</>
                 : 'Now sign in with your Fyers trading account. A popup will open; after login the access token is generated and stored automatically.'}
@@ -272,7 +272,7 @@ export default function FyersSetupWizard({ isOpen, onClose, onConnected }) {
               Use different keys
             </button>
           )}
-          <p style={{ fontSize: 11, color: '#8B93A7' }}>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
             Settings are saved on the server and survive restarts.
           </p>
         </div>

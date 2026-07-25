@@ -6,7 +6,9 @@ export default function useDiscipline() {
   const [score, setScore] = useState(null)
   const [violations, setViolations] = useState([])
   const [mode, setMode] = useState(null)   // { enabled, capital_unlocked, tier, balance }
+  const [progress, setProgress] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const loadRules = async () => {
     try {
@@ -22,15 +24,29 @@ export default function useDiscipline() {
     } catch {}
   }
 
-  const loadViolations = async (page = 1) => {
+  const loadViolations = async (limit = 100) => {
     try {
-      const r = await disciplineApi.getViolations(page)
+      const r = await disciplineApi.getViolations(limit)
       setViolations(r.data.violations || r.data || [])
     } catch {}
   }
 
-  const updateRule = async (ruleCode, value) => {
-    await disciplineApi.updateRule(ruleCode, value)
+  const loadProgress = async () => {
+    try {
+      const r = await disciplineApi.getProgress()
+      setProgress(r.data)
+    } catch {}
+  }
+
+  const updateRule = async (ruleCode, changes) => {
+    await disciplineApi.updateRule(ruleCode, changes)
+    await loadRules()
+  }
+
+  const applyRuleChanges = async (changes) => {
+    await Promise.all(changes.map(({ ruleCode, ...payload }) => (
+      disciplineApi.updateRule(ruleCode, payload)
+    )))
     await loadRules()
   }
 
@@ -46,14 +62,38 @@ export default function useDiscipline() {
     try {
       const r = await disciplineApi.setMode(enabled)
       setMode(r.data)
+      window.dispatchEvent(new CustomEvent('sf:discipline-mode-changed', { detail: r.data }))
       return r.data
     } finally {
       setLoading(false)
     }
   }
 
+  const loadAll = async () => {
+    setLoading(true)
+    setError('')
+    const requests = await Promise.allSettled([
+      disciplineApi.getRules(),
+      disciplineApi.getScore(),
+      disciplineApi.getViolations(100),
+      disciplineApi.getMode(),
+      disciplineApi.getProgress(),
+    ])
+    const [rulesResult, scoreResult, violationResult, modeResult, progressResult] = requests
+    if (rulesResult.status === 'fulfilled') setRules(rulesResult.value.data.rules || rulesResult.value.data || [])
+    if (scoreResult.status === 'fulfilled') setScore(scoreResult.value.data)
+    if (violationResult.status === 'fulfilled') setViolations(violationResult.value.data.violations || violationResult.value.data || [])
+    if (modeResult.status === 'fulfilled') setMode(modeResult.value.data)
+    if (progressResult.status === 'fulfilled') setProgress(progressResult.value.data)
+    if (requests.some(result => result.status === 'rejected')) {
+      setError('Some discipline data could not be loaded. Showing the latest available information.')
+    }
+    setLoading(false)
+  }
+
   return {
-    rules, score, violations, mode, loading,
-    loadRules, loadScore, loadViolations, loadMode, updateRule, toggleMode,
+    rules, score, violations, mode, progress, loading, error,
+    loadRules, loadScore, loadViolations, loadMode, loadProgress, loadAll,
+    updateRule, applyRuleChanges, toggleMode,
   }
 }

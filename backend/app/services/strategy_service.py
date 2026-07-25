@@ -98,7 +98,8 @@ def _persist_leg(db: Session, user: User, strategy_id: uuid.UUID, leg: Leg) -> S
 # ── draft creation ────────────────────────────────────────────
 def create_from_template(db: Session, user: User, *, template_id: str,
                          underlying: str, spot: float, expiries: list[date],
-                         lots: int = 1, setup_tag: Optional[str] = None) -> StrategyORM:
+                         lots: int = 1, setup_tag: Optional[str] = None,
+                         product_type: str = "INTRADAY") -> StrategyORM:
     """
     Build a draft Strategy from a template and persist it (header + legs).
 
@@ -119,6 +120,7 @@ def create_from_template(db: Session, user: User, *, template_id: str,
         status=StrategyStatus.DRAFT,
         allow_calendar=domain.allow_calendar,
         setup_tag=setup_tag,
+        product_type=product_type,
     )
     db.add(orm)
     db.flush()
@@ -130,7 +132,8 @@ def create_from_template(db: Session, user: User, *, template_id: str,
 
 def create_empty_draft(db: Session, user: User, *, underlying: str,
                        name: Optional[str] = None, allow_calendar: bool = False,
-                       setup_tag: Optional[str] = None) -> StrategyORM:
+                       setup_tag: Optional[str] = None,
+                       product_type: str = "INTRADAY") -> StrategyORM:
     """Create an empty draft the user will add legs to manually."""
     get_spec(underlying)   # validate underlying up front (raises if unknown)
     account = _account(db, user)
@@ -139,6 +142,7 @@ def create_empty_draft(db: Session, user: User, *, underlying: str,
         account_id=account.id, underlying=underlying.strip().upper(),
         name=name, status=StrategyStatus.DRAFT,
         allow_calendar=allow_calendar, setup_tag=setup_tag,
+        product_type=product_type,
     )
     db.add(orm)
     db.flush()

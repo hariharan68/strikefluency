@@ -6,15 +6,22 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.core.error_handlers import register_error_handlers
+from app.core.paper_trading_policy import (
+    assert_paper_trading_configuration,
+    public_capabilities,
+)
 from app.core.rate_limit import AuthRateLimitMiddleware
 from app.core.security_kernel import SecurityHeadersMiddleware, audit_route_security
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    assert_paper_trading_configuration(settings)
     print(f"\n  StrikeFluency API starting")
     print(f"  Environment  : {settings.ENVIRONMENT}")
     print(f"  Market data  : {settings.MARKET_DATA_PROVIDER}")
+    print(f"  Execution    : {settings.EXECUTION_MODE}")
+    print(f"  Broker access: {settings.BROKER_ACCESS_MODE}")
     print(f"  Access TTL   : {settings.ACCESS_TOKEN_EXPIRE_MINUTES} min")
     print(f"  Cookie secure: {settings.COOKIE_SECURE}")
     print(f"  Route audit  : {app.state.security_audit['authenticated']} authenticated, "
@@ -23,11 +30,21 @@ async def lifespan(app: FastAPI):
         print(f"  Docs         : /docs on the active Uvicorn host/port")
     print()
 
-    from app.brokers.connections import load_fyers_token_into_store
-    loaded_fyers_token = load_fyers_token_into_store()
-    if not loaded_fyers_token:
-        from app.services.fyers_auth_service import get_saved_access_token
-        get_saved_access_token()
+    # Hydrate only the ACTIVE broker's token into the shared store — the two
+    # brokers are mutually exclusive, so we never load both.
+    if settings.MARKET_DATA_PROVIDER == "kite":
+        from app.brokers.connections import load_kite_token_into_store
+        load_kite_token_into_store()
+    elif settings.MARKET_DATA_PROVIDER == "nuvama":
+        from app.brokers.connections import load_nuvama_token_into_store
+        if not load_nuvama_token_into_store():
+            from app.services.nuvama_auth_service import get_saved_access_token
+            get_saved_access_token()
+    else:
+        from app.brokers.connections import load_fyers_token_into_store
+        if not load_fyers_token_into_store():
+            from app.services.fyers_auth_service import get_saved_access_token
+            get_saved_access_token()
 
     from app.market.market_scheduler import start_market_scheduler
     start_market_scheduler()
@@ -38,6 +55,8 @@ async def lifespan(app: FastAPI):
 
     from app.market.market_scheduler import stop_market_scheduler
     stop_market_scheduler()
+    from app.market.provider_factory import reset_provider
+    reset_provider()
     from app.services.auth_maintenance import stop_auth_maintenance
     stop_auth_maintenance()
     print("\n  StrikeFluency shutting down\n")
@@ -45,7 +64,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="StrikeFluency API",
-    description="Virtual options trading platform for Indian retail traders.",
+    description="Paper-only options trading and journaling platform with read-only broker market data.",
     version="1.0.0",
     lifespan=lifespan,
     # API docs are a recon gift in production — development only.
@@ -70,7 +89,7 @@ app.add_middleware(AuthRateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 # ── All routers ───────────────────────────────────────────────
-from app.routers import auth, market, trading, discipline, journal, analytics, broker, oauth, strategy, options
+from app.routers import auth, market, trading, discipline, journal, analytics, broker, nuvama, kite, oauth, strategy, options, settings as settings_router
 
 app.include_router(auth.router,        prefix="/api/v1")
 app.include_router(market.router,      prefix="/api/v1")
@@ -79,15 +98,22 @@ app.include_router(discipline.router,  prefix="/api/v1")
 app.include_router(journal.router,     prefix="/api/v1")
 app.include_router(analytics.router,   prefix="/api/v1")
 app.include_router(broker.router,      prefix="/api/v1")
+app.include_router(nuvama.router,      prefix="/api/v1")
+app.include_router(kite.router,        prefix="/api/v1")
 app.include_router(strategy.router,    prefix="/api/v1")
 app.include_router(options.router,     prefix="/api/v1")
+app.include_router(settings_router.router, prefix="/api/v1")
 
 app.include_router(oauth.router, prefix="/api/v1")
 
 
 @app.get("/health", tags=["system"])
 def health_check():
-    return {"status": "ok", "environment": settings.ENVIRONMENT}
+    return {
+        "status": "ok",
+        "environment": settings.ENVIRONMENT,
+        **public_capabilities(),
+    }
 
 
 # ── SECURITY KERNEL: fail-closed boot audit ───────────────────
@@ -97,3 +123,4 @@ def health_check():
 # a port. Adding a feature without connecting it to the security
 # system is therefore impossible — the app won't start.
 app.state.security_audit = audit_route_security(app)
+assert_paper_trading_configuration(settings)

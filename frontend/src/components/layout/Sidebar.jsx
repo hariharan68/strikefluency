@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, Activity, Shield, ShieldCheck, BookOpen, BarChart2, LogOut,
-  TrendingUp, Settings, Radio, Layers, Table2
+  LayoutDashboard, Activity, ShieldCheck, BookOpen, BarChart2, LogOut,
+  TrendingUp, Settings, Radio, Layers, Table2, Wallet
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import * as authApi from '../../api/auth'
@@ -9,13 +9,13 @@ import * as authApi from '../../api/auth'
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/terminal-1', icon: Radio, label: 'Terminal 1' },
+  { to: '/trading', icon: Activity, label: 'Trade' },
+  { to: '/positions', icon: Wallet, label: 'Positions' },
   { to: '/strategy-builder', icon: Layers, label: 'Strategy Builder' },
   { to: '/option-chain', icon: Table2, label: 'Option Chain' },
-  { to: '/trading', icon: Activity, label: 'Trade' },
   { to: '/discipline-mode', icon: ShieldCheck, label: 'Discipline Mode' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },
-  { to: '/discipline', icon: Shield, label: 'Reports' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 

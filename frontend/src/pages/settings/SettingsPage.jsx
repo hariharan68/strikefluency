@@ -1,27 +1,42 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
+import usePreferencesStore from '../../store/preferencesStore'
 import { useToast } from '../../components/common/Toast'
-import { clearFyersToken, getFyersProfile, getFyersStatus, revokeFyersCredentials } from '../../api/broker'
+import {
+  clearFyersToken, getFyersProfile, getFyersStatus, revokeFyersCredentials,
+  clearNuvamaToken, getNuvamaProfile, getNuvamaStatus, revokeNuvamaCredentials,
+  clearKiteToken, getKiteStatus, revokeKiteCredentials,
+} from '../../api/broker'
 import FyersSetupWizard from '../../components/broker/FyersSetupWizard'
+import NuvamaSetupWizard from '../../components/broker/NuvamaSetupWizard'
+import KiteSetupWizard from '../../components/broker/KiteSetupWizard'
 import DisciplineModeToggle from '../../components/discipline/DisciplineModeToggle'
-import { getSessions, logout, logoutAll, revokeSession } from '../../api/auth'
-import { User, Bell, Shield, ShieldCheck, Globe, LogOut, ChevronRight, Link as LinkIcon, RefreshCw, Unplug, Trash2 } from 'lucide-react'
+import { getSessions, logout, logoutAll, revokeSession, updateProfile } from '../../api/auth'
+import useTheme, { DARK_THEME, FOREST_LIGHT_THEME, MISTY_LIGHT_THEME } from '../../hooks/useTheme'
+import { User, Bell, Shield, ShieldCheck, Globe, LogOut, ChevronRight, Link as LinkIcon, RefreshCw, Unplug, Trash2, Palette, Check } from 'lucide-react'
 
 const Card = ({ children, style = {} }) => (
   <div style={{
     background: 'var(--color-surface)', border: '1px solid var(--border)',
-    borderRadius: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+    borderRadius: 14, boxShadow: 'var(--shadow)',
     overflow: 'hidden', ...style
   }}>
     {children}
   </div>
 )
 
-const SectionHeader = ({ title, subtitle }) => (
-  <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', background: 'var(--color-surface2)' }}>
-    <div style={{ color: 'var(--text)', fontSize: 13, fontWeight: 600 }}>{title}</div>
-    {subtitle && <div style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 2 }}>{subtitle}</div>}
+const SectionHeader = ({ icon: Icon, title, subtitle }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '15px 20px', borderBottom: '1px solid var(--border)', background: 'var(--color-surface2)' }}>
+    {Icon && (
+      <span style={{ display: 'grid', placeItems: 'center', height: 36, width: 36, flexShrink: 0, borderRadius: 11, background: 'var(--primary-bg)', color: 'var(--primary)' }}>
+        <Icon size={18} />
+      </span>
+    )}
+    <div>
+      <div style={{ color: 'var(--text)', fontSize: 14, fontWeight: 700 }}>{title}</div>
+      {subtitle && <div style={{ color: 'var(--text-muted)', fontSize: 11.5, marginTop: 2 }}>{subtitle}</div>}
+    </div>
   </div>
 )
 
@@ -61,26 +76,48 @@ function Toggle({ value, onChange }) {
 function ProfileSection({ user }) {
   const [fullName, setFullName] = useState(user?.full_name || '')
   const [email] = useState(user?.email || '')
-  const { success } = useToast()
+  const [saving, setSaving] = useState(false)
+  const { success, error } = useToast()
+  const setUser = useAuthStore(s => s.setUser)
+
+  const save = async () => {
+    const name = fullName.trim()
+    if (!name) { error('Full name cannot be empty'); return }
+    setSaving(true)
+    try {
+      const r = await updateProfile(name)
+      setUser(r.data)          // refresh name app-wide (sidebar/topbar)
+      success('Profile updated')
+    } catch (err) {
+      error(err.response?.data?.detail || 'Could not update profile')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <Card>
-      <SectionHeader title="Profile" subtitle="Your personal information" />
+      <SectionHeader icon={User} title="Profile" subtitle="Your personal information" />
       <div style={{ padding: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+        {/* Identity banner */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20,
+          padding: '18px 20px', borderRadius: 14, border: '1px solid var(--primary-border)',
+          background: 'radial-gradient(120% 180% at 0% 0%, rgba(var(--primary-glow-rgb),0.12) 0%, var(--color-surface2) 60%)',
+        }}>
           <div style={{
-            width: 56, height: 56, borderRadius: '50%',
+            width: 60, height: 60, borderRadius: '50%',
             background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0, boxShadow: '0 2px 8px rgba(37,99,235,0.22)'
+            flexShrink: 0, boxShadow: '0 8px 20px -8px rgba(var(--primary-glow-rgb),0.7)'
           }}>
-            <span style={{ color: 'var(--on-primary)', fontSize: 20, fontWeight: 700 }}>{(user?.full_name || user?.email || 'T').charAt(0).toUpperCase()}</span>
+            <span style={{ color: 'var(--on-primary)', fontSize: 22, fontWeight: 800 }}>{(user?.full_name || user?.email || 'T').charAt(0).toUpperCase()}</span>
           </div>
           <div>
-            <div style={{ color: 'var(--text)', fontSize: 15, fontWeight: 600 }}>{user?.full_name || 'Trader'}</div>
-            <div style={{ color: 'var(--text-sub)', fontSize: 12, marginTop: 2 }}>{user?.email}</div>
-            <div style={{ marginTop: 6 }}>
-              <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 10px', borderRadius: 20, background: 'var(--primary-bg)', color: 'var(--primary-dark)' }}>
+            <div style={{ color: 'var(--text)', fontSize: 16, fontWeight: 700 }}>{user?.full_name || 'Trader'}</div>
+            <div style={{ color: 'var(--text-sub)', fontSize: 12.5, marginTop: 2 }}>{user?.email}</div>
+            <div style={{ marginTop: 8 }}>
+              <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', padding: '3px 11px', borderRadius: 999, background: 'var(--primary)', color: 'var(--on-primary)' }}>
                 {user?.tier || 'BRONZE'} TIER
               </span>
             </div>
@@ -99,8 +136,8 @@ function ProfileSection({ user }) {
         </div>
 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={() => success('Profile updated (changes saved locally)')} className="sf-btn-primary" style={{ height: 36, padding: '0 20px', fontSize: 13 }}>
-            Save Changes
+          <button onClick={save} disabled={saving} className="sf-btn-primary" style={{ height: 36, padding: '0 20px', fontSize: 13 }}>
+            {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
       </div>
@@ -109,45 +146,73 @@ function ProfileSection({ user }) {
 }
 
 function TradingPreferences() {
-  const [prefs, setPrefs] = useState({
-    defaultInstrument: 'NIFTY',
-    defaultLots: 1,
-    confirmClose: true,
-    showRiskWarnings: true,
-    autoFillLtp: true,
-  })
-  const { success } = useToast()
+  const stored = usePreferencesStore(s => s.prefs)
+  const savePrefs = usePreferencesStore(s => s.save)
+  const { success, error } = useToast()
+  const [prefs, setPrefs] = useState(stored)
+  const [saving, setSaving] = useState(false)
+  // Re-sync when the store finishes loading from the backend.
+  useEffect(() => { setPrefs(stored) }, [stored])
   const set = (key, val) => setPrefs(p => ({ ...p, [key]: val }))
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await savePrefs({
+        default_instrument: prefs.default_instrument,
+        default_lots: prefs.default_lots,
+        confirm_close: prefs.confirm_close,
+        show_risk_warnings: prefs.show_risk_warnings,
+        auto_fill_ltp: prefs.auto_fill_ltp,
+        leverage_enabled: prefs.leverage_enabled,
+      })
+      success('Trading preferences saved')
+    } catch {
+      error('Could not save preferences')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <Card>
-      <SectionHeader title="Trading Preferences" subtitle="Defaults for your trading desk" />
+      <SectionHeader icon={Globe} title="Trading Preferences" subtitle="Defaults for your trading desk" />
 
       <SettingRow label="Default Instrument" description="Pre-selected instrument on Trading Desk">
-        <select className="sf-input" style={{ width: 130, height: 34 }} value={prefs.defaultInstrument} onChange={e => set('defaultInstrument', e.target.value)}>
+        <select className="sf-input" style={{ width: 130, height: 34 }} value={prefs.default_instrument} onChange={e => set('default_instrument', e.target.value)}>
           {['NIFTY', 'BANKNIFTY', 'SENSEX'].map(i => <option key={i}>{i}</option>)}
         </select>
       </SettingRow>
 
       <SettingRow label="Default Lots" description="Number of lots pre-filled in order form">
-        <input className="sf-input" type="number" min={1} max={50} style={{ width: 80, height: 34, textAlign: 'center' }} value={prefs.defaultLots} onChange={e => set('defaultLots', Math.max(1, parseInt(e.target.value) || 1))} />
+        <input className="sf-input" type="number" min={1} max={50} style={{ width: 80, height: 34, textAlign: 'center' }} value={prefs.default_lots} onChange={e => set('default_lots', Math.max(1, parseInt(e.target.value) || 1))} />
       </SettingRow>
 
       <SettingRow label="Confirm Before Closing" description="Show confirmation dialog when closing positions">
-        <Toggle value={prefs.confirmClose} onChange={v => set('confirmClose', v)} />
+        <Toggle value={prefs.confirm_close} onChange={v => set('confirm_close', v)} />
       </SettingRow>
 
       <SettingRow label="Show Risk Warnings" description="Display SL validation warnings in order form">
-        <Toggle value={prefs.showRiskWarnings} onChange={v => set('showRiskWarnings', v)} />
+        <Toggle value={prefs.show_risk_warnings} onChange={v => set('show_risk_warnings', v)} />
       </SettingRow>
 
-      <SettingRow label="Auto-fill LTP from Chain" description="Prefill LTP when clicking option chain cells" noBorder>
-        <Toggle value={prefs.autoFillLtp} onChange={v => set('autoFillLtp', v)} />
+      <SettingRow label="Auto-fill LTP from Chain" description="Prefill LTP when clicking option chain cells">
+        <Toggle value={prefs.auto_fill_ltp} onChange={v => set('auto_fill_ltp', v)} />
+      </SettingRow>
+
+      <SettingRow
+        label="Trading Margin — Leverage"
+        description={prefs.leverage_enabled === false
+          ? 'OFF · orders block the full contract value from your sandbox funds (1x)'
+          : 'ON · orders block only the leveraged margin (5x), freeing up sandbox funds'}
+        noBorder
+      >
+        <Toggle value={prefs.leverage_enabled !== false} onChange={v => set('leverage_enabled', v)} />
       </SettingRow>
 
       <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
-        <button onClick={() => success('Trading preferences saved')} className="sf-btn-primary" style={{ height: 36, padding: '0 20px', fontSize: 13 }}>
-          Save Preferences
+        <button onClick={save} disabled={saving} className="sf-btn-primary" style={{ height: 36, padding: '0 20px', fontSize: 13 }}>
+          {saving ? 'Saving…' : 'Save Preferences'}
         </button>
       </div>
     </Card>
@@ -155,201 +220,275 @@ function TradingPreferences() {
 }
 
 function NotificationSettings() {
-  const [notifs, setNotifs] = useState({
-    disciplineAlert: true,
-    cooldownAlert: true,
-    dailyLossAlert: true,
-    tradeConfirmation: false,
-  })
+  const stored = usePreferencesStore(s => s.prefs)
+  const savePrefs = usePreferencesStore(s => s.save)
+  const { success, error } = useToast()
+  const [notifs, setNotifs] = useState(stored)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { setNotifs(stored) }, [stored])
   const set = (key, val) => setNotifs(p => ({ ...p, [key]: val }))
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await savePrefs({
+        notify_discipline: notifs.notify_discipline,
+        notify_cooldown: notifs.notify_cooldown,
+        notify_daily_loss: notifs.notify_daily_loss,
+        notify_trade_confirm: notifs.notify_trade_confirm,
+      })
+      success('Notification settings saved')
+    } catch {
+      error('Could not save notification settings')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <Card>
-      <SectionHeader title="Notifications" subtitle="Control in-app alerts and toasts" />
+      <SectionHeader icon={Bell} title="Notifications" subtitle="Control in-app alerts and toasts" />
       <SettingRow label="Discipline Rule Violations" description="Alert when an order is blocked by a discipline rule">
-        <Toggle value={notifs.disciplineAlert} onChange={v => set('disciplineAlert', v)} />
+        <Toggle value={notifs.notify_discipline} onChange={v => set('notify_discipline', v)} />
       </SettingRow>
       <SettingRow label="Revenge Cooldown Active" description="Remind you when you're in cooldown period">
-        <Toggle value={notifs.cooldownAlert} onChange={v => set('cooldownAlert', v)} />
+        <Toggle value={notifs.notify_cooldown} onChange={v => set('notify_cooldown', v)} />
       </SettingRow>
       <SettingRow label="Daily Loss Limit Approaching" description="Warn when you're 80% of max daily loss">
-        <Toggle value={notifs.dailyLossAlert} onChange={v => set('dailyLossAlert', v)} />
+        <Toggle value={notifs.notify_daily_loss} onChange={v => set('notify_daily_loss', v)} />
       </SettingRow>
       <SettingRow label="Trade Confirmation Toast" description="Show toast on every successful order" noBorder>
-        <Toggle value={notifs.tradeConfirmation} onChange={v => set('tradeConfirmation', v)} />
+        <Toggle value={notifs.notify_trade_confirm} onChange={v => set('notify_trade_confirm', v)} />
       </SettingRow>
+      <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={save} disabled={saving} className="sf-btn-primary" style={{ height: 36, padding: '0 20px', fontSize: 13 }}>
+          {saving ? 'Saving…' : 'Save Notifications'}
+        </button>
+      </div>
     </Card>
   )
 }
 
-function BrokerIntegrationSection() {
-  const [status, setStatus] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [wizardOpen, setWizardOpen] = useState(false)
-  const { success, error } = useToast()
-
-  const loadStatus = async () => {
-    try {
-      const res = await getFyersStatus()
-      setStatus(res.data)
-    } catch (err) {
-      setStatus({
-        configured: false,
-        connected: false,
-        has_token: false,
-        message: err.response?.data?.detail || 'Unable to load Fyers status',
-      })
-    }
-  }
-
-  useEffect(() => {
-    loadStatus()
-  }, [])
-
-  const refreshProfile = async () => {
-    setLoading(true)
-    try {
-      const res = await getFyersProfile()
-      setStatus(prev => ({
-        ...(prev || {}),
-        connected: true,
-        has_token: true,
-        message: 'Connected',
-        profile: res.data?.data || res.data,
-      }))
-      success('Fyers profile refreshed')
-    } catch (err) {
-      error(err.response?.data?.detail || 'Unable to fetch Fyers profile')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // DISCONNECT — drop the session/token but keep credentials in .env.
-  // Reconnect needs only OAuth (no key re-entry).
-  const disconnect = async () => {
-    setLoading(true)
-    try {
-      const res = await clearFyersToken()
-      success(res.data?.message || 'Fyers disconnected — credentials kept, reconnect anytime')
-      await loadStatus()
-    } catch (err) {
-      error(err.response?.data?.detail || 'Unable to disconnect Fyers')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // REVOKE — wipe App ID + Secret ID from .env. Reconnect needs new keys.
-  const revoke = async () => {
-    if (!window.confirm('Revoke Fyers credentials? Your App ID and Secret ID will be removed from the server and you will need to re-enter them to reconnect.')) return
-    setLoading(true)
-    try {
-      const res = await revokeFyersCredentials()
-      success(res.data?.message || 'Fyers credentials revoked')
-      await loadStatus()
-    } catch (err) {
-      error(err.response?.data?.detail || 'Unable to revoke Fyers credentials')
-    } finally {
-      setLoading(false)
-    }
-  }
-
+// Presentational row shared by both brokers. Only one broker can be live at a
+// time (enforced server-side), so the same states drive both rows identically.
+function BrokerRow({ label, subtitle, status, loading, onAdd, onConnect, onRefresh, onDisconnect, onRevoke, canManage = true }) {
   const configured = !!status?.configured
   const connected = !!status?.connected
-  const badgeLabel = connected ? 'Connected' : status?.has_token ? 'Token saved' : 'Not connected'
-  const badgeColor = connected ? 'var(--gain-text)' : status?.has_token ? 'var(--warn)' : 'var(--text-sub)'
-  const badgeBg = connected ? 'var(--gain-bg)' : status?.has_token ? 'var(--warn-bg)' : 'var(--color-surface2)'
+  const stateLabels = {
+    connecting: 'Connecting', reconnect_required: 'Reconnect required',
+    feed_reconnecting: 'Feed reconnecting', live: 'Live',
+    stale: 'Stale', unavailable: 'Unavailable',
+  }
+  const badgeLabel = stateLabels[status?.state] || (connected ? 'Connected' : status?.has_token ? 'Token saved' : 'Not connected')
+  const healthy = connected && !['stale', 'reconnect_required', 'unavailable'].includes(status?.state)
+  const badgeColor = healthy ? 'var(--gain-text)' : status?.has_token ? 'var(--warn)' : 'var(--text-sub)'
+  const badgeBg = healthy ? 'var(--gain-bg)' : status?.has_token ? 'var(--warn-bg)' : 'var(--color-surface2)'
   const profileName = status?.profile?.name || status?.profile?.display_name
 
   return (
-    <Card>
-      <SectionHeader title="Broker Integration" subtitle="Connect your Fyers account for live market data" />
-      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 12, background: 'var(--primary-bg)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-            }}>
-              <LinkIcon size={20} color="var(--primary)" />
+    <div style={{
+      padding: '20px 20px 20px 17px', display: 'flex', flexDirection: 'column', gap: 16,
+      borderLeft: `3px solid ${connected ? 'var(--gain)' : 'transparent'}`,
+      background: connected ? 'color-mix(in srgb, var(--gain-bg) 55%, transparent)' : 'transparent',
+      transition: 'background 0.2s'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12, background: 'var(--primary-bg)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+          }}>
+            <LinkIcon size={20} color="var(--primary)" />
+          </div>
+          <div>
+            <div style={{ color: 'var(--text)', fontSize: 14, fontWeight: 600 }}>
+              {label}{profileName ? ` — ${profileName}` : ''}
             </div>
-            <div>
-              <div style={{ color: 'var(--text)', fontSize: 14, fontWeight: 600 }}>
-                Fyers{profileName ? ` — ${profileName}` : ''}
-              </div>
-              <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 3 }}>
-                {connected
-                  ? `Live market data active · token ${status?.token_preview || ''}`
-                  : status?.message || 'Connect your Fyers account in a guided 3-step setup.'}
-              </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 3 }}>
+              {connected
+                ? `Live market data active · token ${status?.token_preview || ''}`
+                : status?.message || subtitle}
             </div>
           </div>
-          <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: badgeBg, color: badgeColor }}>
-            {badgeLabel}
-          </span>
         </div>
+        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: badgeBg, color: badgeColor }}>
+          {badgeLabel}
+        </span>
+      </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-          {!configured ? (
-            // First time — no credentials stored. Full guided setup.
-            <button type="button" className="sf-btn-primary" onClick={() => setWizardOpen(true)}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        {!canManage ? (
+          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+            Connection management is restricted to administrators.
+          </span>
+        ) : !configured ? (
+          <button type="button" className="sf-btn-primary" onClick={onAdd}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <LinkIcon size={15} />
+            Add {label} Broker
+          </button>
+        ) : !connected ? (
+          <>
+            <button type="button" className="sf-btn-primary" onClick={onConnect}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               <LinkIcon size={15} />
-              Add Fyers Broker
+              Connect
             </button>
-          ) : !connected ? (
-            // Credentials stored but no live session — connect via OAuth only
-            // (the wizard opens straight at the Connect step), or Revoke to wipe keys.
-            <>
-              <button type="button" className="sf-btn-primary" onClick={() => setWizardOpen(true)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <LinkIcon size={15} />
-                Connect
-              </button>
-              <button type="button" className="sf-btn-outline" disabled={loading} onClick={revoke}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--loss)' }}>
-                <Trash2 size={15} />
-                Revoke
-              </button>
-            </>
-          ) : (
-            // Connected — Disconnect (keep keys) or Revoke (wipe keys).
-            <>
-              <button type="button" className="sf-btn-outline" disabled={loading} onClick={refreshProfile}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <RefreshCw size={15} />
-                Refresh Profile
-              </button>
-              <button type="button" className="sf-btn-outline" disabled={loading} onClick={disconnect}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--warn, #f5c451)' }}>
-                <Unplug size={15} />
-                Disconnect
-              </button>
-              <button type="button" className="sf-btn-outline" disabled={loading} onClick={revoke}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--loss)' }}>
-                <Trash2 size={15} />
-                Revoke
-              </button>
-            </>
-          )}
-        </div>
-
-        {connected && status?.profile && (
-          <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--color-surface2)', padding: 14 }}>
-            <div style={{ color: 'var(--text)', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Profile</div>
-            <pre style={{ margin: 0, color: 'var(--text-sub)', fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {JSON.stringify(status.profile, null, 2)}
-            </pre>
-          </div>
+            <button type="button" className="sf-btn-outline" disabled={loading} onClick={onRevoke}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--loss)' }}>
+              <Trash2 size={15} />
+              Revoke
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="sf-btn-outline" disabled={loading} onClick={onRefresh}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <RefreshCw size={15} />
+              Refresh Profile
+            </button>
+            <button type="button" className="sf-btn-outline" disabled={loading} onClick={onDisconnect}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--warn, #f5c451)' }}>
+              <Unplug size={15} />
+              Disconnect
+            </button>
+            <button type="button" className="sf-btn-outline" disabled={loading} onClick={onRevoke}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--loss)' }}>
+              <Trash2 size={15} />
+              Revoke
+            </button>
+          </>
         )}
       </div>
 
-      <FyersSetupWizard
-        isOpen={wizardOpen}
-        onClose={() => setWizardOpen(false)}
-        onConnected={loadStatus}
+      {connected && status?.profile && (
+        <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--color-surface2)', padding: 14 }}>
+          <div style={{ color: 'var(--text)', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Profile</div>
+          <pre style={{ margin: 0, color: 'var(--text-sub)', fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {JSON.stringify(status.profile, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BrokerIntegrationSection() {
+  const user = useAuthStore(s => s.user)
+  const canManage = ['tenant_admin', 'super_admin'].includes(user?.role)
+  const [fyers, setFyers] = useState(null)
+  const [nuvama, setNuvama] = useState(null)
+  const [kite, setKite] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [fyersWizard, setFyersWizard] = useState(false)
+  const [nuvamaWizard, setNuvamaWizard] = useState(false)
+  const [kiteWizard, setKiteWizard] = useState(false)
+  const { success, error } = useToast()
+
+  // The two brokers are mutually exclusive on the server — connecting one
+  // auto-disconnects the other — so we always reload BOTH after any change so
+  // the "Not connected" flip is reflected immediately.
+  const loadAll = async () => {
+    try { setFyers((await getFyersStatus()).data) }
+    catch (err) { setFyers({ configured: false, connected: false, has_token: false, message: err.response?.data?.detail || 'Unable to load Fyers status' }) }
+    try { setNuvama((await getNuvamaStatus()).data) }
+    catch (err) { setNuvama({ configured: false, connected: false, has_token: false, message: err.response?.data?.detail || 'Unable to load Nuvama status' }) }
+    try { setKite((await getKiteStatus()).data) }
+    catch (err) { setKite({ configured: false, connected: false, has_token: false, state: 'unavailable', message: err.response?.data?.detail || 'Unable to load Zerodha status' }) }
+  }
+
+  useEffect(() => { loadAll() }, [])
+
+  // Shared disconnect/revoke runner — toast the server message, then reload both.
+  const run = async (fn, okMsg, failMsg) => {
+    setLoading(true)
+    try {
+      const res = await fn()
+      success(res?.data?.message || okMsg)
+      await loadAll()
+    } catch (err) {
+      error(err.response?.data?.detail || failMsg)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const refreshProfile = async (getProfile, setter, name) => {
+    setLoading(true)
+    try {
+      const res = await getProfile()
+      setter(prev => ({ ...(prev || {}), connected: true, has_token: true, message: 'Connected', profile: res.data?.data || res.data }))
+      success(`${name} profile refreshed`)
+    } catch (err) {
+      error(err.response?.data?.detail || `Unable to fetch ${name} profile`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const revokeFyers = () => {
+    if (!window.confirm('Revoke Fyers credentials? Your App ID and Secret ID will be removed from the server and you will need to re-enter them to reconnect.')) return
+    run(revokeFyersCredentials, 'Fyers credentials revoked', 'Unable to revoke Fyers credentials')
+  }
+  const revokeNuvama = () => {
+    if (!window.confirm('Revoke Nuvama credentials? Your API Key and Secret will be removed from the server and you will need to re-enter them to reconnect.')) return
+    run(revokeNuvamaCredentials, 'Nuvama credentials revoked', 'Unable to revoke Nuvama credentials')
+  }
+  const revokeKite = () => {
+    if (!window.confirm('Revoke Zerodha credentials? The API key and secret will be removed from the server.')) return
+    run(revokeKiteCredentials, 'Zerodha credentials revoked', 'Unable to revoke Zerodha credentials')
+  }
+
+  return (
+    <Card>
+      <SectionHeader icon={LinkIcon} title="Broker Integration" subtitle="Connect one provider for live market data — Fyers, Nuvama, or Zerodha" />
+
+      <BrokerRow
+        label="Fyers"
+        subtitle="Connect your Fyers account in a guided 3-step setup."
+        status={fyers}
+        loading={loading}
+        onAdd={() => setFyersWizard(true)}
+        onConnect={() => setFyersWizard(true)}
+        onRefresh={() => refreshProfile(getFyersProfile, setFyers, 'Fyers')}
+        onDisconnect={() => run(clearFyersToken, 'Fyers disconnected — credentials kept, reconnect anytime', 'Unable to disconnect Fyers')}
+        onRevoke={revokeFyers}
+        canManage={canManage}
       />
+
+      <div style={{ height: 1, background: 'var(--border)' }} />
+
+      <BrokerRow
+        label="Nuvama"
+        subtitle="Connect your Nuvama account in a guided 3-step setup."
+        status={nuvama}
+        loading={loading}
+        onAdd={() => setNuvamaWizard(true)}
+        onConnect={() => setNuvamaWizard(true)}
+        onRefresh={() => refreshProfile(getNuvamaProfile, setNuvama, 'Nuvama')}
+        onDisconnect={() => run(clearNuvamaToken, 'Nuvama disconnected — credentials kept, reconnect anytime', 'Unable to disconnect Nuvama')}
+        onRevoke={revokeNuvama}
+        canManage={canManage}
+      />
+
+      <div style={{ height: 1, background: 'var(--border)' }} />
+
+      <BrokerRow
+        label="Zerodha"
+        subtitle="Connect a shared read-only Kite Connect account."
+        status={kite}
+        loading={loading}
+        onAdd={() => setKiteWizard(true)}
+        onConnect={() => setKiteWizard(true)}
+        onRefresh={loadAll}
+        onDisconnect={() => run(clearKiteToken, 'Zerodha disconnected — credentials kept', 'Unable to disconnect Zerodha')}
+        onRevoke={revokeKite}
+        canManage={canManage}
+      />
+
+      <FyersSetupWizard isOpen={fyersWizard} onClose={() => setFyersWizard(false)} onConnected={loadAll} />
+      <NuvamaSetupWizard isOpen={nuvamaWizard} onClose={() => setNuvamaWizard(false)} onConnected={loadAll} />
+      <KiteSetupWizard isOpen={kiteWizard} onClose={() => setKiteWizard(false)} onConnected={loadAll} />
     </Card>
   )
 }
@@ -374,7 +513,7 @@ function SessionsSection({ clearAuth }) {
 
   return (
     <Card>
-      <SectionHeader title="Active Sessions" subtitle="Review and revoke devices with access to your account" />
+      <SectionHeader icon={Shield} title="Active Sessions" subtitle="Review and revoke devices with access to your account" />
       <div style={{ padding: 20 }}>
         {loading ? <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Loading sessions...</div> : sessions.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No active sessions found.</div> : sessions.map(session => (
           <div key={session.family_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
@@ -396,14 +535,14 @@ function AccountSection({ clearAuth }) {
 
   return (
     <Card>
-      <SectionHeader title="Account" subtitle="Manage your account and session" />
+      <SectionHeader icon={Shield} title="Account" subtitle="Manage your account and session" />
       <SettingRow label="Account Type" description="Your current plan">
         <span className="badge-primary" style={{ fontSize: 11 }}>Free Beta</span>
       </SettingRow>
       <SettingRow label="Data & Privacy" description="Your trade data is stored locally and on server" noBorder>
         <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Encrypted</span>
       </SettingRow>
-      <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', background: '#fef9f9' }}>
+      <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', background: 'var(--loss-bg)' }}>
         {!showConfirm ? (
           <button
             onClick={() => setShowConfirm(true)}
@@ -438,7 +577,7 @@ function AccountSection({ clearAuth }) {
 function DisciplineModeSection() {
   return (
     <Card>
-      <SectionHeader title="Discipline Mode" subtitle="Master switch for the trading rules that gate your orders" />
+      <SectionHeader icon={ShieldCheck} title="Discipline Mode" subtitle="Master switch for the trading rules that gate your orders" />
       <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <DisciplineModeToggle variant="full" />
         <Link to="/discipline-mode" style={{ fontSize: 12.5, color: 'var(--primary)', textDecoration: 'none', fontWeight: 600 }}>
@@ -449,14 +588,164 @@ function DisciplineModeSection() {
   )
 }
 
+const THEME_OPTIONS = [
+  {
+    id: DARK_THEME,
+    name: 'Obsidian Dark',
+    badge: 'Original',
+    description: 'Charcoal surfaces with the original lavender accent.',
+    canvas: '#131313',
+    surface: '#1f1f1f',
+    line: '#333333',
+    primary: '#dbbdff',
+    text: '#e3e3e3',
+    previewBackground: 'linear-gradient(145deg, #131313, #1a1a1a)',
+  },
+  {
+    id: MISTY_LIGHT_THEME,
+    name: 'Misty Teal',
+    badge: 'Existing light',
+    description: 'Cool glass surfaces with teal and sky-blue texture.',
+    canvas: '#f4f8fb',
+    surface: 'rgba(255,255,255,0.88)',
+    line: 'rgba(24,76,89,0.16)',
+    primary: '#0f8f83',
+    text: '#12212d',
+    previewBackground: 'radial-gradient(circle at 85% 15%, rgba(56,189,248,0.24), transparent 46%), radial-gradient(circle at 10% 90%, rgba(45,212,191,0.24), transparent 48%), #f4f8fb',
+  },
+  {
+    id: FOREST_LIGHT_THEME,
+    name: 'Forest Paper',
+    badge: 'New light',
+    description: 'Warm paper surfaces with forest, mint, and amber tones.',
+    canvas: '#f6f3ea',
+    surface: 'rgba(255,253,247,0.92)',
+    line: 'rgba(16,35,29,0.16)',
+    primary: '#123e32',
+    text: '#10231d',
+    previewBackground: 'radial-gradient(circle at 88% 8%, rgba(69,199,149,0.25), transparent 48%), radial-gradient(circle at 8% 92%, rgba(210,138,50,0.16), transparent 44%), #f6f3ea',
+  },
+]
+
+function CustomizationSection() {
+  const { theme, setTheme } = useTheme()
+
+  return (
+    <Card>
+      <SectionHeader icon={Palette} title="Theme" subtitle="Choose the color and texture used across StrikeFluency" />
+      <div style={{ padding: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
+          {THEME_OPTIONS.map(option => {
+            const selected = theme === option.id
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setTheme(option.id)}
+                style={{
+                  minWidth: 0, padding: 0, overflow: 'hidden', textAlign: 'left', cursor: 'pointer',
+                  borderRadius: 14,
+                  border: selected ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  background: 'var(--color-surface)',
+                  boxShadow: selected ? '0 0 0 3px var(--primary-bg), var(--shadow)' : 'var(--shadow)',
+                  fontFamily: 'Inter,sans-serif',
+                }}
+              >
+                <div style={{
+                  height: 112, padding: 12, position: 'relative',
+                  background: option.previewBackground,
+                  borderBottom: `1px solid ${option.line}`,
+                }}>
+                  <div style={{
+                    height: '100%', display: 'grid', gridTemplateColumns: '34px 1fr', overflow: 'hidden',
+                    border: `1px solid ${option.line}`, borderRadius: 10, background: option.surface,
+                    boxShadow: '0 8px 24px rgba(13,42,33,0.08)',
+                  }}>
+                    <div style={{ padding: '9px 6px', borderRight: `1px solid ${option.line}`, background: option.surface }}>
+                      <div style={{ width: 17, height: 17, borderRadius: 5, marginBottom: 10, background: option.primary }} />
+                      {[0, 1, 2].map(item => (
+                        <div key={item} style={{ width: item === 1 ? 18 : 21, height: 3, borderRadius: 99, marginBottom: 7, background: item === 0 ? option.primary : option.line }} />
+                      ))}
+                    </div>
+                    <div style={{ padding: 9 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 9 }}>
+                        <div style={{ width: 48, height: 5, borderRadius: 99, background: option.text, opacity: 0.82 }} />
+                        <div style={{ width: 24, height: 8, borderRadius: 99, background: option.primary }} />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+                        {[0, 1, 2, 3].map(item => (
+                          <div key={item} style={{ height: 24, border: `1px solid ${option.line}`, borderRadius: 6, background: option.surface, padding: 5 }}>
+                            <div style={{ width: item % 2 ? '62%' : '78%', height: 3, borderRadius: 99, background: item === 0 ? option.primary : option.line }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  {selected && (
+                    <span style={{
+                      position: 'absolute', top: 8, right: 8, width: 22, height: 22,
+                      display: 'grid', placeItems: 'center', borderRadius: '50%',
+                      color: 'var(--on-primary)', background: 'var(--primary)',
+                      boxShadow: '0 4px 12px rgba(var(--primary-glow-rgb),0.28)',
+                    }}>
+                      <Check size={13} strokeWidth={3} />
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ padding: '13px 14px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ color: 'var(--text)', fontSize: 13, fontWeight: 700 }}>{option.name}</span>
+                    <span style={{
+                      flexShrink: 0, padding: '2px 7px', borderRadius: 999,
+                      color: selected ? 'var(--primary)' : 'var(--text-muted)',
+                      background: selected ? 'var(--primary-bg)' : 'var(--color-surface2)',
+                      fontSize: 9, fontWeight: 700, letterSpacing: '0.02em',
+                    }}>
+                      {selected ? 'Selected' : option.badge}
+                    </span>
+                  </div>
+                  <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: 10.5, lineHeight: 1.5, marginTop: 6 }}>
+                    {option.description}
+                  </span>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        <div style={{
+          marginTop: 16, padding: '10px 12px', borderRadius: 10,
+          color: 'var(--text-muted)', background: 'var(--color-surface2)',
+          border: '1px solid var(--border)', fontSize: 11, lineHeight: 1.5,
+        }}>
+          Your selection is saved on this device. The header theme button switches between dark mode and your most recently selected light theme.
+        </div>
+      </div>
+    </Card>
+  )
+}
+
 const SECTIONS = [
   { id: 'profile', icon: User, label: 'Profile' },
   { id: 'trading', icon: Globe, label: 'Trading Preferences' },
   { id: 'discipline', icon: ShieldCheck, label: 'Discipline Mode' },
   { id: 'notifications', icon: Bell, label: 'Notifications' },
+  { id: 'customization', icon: Palette, label: 'Customization' },
   { id: 'broker', icon: LinkIcon, label: 'Broker Integration' },
   { id: 'account', icon: Shield, label: 'Account & Security' },
 ]
+
+const SECTION_META = {
+  profile: 'Your personal information',
+  trading: 'Desk defaults & margin',
+  discipline: 'Rules that gate your orders',
+  notifications: 'In-app alerts & toasts',
+  customization: 'Personalize your workspace',
+  broker: 'Live market data via Fyers or Nuvama',
+  account: 'Sessions & sign-out',
+}
 
 export default function SettingsPage() {
   const [active, setActive] = useState('profile')
@@ -464,45 +753,68 @@ export default function SettingsPage() {
   const clearAuth = useAuthStore(s => s.clearAuth)
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 20, alignItems: 'start' }}>
-      <Card>
-        <div style={{ padding: '12px 8px' }}>
-          <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '4px 12px 8px' }}>
-            Settings
-          </div>
-          {SECTIONS.map(({ id, icon: Icon, label }) => (
-            <button
-              key={id}
-              onClick={() => setActive(id)}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                gap: 10, padding: '9px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                background: active === id ? 'var(--primary-bg)' : 'transparent',
-                color: active === id ? 'var(--primary-dark)' : 'var(--text-sub)',
-                fontSize: 13, fontFamily: 'Inter,sans-serif', fontWeight: active === id ? 500 : 400,
-                marginBottom: 2, transition: 'all 0.13s', textAlign: 'left'
-              }}
-              onMouseEnter={e => active !== id && (e.currentTarget.style.background = 'var(--color-surface2)')}
-              onMouseLeave={e => active !== id && (e.currentTarget.style.background = 'transparent')}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                <Icon size={15} strokeWidth={active === id ? 2 : 1.75} />
-                {label}
-              </div>
-              {active === id && <ChevronRight size={13} />}
-            </button>
-          ))}
-        </div>
-      </Card>
+    <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+      {/* Page heading */}
+      <div style={{ marginBottom: 18 }}>
+        <h1 className="sf-serif" style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)' }}>Settings</h1>
+        <p style={{ color: 'var(--text-sub)', fontSize: 13, marginTop: 4 }}>
+          Manage your profile, trading defaults, broker integration, and account controls.
+        </p>
+      </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {active === 'profile' && <ProfileSection user={user} />}
-        {active === 'trading' && <TradingPreferences />}
-        {active === 'discipline' && <DisciplineModeSection />}
-        {active === 'notifications' && <NotificationSettings />}
-        {active === 'broker' && <BrokerIntegrationSection />}
-        {active === 'account' && <SessionsSection clearAuth={clearAuth} />}
-        {active === 'account' && <AccountSection clearAuth={clearAuth} />}
+      <div style={{ display: 'grid', gridTemplateColumns: '248px minmax(0, 1fr)', gap: 20, alignItems: 'start' }}>
+        {/* ── Nav rail ── */}
+        <Card style={{ position: 'sticky', top: 12 }}>
+          <div style={{ padding: 8 }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', padding: '8px 12px 10px' }}>
+              Settings
+            </div>
+            {SECTIONS.map(({ id, icon: Icon, label }) => {
+              const on = active === id
+              return (
+                <button
+                  key={id}
+                  onClick={() => setActive(id)}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: 11,
+                    padding: '9px 10px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                    background: on ? 'var(--primary-bg)' : 'transparent',
+                    marginBottom: 3, transition: 'background 0.13s', textAlign: 'left',
+                    fontFamily: 'Inter,sans-serif',
+                  }}
+                  onMouseEnter={e => !on && (e.currentTarget.style.background = 'var(--color-surface2)')}
+                  onMouseLeave={e => !on && (e.currentTarget.style.background = 'transparent')}
+                >
+                  <span style={{
+                    display: 'grid', placeItems: 'center', height: 32, width: 32, flexShrink: 0, borderRadius: 9,
+                    background: on ? 'var(--primary)' : 'var(--color-surface2)',
+                    color: on ? 'var(--on-primary)' : 'var(--text-muted)',
+                    transition: 'all 0.13s',
+                  }}>
+                    <Icon size={15} strokeWidth={2} />
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: on ? 700 : 600, color: on ? 'var(--primary)' : 'var(--text)' }}>{label}</span>
+                    <span style={{ display: 'block', fontSize: 10.5, color: 'var(--text-muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{SECTION_META[id]}</span>
+                  </span>
+                  {on && <ChevronRight size={14} color="var(--primary)" style={{ flexShrink: 0 }} />}
+                </button>
+              )
+            })}
+          </div>
+        </Card>
+
+        {/* ── Content ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {active === 'profile' && <ProfileSection user={user} />}
+          {active === 'trading' && <TradingPreferences />}
+          {active === 'discipline' && <DisciplineModeSection />}
+          {active === 'notifications' && <NotificationSettings />}
+          {active === 'customization' && <CustomizationSection />}
+          {active === 'broker' && <BrokerIntegrationSection />}
+          {active === 'account' && <SessionsSection clearAuth={clearAuth} />}
+          {active === 'account' && <AccountSection clearAuth={clearAuth} />}
+        </div>
       </div>
     </div>
   )

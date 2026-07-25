@@ -54,6 +54,7 @@ export default function DisciplineModeToggle({ variant = 'full', onChange }) {
     try {
       const data = (await disciplineApi.setMode(next)).data
       setMode(data)
+      window.dispatchEvent(new CustomEvent('sf:discipline-mode-changed', { detail: data }))
       onChange?.(data)
     } catch {
       /* leave state as-is on failure */

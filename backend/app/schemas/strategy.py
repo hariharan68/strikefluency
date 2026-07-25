@@ -8,14 +8,16 @@ verb-named request models, *Response output models with from_attributes.
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Underlying = Literal["NIFTY", "BANKNIFTY", "SENSEX"]
 InstrumentType = Literal["CE", "PE", "FUT"]
 Action = Literal["BUY", "SELL"]
 SetupTag = Literal["OI_BASED", "PRICE_ACTION", "LEVEL_TRADE", "EXPIRY_PLAY", "OTHER"]
+ProductType = Literal["INTRADAY", "NRML"]
+BuilderConfigurationKind = Literal["SAVED", "DRAFT"]
 
 
 # ── requests ──────────────────────────────────────────────────
@@ -26,6 +28,7 @@ class BuildFromTemplateRequest(BaseModel):
     # Optional — defaults to the provider's expiry list (nearest first).
     expiries: Optional[list[date]] = None
     setup_tag: Optional[SetupTag] = None
+    product_type: ProductType = "INTRADAY"
 
     @field_validator("lots")
     @classmethod
@@ -52,11 +55,92 @@ class AnalyzeRequest(BaseModel):
     legs: list[AnalyzeLeg]
 
 
+class BuilderLegInput(BaseModel):
+    """One editor leg used by the rich Strategy Builder simulation."""
+
+    client_id: str
+    included: bool = True
+    action: Action
+    instrument_type: InstrumentType
+    strike: Optional[float] = None
+    lots: int = Field(default=1, ge=1, le=100)
+    expiry: date
+    entry_price: Optional[float] = Field(default=None, ge=0)
+    live_ltp: Optional[float] = Field(default=None, ge=0)
+    iv: Optional[float] = Field(default=None, ge=0, le=300)
+    iv_override: Optional[float] = Field(default=None, ge=0, le=300)
+
+    @model_validator(mode="after")
+    def strike_matches_instrument(self):
+        if self.instrument_type == "FUT" and self.strike is not None:
+            raise ValueError("Futures legs cannot have a strike")
+        if self.instrument_type != "FUT" and self.strike is None:
+            raise ValueError("Option legs require a strike")
+        return self
+
+
+class SimulateStrategyRequest(BaseModel):
+    revision: int = Field(default=0, ge=0)
+    underlying: Underlying = "NIFTY"
+    spot: Optional[float] = Field(default=None, gt=0)
+    multiplier: int = Field(default=1, ge=1, le=20)
+    target_price: Optional[float] = Field(default=None, gt=0)
+    target_at: Optional[datetime] = None
+    manual_pnl: float = 0.0
+    include_manual_pnl: bool = False
+    include_booked_pnl: bool = False
+    legs: list[BuilderLegInput] = Field(default_factory=list, max_length=10)
+
+
+class ExecutePreviewRequest(BaseModel):
+    underlying: Underlying = "NIFTY"
+    multiplier: int = Field(default=1, ge=1, le=20)
+    name: Optional[str] = Field(default=None, max_length=100)
+    setup_tag: SetupTag
+    product_type: ProductType = "INTRADAY"
+    legs: list[BuilderLegInput] = Field(min_length=1, max_length=10)
+
+
+class BuilderConfigurationCreate(BaseModel):
+    kind: BuilderConfigurationKind
+    name: Optional[str] = Field(default=None, max_length=100)
+    underlying: Underlying
+    schema_version: int = Field(default=1, ge=1, le=10)
+    state: dict[str, Any]
+
+    @model_validator(mode="after")
+    def saved_requires_name(self):
+        if self.kind == "SAVED" and not (self.name or "").strip():
+            raise ValueError("Saved strategies require a name")
+        return self
+
+
+class BuilderConfigurationUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=100)
+    underlying: Optional[Underlying] = None
+    schema_version: Optional[int] = Field(default=None, ge=1, le=10)
+    state: Optional[dict[str, Any]] = None
+
+
+class BuilderConfigurationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    kind: str
+    name: Optional[str] = None
+    underlying: str
+    schema_version: int
+    state: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
 class CreateDraftRequest(BaseModel):
     underlying: Underlying = "NIFTY"
     name: Optional[str] = None
     allow_calendar: bool = False
     setup_tag: Optional[SetupTag] = None
+    product_type: ProductType = "INTRADAY"
 
 
 class AddLegRequest(BaseModel):
@@ -113,31 +197,6 @@ class LegResponse(BaseModel):
     realized_pnl: Decimal
 
 
-class StrategyResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    underlying: str
-    name: Optional[str] = None
-    template_id: Optional[str] = None
-    status: str
-    allow_calendar: bool
-    setup_tag: Optional[str] = None
-    net_premium: Optional[Decimal] = None
-    max_profit: Optional[Decimal] = None
-    max_loss: Optional[Decimal] = None
-    created_at: datetime
-    updated_at: datetime
-    legs: list[LegResponse] = []
-
-
-class StrategyListResponse(BaseModel):
-    strategies: list[StrategyResponse]
-    total: int
-    page: int
-    page_size: int
-
-
 class PositionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -150,6 +209,35 @@ class PositionResponse(BaseModel):
     is_open: bool
     opened_at: datetime
     closed_at: Optional[datetime] = None
+
+
+class StrategyResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    underlying: str
+    name: Optional[str] = None
+    template_id: Optional[str] = None
+    status: str
+    allow_calendar: bool
+    product_type: str = "INTRADAY"
+    setup_tag: Optional[str] = None
+    net_premium: Optional[Decimal] = None
+    max_profit: Optional[Decimal] = None
+    max_loss: Optional[Decimal] = None
+    created_at: datetime
+    updated_at: datetime
+    legs: list[LegResponse] = []
+    # The live execution record (margin, realized/unrealized P&L); None while a
+    # draft. Lets the Positions page show executed strategies without extra calls.
+    position: Optional[PositionResponse] = None
+
+
+class StrategyListResponse(BaseModel):
+    strategies: list[StrategyResponse]
+    total: int
+    page: int
+    page_size: int
 
 
 class ExecuteResponse(BaseModel):

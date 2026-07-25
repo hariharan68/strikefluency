@@ -24,6 +24,19 @@ from app.config import settings
 from app.core.constants import DEFAULT_DISCIPLINE_RULES
 
 
+@pytest.fixture
+def market_open(monkeypatch):
+    """Make order-flow tests deterministic regardless of real market hours."""
+    monkeypatch.setattr(
+        "app.services.virtual_order_service.is_market_open",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "app.services.strategy_execution_service.is_market_open",
+        lambda: True,
+    )
+
+
 @pytest.fixture(scope="session")
 def db_engine():
     engine = create_engine(settings.DATABASE_URL)
@@ -44,6 +57,12 @@ def _ensure_strategy_schema(conn) -> None:
         if not insp.has_table(model.__tablename__):
             model.__table__.create(conn)
     vo_cols = {c["name"] for c in insp.get_columns("virtual_orders")}
+    if "client_order_id" not in vo_cols:
+        conn.execute(text(
+            "ALTER TABLE virtual_orders ADD COLUMN client_order_id UUID NULL"))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_virtual_orders_user_client_order "
+            "ON virtual_orders (user_id, client_order_id)"))
     if "strategy_id" not in vo_cols:
         conn.execute(text("ALTER TABLE virtual_orders ADD COLUMN strategy_id UUID NULL"))
     # ensure sl_price is nullable (Phase 5) regardless of migration state
@@ -59,6 +78,10 @@ def _ensure_strategy_schema(conn) -> None:
     if "capital_unlocked" not in va_cols:
         conn.execute(text(
             "ALTER TABLE virtual_accounts ADD COLUMN capital_unlocked BOOLEAN NOT NULL DEFAULT FALSE"))
+    # Per-user settings table (migration 20260721) — create if not yet applied.
+    from app.models.user_settings import UserSettings as USORM
+    if not inspect(conn).has_table(USORM.__tablename__):
+        USORM.__table__.create(conn)
 
 
 @pytest.fixture

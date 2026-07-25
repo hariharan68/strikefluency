@@ -7,12 +7,17 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class PlaceOrderRequest(BaseModel):
+    # Generated once by the client and reused if the HTTP request is retried.
+    client_order_id: uuid.UUID
     instrument:   Literal["NIFTY", "BANKNIFTY", "SENSEX"] = "NIFTY"
     expiry_date:  date
     strike_price: int
     option_type:  Literal["CE", "PE"]
     action:       Literal["BUY", "SELL"]
     quantity:     int = 1
+    # INTRADAY (auto-squared-off at EOD) or NRML (carry forward). Defaults to
+    # INTRADAY, preserving the pre-product-type behavior.
+    product_type: Literal["INTRADAY", "NRML"] = "INTRADAY"
     # SL and setup tag are optional at the schema level: when Discipline Mode is
     # ON, the engine's MANDATORY_SL / MANDATORY_SETUP_TAG rules still require them
     # (and raise a clear violation); when OFF, bare free-play orders are allowed.
@@ -41,6 +46,7 @@ class OrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    client_order_id: Optional[uuid.UUID] = None
     instrument: str
     expiry_date: date
     strike_price: Decimal
@@ -48,6 +54,8 @@ class OrderResponse(BaseModel):
     action: str
     quantity: int
     lot_size: int
+    product_type: str
+    trading_day: date
     entry_ltp: Decimal
     entry_price: Decimal
     exit_price: Optional[Decimal] = None

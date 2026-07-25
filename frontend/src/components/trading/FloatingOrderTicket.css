@@ -1,0 +1,33 @@
+.floating-order-ticket {
+  /*
+   * The application themes intentionally use translucent global surfaces.
+   * An order ticket sits above live market rows, so it needs local, fully
+   * opaque surfaces to keep the form legible and visually isolated.
+   */
+  --color-surface: #1a1a1a;
+  --color-surface2: #1f1f1f;
+  isolation: isolate;
+}
+
+:root.light .floating-order-ticket {
+  --color-surface: #ffffff;
+  --color-surface2: #eff6f9;
+}
+
+:root.forest-light .floating-order-ticket {
+  --color-surface: #fffdf7;
+  --color-surface2: #ebe8dd;
+}
+.floating-paper-only-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--gain) 28%, var(--border));
+  background: var(--gain-bg);
+  color: var(--gain-text);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.floating-paper-only-notice svg { flex: 0 0 auto; margin-top: 1px; }

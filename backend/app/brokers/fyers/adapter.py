@@ -2,11 +2,11 @@
 
 from typing import Any
 
-from app.brokers.base import BrokerAdapter, InstrumentRef
+from app.brokers.base import InstrumentRef, MarketDataAdapter
 from app.market.provider_factory import get_market_provider
 
 
-class FyersAdapter(BrokerAdapter):
+class FyersMarketDataAdapter(MarketDataAdapter):
     def _provider(self):
         return get_market_provider()
 

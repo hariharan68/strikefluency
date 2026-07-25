@@ -113,19 +113,17 @@ def _build(instrument: str, expiry_sel: Optional[str] = None) -> dict:
     }
 
 
-def get_metrics(instrument: str, expiry: Optional[str] = None) -> dict:
-    """Aggregate option-chain intelligence for one underlying (read-only)."""
-    try:
-        ctx = _build(instrument, expiry)
-        rows, spot, lot = ctx["rows"], ctx["spot"], ctx["lot"]
-        strikes = sorted({r.strike for r in rows})
-        atm = om.atm_strike(spot, strikes, ctx["spec"].strike_interval)
-        walls = om.oi_walls(rows, spot)
-        atm_iv_val = om.atm_iv(rows, atm)
-        iv_pct = om.iv_percentile(atm_iv_val)
-        gex = om.net_gex(ctx["gamma_rows"], spot, lot)
+def _metrics_from_ctx(ctx: dict) -> dict:
+    """Assemble the metrics payload from an already-built chain context."""
+    rows, spot, lot = ctx["rows"], ctx["spot"], ctx["lot"]
+    strikes = sorted({r.strike for r in rows})
+    atm = om.atm_strike(spot, strikes, ctx["spec"].strike_interval)
+    walls = om.oi_walls(rows, spot)
+    atm_iv_val = om.atm_iv(rows, atm)
+    iv_pct = om.iv_percentile(atm_iv_val)
+    gex = om.net_gex(ctx["gamma_rows"], spot, lot)
 
-        return {
+    return {
             "instrument": ctx["spec"].symbol,
             "snap_ts": datetime.utcnow().isoformat(),
             "spot": spot,
@@ -151,7 +149,31 @@ def get_metrics(instrument: str, expiry: Optional[str] = None) -> dict:
             "gamma_flip": om.gamma_flip_strike(ctx["gamma_rows"], spot),
             "gex_label": om.gex_label(gex),
             "source": ctx["chain"].get("source", "fyers"),
-        }
+    }
+
+
+def _chain_from_ctx(ctx: dict) -> dict:
+    """Assemble the per-leg chain payload from an already-built chain context."""
+    strikes = sorted({r.strike for r in ctx["rows"]})
+    atm = om.atm_strike(ctx["spot"], strikes, ctx["spec"].strike_interval)
+    return {
+        "instrument": ctx["spec"].symbol,
+        "spot": ctx["spot"],
+        "change_pct": ctx["change_pct"],
+        "atm_strike": atm,
+        "snap_ts": datetime.utcnow().isoformat(),
+        "expiry_date": ctx["expiry"].isoformat() if ctx["expiry"] else None,
+        "max_pain_strike": om.max_pain(ctx["rows"], strikes),
+        "lot_size": ctx["lot"],
+        "chain_rows": ctx["enriched"],
+        "source": ctx["chain"].get("source", "fyers"),
+    }
+
+
+def get_metrics(instrument: str, expiry: Optional[str] = None) -> dict:
+    """Aggregate option-chain intelligence for one underlying (read-only)."""
+    try:
+        return _metrics_from_ctx(_build(instrument, expiry))
     except Exception:
         logger.exception("get_metrics failed for %s", instrument)
         raise
@@ -160,21 +182,16 @@ def get_metrics(instrument: str, expiry: Optional[str] = None) -> dict:
 def get_chain(instrument: str, expiry: Optional[str] = None) -> dict:
     """Per-leg chain rows (with buildup + greeks) for the table (read-only)."""
     try:
-        ctx = _build(instrument, expiry)
-        strikes = sorted({r.strike for r in ctx["rows"]})
-        atm = om.atm_strike(ctx["spot"], strikes, ctx["spec"].strike_interval)
-        return {
-            "instrument": ctx["spec"].symbol,
-            "spot": ctx["spot"],
-            "change_pct": ctx["change_pct"],
-            "atm_strike": atm,
-            "snap_ts": datetime.utcnow().isoformat(),
-            "expiry_date": ctx["expiry"].isoformat() if ctx["expiry"] else None,
-            "max_pain_strike": om.max_pain(ctx["rows"], strikes),
-            "lot_size": ctx["lot"],
-            "chain_rows": ctx["enriched"],
-            "source": ctx["chain"].get("source", "fyers"),
-        }
+        return _chain_from_ctx(_build(instrument, expiry))
     except Exception:
         logger.exception("get_chain failed for %s", instrument)
         raise
+
+
+def get_snapshot(instrument: str) -> tuple[dict, dict]:
+    """
+    (metrics, chain) for the default expiry from a SINGLE chain build — used by
+    the WS metrics tick so one provider fetch + one IV pass feeds both frames.
+    """
+    ctx = _build(instrument)
+    return _metrics_from_ctx(ctx), _chain_from_ctx(ctx)

@@ -6,6 +6,8 @@ conftest.py. Skipped automatically when Postgres isn't reachable. Every test
 rolls back — nothing persists.
 """
 
+from datetime import date, datetime, timedelta, timezone
+
 P = "/api/v1/strategy"
 
 
@@ -26,7 +28,7 @@ def test_unknown_template_is_404(api_client):
     assert r.json()["error"] == "UNKNOWN_TEMPLATE"
 
 
-def test_full_lifecycle(api_client):
+def test_full_lifecycle(api_client, market_open):
     # build a draft from a template
     r = api_client.post(f"{P}/from-template", json={
         "template_id": "short_straddle", "underlying": "NIFTY",
@@ -61,7 +63,7 @@ def test_full_lifecycle(api_client):
     assert api_client.get(f"{P}/{sid}").json()["status"] == "CLOSED"
 
 
-def test_execute_twice_is_rejected(api_client):
+def test_execute_twice_is_rejected(api_client, market_open):
     r = api_client.post(f"{P}/from-template", json={
         "template_id": "short_straddle", "underlying": "NIFTY", "setup_tag": "OI_BASED"})
     sid = r.json()["id"]
@@ -89,3 +91,77 @@ def test_manual_draft_add_and_remove_leg(api_client):
     # remove the leg
     rem = api_client.delete(f"{P}/{sid}/legs/{leg_id}")
     assert rem.status_code == 200 and rem.json()["legs"] == []
+
+
+def test_builder_configuration_round_trip(api_client):
+    payload = {
+        "kind": "SAVED",
+        "name": "Weekly iron condor",
+        "underlying": "NIFTY",
+        "schema_version": 1,
+        "state": {
+            "version": 1,
+            "instrument": "NIFTY",
+            "legs": [{"id": "client-leg-1", "included": True}],
+        },
+    }
+    created = api_client.post(f"{P}/configurations", json=payload)
+    assert created.status_code == 201, created.text
+    config_id = created.json()["id"]
+
+    listed = api_client.get(f"{P}/configurations", params={"kind": "SAVED"})
+    assert listed.status_code == 200
+    assert any(item["id"] == config_id for item in listed.json())
+
+    updated = api_client.patch(
+        f"{P}/configurations/{config_id}",
+        json={"name": "Updated condor", "state": {**payload["state"], "multiplier": 2}},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Updated condor"
+    assert updated.json()["state"]["multiplier"] == 2
+
+    deleted = api_client.delete(f"{P}/configurations/{config_id}")
+    assert deleted.status_code == 204
+    assert api_client.get(f"{P}/configurations/{config_id}").status_code == 404
+
+
+def test_rich_simulation_returns_coherent_target_and_expiry_snapshots(api_client):
+    expiry = date.today() + timedelta(days=7)
+    target = datetime.combine(
+        date.today() + timedelta(days=2),
+        datetime.min.time(),
+        tzinfo=timezone.utc,
+    )
+    response = api_client.post(f"{P}/simulate", json={
+        "revision": 7,
+        "underlying": "NIFTY",
+        "spot": 24000,
+        "multiplier": 2,
+        "target_price": 24100,
+        "target_at": target.isoformat(),
+        "manual_pnl": 250,
+        "include_manual_pnl": True,
+        "legs": [{
+            "client_id": "leg-1",
+            "included": True,
+            "action": "BUY",
+            "instrument_type": "CE",
+            "strike": 24000,
+            "lots": 1,
+            "expiry": expiry.isoformat(),
+            "entry_price": 120,
+            "live_ltp": 121,
+            "iv": 18,
+        }],
+    })
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["revision"] == 7
+    assert body["snapshot"]["multiplier"] == 2
+    assert body["snapshot"]["target_price"] == 24100
+    assert len(body["curves"]) >= 100
+    assert body["pnl_rows"][0]["client_id"] == "leg-1"
+    assert body["projected"]["manual_pnl"] == 250
+    assert body["funds"]["funds_needed"] > 0

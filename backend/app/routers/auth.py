@@ -13,7 +13,7 @@ from app.dependencies import CurrentUser, get_current_auth
 from app.models.refresh_token import RefreshToken
 from app.schemas.session import SessionSummary
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RegisterRequest, UserProfile
+from app.schemas.auth import LoginRequest, ProfileUpdate, RegisterRequest, UserProfile
 from app.schemas.common import SuccessResponse
 from app.schemas.token import AccessTokenResponse, TokenResponse
 from app.services.auth_service import authenticate_user, register_user
@@ -96,6 +96,14 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserProfile)
 def get_me(current_user: CurrentUser):
+    return UserProfile.model_validate(current_user)
+
+
+@router.put("/me", response_model=UserProfile)
+def update_me(data: ProfileUpdate, current_user: CurrentUser, db: Session = Depends(get_db)):
+    current_user.full_name = data.full_name
+    db.commit()
+    db.refresh(current_user)
     return UserProfile.model_validate(current_user)
 
 

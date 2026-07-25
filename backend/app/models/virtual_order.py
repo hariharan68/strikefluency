@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 from datetime import datetime, date
 from typing import Optional
-from sqlalchemy import String, Integer, Numeric, Boolean, Date, ForeignKey, CheckConstraint, Index, func
+from sqlalchemy import String, Integer, Numeric, Boolean, Date, ForeignKey, CheckConstraint, Index, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
@@ -13,6 +13,9 @@ class VirtualOrder(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
     account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("virtual_accounts.id"), nullable=False)
+    # Supplied by the client for retry-safe single-order placement. Nullable for
+    # historical rows and strategy legs, which are created by server workflows.
+    client_order_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     instrument: Mapped[str] = mapped_column(String(20), default="NIFTY", nullable=False)
     expiry_date: Mapped[date] = mapped_column(Date, nullable=False)
     strike_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
@@ -28,6 +31,11 @@ class VirtualOrder(Base):
     sl_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
     target_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="OPEN", nullable=False)
+    # INTRADAY orders are auto-squared-off at EOD (15:29 IST); NRML carry forward.
+    product_type: Mapped[str] = mapped_column(String(10), default="INTRADAY", nullable=False)
+    # The trading day (08:30 IST boundary) this order belongs to. Orderbook and
+    # tradebook views scope to the current trading day so they reset each morning.
+    trading_day: Mapped[date] = mapped_column(Date, nullable=False)
     entry_time: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     exit_time: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     pnl: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
@@ -55,9 +63,12 @@ class VirtualOrder(Base):
         CheckConstraint("option_type IN ('CE', 'PE')", name="ck_virtual_orders_option_type"),
         CheckConstraint("action IN ('BUY', 'SELL')", name="ck_virtual_orders_action"),
         CheckConstraint("status IN ('OPEN', 'CLOSED', 'CANCELLED', 'SL_HIT', 'TARGET_HIT')", name="ck_virtual_orders_status"),
+        CheckConstraint("product_type IN ('INTRADAY', 'NRML')", name="ck_virtual_orders_product_type"),
         CheckConstraint("quantity > 0", name="ck_virtual_orders_quantity_positive"),
+        UniqueConstraint("user_id", "client_order_id", name="uq_virtual_orders_user_client_order"),
         Index("idx_virtual_orders_user_id", "user_id"),
         Index("idx_virtual_orders_tenant_id", "tenant_id"),
         Index("idx_virtual_orders_status", "status"),
         Index("idx_virtual_orders_user_status", "user_id", "status"),
+        Index("idx_virtual_orders_user_trading_day", "user_id", "trading_day"),
     )

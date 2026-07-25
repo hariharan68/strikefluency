@@ -9,12 +9,12 @@
   <body>
     <div id="root"></div>
     <script>
-      // Apply the saved theme before React paints to avoid a flash of the
-      // wrong palette. Mirrors the toggle logic in TopBar.jsx.
+      // Apply the saved theme before React paints to avoid a palette flash.
       (function () {
         var t = localStorage.getItem('sf-theme') || 'dark';
-        document.documentElement.classList.toggle('dark', t === 'dark');
-        document.documentElement.classList.toggle('light', t === 'light');
+        if (t !== 'dark' && t !== 'light' && t !== 'forest-light') t = 'dark';
+        document.documentElement.classList.add(t);
+        document.documentElement.dataset.theme = t;
       })();
     </script>
     <script type="module" src="/src/main.jsx"></script>

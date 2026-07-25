@@ -12,6 +12,13 @@ class JournalEntryResponse(BaseModel):
 
     id: uuid.UUID
     order_id: uuid.UUID
+    # Contract details, sourced from the owning order via model properties.
+    instrument: Optional[str] = None
+    strike_price: Optional[Decimal] = None
+    option_type: Optional[str] = None
+    action: Optional[str] = None
+    quantity: Optional[int] = None
+    product_type: Optional[str] = None
     entry_price: Decimal
     exit_price: Optional[Decimal] = None
     pnl: Optional[Decimal] = None
@@ -46,3 +53,14 @@ class JournalListResponse(BaseModel):
     page_size: int
     win_rate: float
     avg_pnl: Decimal
+    total_pnl: Decimal
+    gross_profit: Decimal
+    gross_loss: Decimal
+    profit_factor: Optional[float] = None
+    winners: int
+    losers: int
+    breakeven: int
+    reviewed_count: int
+    rule_adherence: float
+    total_brokerage: Decimal
+    avg_duration_minutes: Optional[float] = None

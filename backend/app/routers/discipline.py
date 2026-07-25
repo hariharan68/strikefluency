@@ -20,6 +20,7 @@ from app.models.discipline_violation import DisciplineViolation
 from app.models.virtual_account import VirtualAccount
 from app.schemas.discipline import (
     DisciplineModeResponse,
+    DisciplineProgressResponse,
     DisciplineRuleResponse,
     DisciplineScoreResponse,
     SetDisciplineModeRequest,
@@ -27,6 +28,7 @@ from app.schemas.discipline import (
     ViolationResponse,
 )
 from app.services import discipline_mode_service
+from app.services import discipline_progress_service
 from datetime import date
 
 router = APIRouter(prefix="/discipline", tags=["Discipline"])
@@ -100,7 +102,10 @@ def update_rule(
     if not rule:
         raise HTTPException(status_code=404, detail=f"Rule {rule_code} not found")
 
-    rule.rule_value = data.rule_value
+    if data.rule_value is not None:
+        rule.rule_value = data.rule_value
+    if data.is_active is not None:
+        rule.is_active = data.is_active
     db.commit()
     db.refresh(rule)
     return DisciplineRuleResponse.model_validate(rule)
@@ -163,3 +168,12 @@ def get_today_violations(
         .all()
     )
     return [ViolationResponse.model_validate(v) for v in violations]
+
+
+@router.get("/progress", response_model=DisciplineProgressResponse)
+def get_progress(
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+):
+    """Score history, streak/tier progress, and real ON-vs-OFF performance."""
+    return discipline_progress_service.get_progress(db, current_user)

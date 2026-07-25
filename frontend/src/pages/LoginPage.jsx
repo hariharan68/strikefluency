@@ -192,7 +192,7 @@ export default function LoginPage() {
       {/* ── Dark aside ── */}
       <aside className="relative hidden min-h-screen w-[46%] flex-col overflow-hidden border-r border-[var(--border)] bg-[var(--color-surface)] px-12 py-10 lg:flex xl:w-[42%]">
         <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg text-[#131313]" style={{ background: 'var(--accent-gradient)' }}>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--on-primary)]" style={{ background: 'var(--accent-gradient)' }}>
             <TrendingUp size={17} strokeWidth={2.5} />
           </div>
           <span className="sf-serif text-xl font-bold text-[var(--text)]">StrikeFluency</span>
@@ -220,7 +220,7 @@ export default function LoginPage() {
           {/* Mobile logo */}
           <div className="mb-8 lg:hidden">
             <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg text-[#131313]" style={{ background: 'var(--accent-gradient)' }}><TrendingUp size={17} /></div>
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--on-primary)]" style={{ background: 'var(--accent-gradient)' }}><TrendingUp size={17} /></div>
               <span className="sf-serif text-xl font-bold text-[var(--text)]">StrikeFluency</span>
             </div>
           </div>
@@ -305,7 +305,7 @@ export default function LoginPage() {
                 <input
                   id="rememberMe" type="checkbox" checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 rounded border-[var(--border)] accent-[#dbbdff]"
+                  className="h-4 w-4 rounded border-[var(--border)] accent-[var(--primary)]"
                 />
                 Remember me
               </label>

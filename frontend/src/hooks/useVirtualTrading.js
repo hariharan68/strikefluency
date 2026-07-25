@@ -33,7 +33,7 @@ export default function useVirtualTrading() {
     setLoading(true)
     try {
       const r = await tradingApi.placeOrder(data)
-      success('Order placed successfully!')
+      success('Paper trade opened successfully!')
       await Promise.all([loadAccount(), loadPositions()])
       return r.data
     } finally {
@@ -46,7 +46,7 @@ export default function useVirtualTrading() {
     try {
       const r = await tradingApi.closeOrder(orderId)
       const pnl = r.data.net_pnl
-      success(`Position closed. P&L: ₹${Number(pnl).toFixed(2)}`)
+      success(`Paper position closed. P&L: ₹${Number(pnl).toFixed(2)}`)
       await Promise.all([loadAccount(), loadPositions()])
       return r.data
     } finally {

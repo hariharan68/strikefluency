@@ -27,7 +27,12 @@ from app.models.trading_session import TradingSession
 from app.models.user import User
 
 
-def get_or_create_today(db: Session, user: User) -> TradingSession:
+def get_or_create_today(
+    db: Session,
+    user: User,
+    *,
+    for_update: bool = False,
+) -> TradingSession:
     """
     Get today's trading session for the user.
     Creates a new one if it doesn't exist yet.
@@ -35,10 +40,13 @@ def get_or_create_today(db: Session, user: User) -> TradingSession:
     """
     today = date.today()
 
-    session = db.query(TradingSession).filter(
+    query = db.query(TradingSession).filter(
         TradingSession.user_id == user.id,
         TradingSession.session_date == today,
-    ).first()
+    )
+    if for_update:
+        query = query.with_for_update()
+    session = query.first()
 
     if not session:
         session = TradingSession(

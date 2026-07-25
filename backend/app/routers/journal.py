@@ -8,7 +8,6 @@ Journal endpoints:
 """
 
 import uuid
-from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -21,6 +20,7 @@ from app.schemas.journal import (
     JournalListResponse,
     UpdateJournalRequest,
 )
+from app.services.journal_metrics import journal_summary
 from datetime import datetime
 
 router = APIRouter(prefix="/journal", tags=["Journal"])
@@ -60,23 +60,18 @@ def get_journal(
         .all()
     )
 
-    # Calculate win rate + avg P&L from all filtered entries
+    # Aggregate against the complete filtered result, not only the visible
+    # page. The journal header must never disagree with the rows because of
+    # pagination.
     all_entries  = query.all()
-    trades_with_pnl = [e for e in all_entries if e.pnl is not None]
-    winning      = [e for e in trades_with_pnl if e.pnl > 0]
-    win_rate     = round(len(winning) / len(trades_with_pnl) * 100, 1) if trades_with_pnl else 0.0
-    avg_pnl      = (
-        sum(e.pnl for e in trades_with_pnl) / len(trades_with_pnl)
-        if trades_with_pnl else Decimal("0")
-    )
+    summary = journal_summary(all_entries)
 
     return JournalListResponse(
         entries=[JournalEntryResponse.model_validate(e) for e in entries],
         total=total,
         page=page,
         page_size=page_size,
-        win_rate=win_rate,
-        avg_pnl=avg_pnl,
+        **summary,
     )
 
 

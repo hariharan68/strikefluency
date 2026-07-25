@@ -24,20 +24,25 @@ owns its db.commit() (services never commit).
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import CurrentUser
 from app.market.provider_factory import get_market_provider
+from app.market.websocket_manager import notify_trading_update
 from app.schemas.strategy import (
     AddLegRequest,
     AnalyticsResponse,
     AnalyzeRequest,
     AnalyzeResponse,
+    BuilderConfigurationCreate,
+    BuilderConfigurationResponse,
+    BuilderConfigurationUpdate,
     BuildFromTemplateRequest,
     CreateDraftRequest,
     CloseLegRequest,
+    ExecutePreviewRequest,
     ExecuteResponse,
     LegResponse,
     MarkToMarketResponse,
@@ -46,10 +51,12 @@ from app.schemas.strategy import (
     SquareOffRequest,
     StrategyListResponse,
     StrategyResponse,
+    SimulateStrategyRequest,
     TemplateResponse,
 )
 from app.services import strategy_service as svc
 from app.services import strategy_execution_service as ex
+from app.services import strategy_workspace_service as workspace
 from app.strategy import templates
 
 router = APIRouter(prefix="/strategy", tags=["Strategy Builder"])
@@ -101,6 +108,155 @@ def analyze(
     )
 
 
+@router.post("/simulate")
+def simulate_strategy(
+    body: SimulateStrategyRequest,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+):
+    """Atomic rich analysis for the two-pane Strategy Builder workspace."""
+    return workspace.simulate(db, current_user, body)
+
+
+@router.get("/market-context")
+def strategy_market_context(
+    current_user: CurrentUser,
+    underlying: str = Query(pattern="^(NIFTY|BANKNIFTY|SENSEX)$"),
+):
+    return workspace.market_context(underlying)
+
+
+@router.get(
+    "/configurations",
+    response_model=list[BuilderConfigurationResponse],
+)
+def list_builder_configurations(
+    current_user: CurrentUser,
+    kind: str | None = Query(default=None, pattern="^(SAVED|DRAFT)$"),
+    db: Session = Depends(get_db),
+):
+    return [
+        BuilderConfigurationResponse.model_validate(row)
+        for row in workspace.list_configurations(db, current_user, kind)
+    ]
+
+
+@router.post(
+    "/configurations",
+    response_model=BuilderConfigurationResponse,
+    status_code=201,
+)
+def create_builder_configuration(
+    body: BuilderConfigurationCreate,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+):
+    try:
+        row = workspace.create_configuration(db, current_user, body)
+        db.commit()
+        db.refresh(row)
+        return BuilderConfigurationResponse.model_validate(row)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get(
+    "/configurations/{configuration_id}",
+    response_model=BuilderConfigurationResponse,
+)
+def get_builder_configuration(
+    configuration_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+):
+    return BuilderConfigurationResponse.model_validate(
+        workspace.get_configuration(db, current_user, configuration_id)
+    )
+
+
+@router.patch(
+    "/configurations/{configuration_id}",
+    response_model=BuilderConfigurationResponse,
+)
+def update_builder_configuration(
+    configuration_id: uuid.UUID,
+    body: BuilderConfigurationUpdate,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+):
+    try:
+        row = workspace.update_configuration(
+            db, current_user, configuration_id, body
+        )
+        db.commit()
+        db.refresh(row)
+        return BuilderConfigurationResponse.model_validate(row)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.delete(
+    "/configurations/{configuration_id}",
+    status_code=204,
+)
+def delete_builder_configuration(
+    configuration_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+):
+    workspace.delete_configuration(db, current_user, configuration_id)
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.post("/execute-preview", response_model=ExecuteResponse)
+def execute_preview(
+    body: ExecutePreviewRequest,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+):
+    """Create and execute the included editor legs in one transaction."""
+    included = [leg for leg in body.legs if leg.included]
+    if not included:
+        raise HTTPException(status_code=422, detail="Select at least one leg")
+    try:
+        orm = svc.create_empty_draft(
+            db,
+            current_user,
+            underlying=body.underlying,
+            name=body.name,
+            allow_calendar=len({leg.expiry for leg in included}) > 1,
+            setup_tag=body.setup_tag,
+            product_type=body.product_type,
+        )
+        for leg in included:
+            svc.add_leg(
+                db,
+                current_user,
+                orm.id,
+                instrument_type=leg.instrument_type,
+                action=leg.action,
+                lots=leg.lots * body.multiplier,
+                expiry=leg.expiry,
+                strike=leg.strike,
+            )
+        position = ex.execute_strategy(db, current_user, orm.id)
+        db.commit()
+        db.refresh(position)
+        notify_trading_update(current_user.id, "strategy_executed")
+        strategy = svc.get_strategy(db, current_user, orm.id)
+        return ExecuteResponse(
+            strategy=StrategyResponse.model_validate(strategy),
+            position=PositionResponse.model_validate(position),
+            message="Strategy executed.",
+        )
+    except Exception:
+        db.rollback()
+        raise
+
+
 # ── draft creation ────────────────────────────────────────────
 @router.post("/from-template", response_model=StrategyResponse, status_code=201)
 def build_from_template(
@@ -114,6 +270,7 @@ def build_from_template(
     orm = svc.create_from_template(
         db, current_user, template_id=body.template_id, underlying=body.underlying,
         spot=spot, expiries=expiries, lots=body.lots, setup_tag=body.setup_tag,
+        product_type=body.product_type,
     )
     db.commit()
     db.refresh(orm)
@@ -129,6 +286,7 @@ def create_draft(
     orm = svc.create_empty_draft(
         db, current_user, underlying=body.underlying, name=body.name,
         allow_calendar=body.allow_calendar, setup_tag=body.setup_tag,
+        product_type=body.product_type,
     )
     db.commit()
     db.refresh(orm)
@@ -236,6 +394,7 @@ def execute(
     position = ex.execute_strategy(db, current_user, strategy_id)
     db.commit()
     db.refresh(position)
+    notify_trading_update(current_user.id, "strategy_executed")
     orm = svc.get_strategy(db, current_user, strategy_id)
     return ExecuteResponse(
         strategy=StrategyResponse.model_validate(orm),
@@ -255,6 +414,7 @@ def close_leg(
     row = ex.close_leg(db, current_user, strategy_id, leg_id, exit_ltp=body.exit_ltp)
     db.commit()
     db.refresh(row)
+    notify_trading_update(current_user.id, "leg_closed")
     return LegResponse.model_validate(row)
 
 
@@ -268,6 +428,7 @@ def square_off(
     position = ex.square_off(db, current_user, strategy_id, reason=body.reason)
     db.commit()
     db.refresh(position)
+    notify_trading_update(current_user.id, "strategy_squareoff")
     return PositionResponse.model_validate(position)
 
 

@@ -2,11 +2,11 @@
 
 from typing import Any
 
-from app.brokers.base import BrokerAdapter, InstrumentRef
+from app.brokers.base import InstrumentRef, MarketDataAdapter
 from app.market.mock_provider import MockMarketDataProvider
 
 
-class MockAdapter(BrokerAdapter):
+class MockMarketDataAdapter(MarketDataAdapter):
     def __init__(self) -> None:
         self.provider = MockMarketDataProvider()
 

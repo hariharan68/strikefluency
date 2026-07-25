@@ -64,6 +64,11 @@ class MarketClosedError(StrikeFluencyError):
     pass
 
 
+class QuoteUnavailableError(StrikeFluencyError):
+    """The requested strike has no tradable quote in the current chain."""
+    pass
+
+
 class OrderNotFoundError(StrikeFluencyError):
     """No order found with given ID for this user."""
     pass
@@ -76,6 +81,11 @@ class PositionNotFoundError(StrikeFluencyError):
 
 class OrderAlreadyClosedError(StrikeFluencyError):
     """Attempted to close an order that is not OPEN."""
+    pass
+
+
+class IdempotencyConflictError(StrikeFluencyError):
+    """A client order ID was reused with a different order payload."""
     pass
 
 

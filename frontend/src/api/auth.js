@@ -8,6 +8,7 @@ export const login = (email, password, rememberMe = true) =>
 
 export const refresh = () => client.post('/auth/refresh')
 export const getMe = () => client.get('/auth/me')
+export const updateProfile = (fullName) => client.put('/auth/me', { full_name: fullName })
 export const logout = () => client.post('/auth/logout')
 export const logoutAll = () => client.post('/auth/logout-all')
 export const getSessions = () => client.get('/auth/sessions')

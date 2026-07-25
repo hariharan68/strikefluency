@@ -46,7 +46,7 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
-AGENTS.md
+Docm
 
 # MyPy / type checkers
 .mypy_cache/
@@ -66,7 +66,7 @@ frontend/dist/
 frontend/dist-ssr/
 frontend/.vite/
 frontend/coverage/
-
+graphify-out
 # Local env files (Vite convention)
 *.local
 .claude
@@ -80,7 +80,6 @@ log/
 .codex
 .claude
 .agents
-
 # ── IDE / Editor ──────────────────────────────────
 .vscode/
 !.vscode/extensions.json
