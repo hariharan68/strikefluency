@@ -348,10 +348,23 @@ and is only covered indirectly through order-placement tests.
   `/history`) return 409 under other providers; `/instruments/search` and
   `/expiries` read the `kite_instruments` table without that guard.
 - Broker tokens are global, not per user (see *Market data*).
-- Orphaned frontend files: `src/pages/LoginPage.jsx` (the live one is
-  `pages/auth/LoginPage.jsx`), plus unreferenced `StrikeRow`, `PositionsList`,
-  `MarketStatusBadge`, `RuleViolationToast`, `ViolationList`,
-  `DisciplineScoreRing`, `DisciplineStreakBadge`, `Pagination`.
+- **`src/pages/LoginPage.jsx` is the live login page (338 lines).**
+  `src/pages/auth/LoginPage.jsx` is a one-line re-export shim
+  (`export { default } from '../LoginPage'`) and `App.jsx` imports the shim.
+  Neither is orphaned — do not "clean up" either one.
+- Genuinely dead code, a leftover UI generation that `PositionsPage`,
+  `JournalPage` and `DisciplinePage` superseded. It forms one connected
+  subtree, so delete it together or not at all:
+  `pages/journal/JournalEntryPage.jsx` (complete and working, but never routed —
+  `JournalPage` shows detail inline via `TradeDetailPanel`), `PositionsList` →
+  `OpenPositionCard`, `ViolationList`, `StrikeRow`, `MarketStatusBadge`,
+  `RuleViolationToast`, `DisciplineScoreRing`, `DisciplineStreakBadge`,
+  `Pagination`, `Badge`, `Input`.
+  Check the whole subtree before deleting any single item: `OpenPositionCard`
+  looks used, but its only caller is the dead `PositionsList`.
+- `pages/reports/ReportsPage.jsx` and `pages/account/ApiKeyPage.jsx` are
+  deliberate placeholders ("will appear here"), routed and reachable from the
+  TopBar profile menu. They are unbuilt features, not broken wiring.
 - `README.md` still lists only mock/Fyers under market data; Nuvama and Kite are
   fully built.
 
