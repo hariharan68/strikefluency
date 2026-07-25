@@ -28,7 +28,7 @@ def test_unknown_template_is_404(api_client):
     assert r.json()["error"] == "UNKNOWN_TEMPLATE"
 
 
-def test_full_lifecycle(api_client):
+def test_full_lifecycle(api_client, market_open):
     # build a draft from a template
     r = api_client.post(f"{P}/from-template", json={
         "template_id": "short_straddle", "underlying": "NIFTY",
@@ -63,7 +63,7 @@ def test_full_lifecycle(api_client):
     assert api_client.get(f"{P}/{sid}").json()["status"] == "CLOSED"
 
 
-def test_execute_twice_is_rejected(api_client):
+def test_execute_twice_is_rejected(api_client, market_open):
     r = api_client.post(f"{P}/from-template", json={
         "template_id": "short_straddle", "underlying": "NIFTY", "setup_tag": "OI_BASED"})
     sid = r.json()["id"]

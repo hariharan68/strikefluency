@@ -24,6 +24,19 @@ from app.config import settings
 from app.core.constants import DEFAULT_DISCIPLINE_RULES
 
 
+@pytest.fixture
+def market_open(monkeypatch):
+    """Make order-flow tests deterministic regardless of real market hours."""
+    monkeypatch.setattr(
+        "app.services.virtual_order_service.is_market_open",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "app.services.strategy_execution_service.is_market_open",
+        lambda: True,
+    )
+
+
 @pytest.fixture(scope="session")
 def db_engine():
     engine = create_engine(settings.DATABASE_URL)

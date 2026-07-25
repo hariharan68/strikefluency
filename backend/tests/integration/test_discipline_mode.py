@@ -37,7 +37,7 @@ def _order(**over):
     return base
 
 
-def test_off_unlocks_capital_and_allows_bare_order(api_client):
+def test_off_unlocks_capital_and_allows_bare_order(api_client, market_open):
     r = api_client.put(f"{P}/discipline/mode", json={"enabled": False})
     assert r.status_code == 200, r.text
     body = r.json()
@@ -53,7 +53,7 @@ def test_off_unlocks_capital_and_allows_bare_order(api_client):
     assert o.json()["was_free_play"] is True
 
 
-def test_free_play_trade_does_not_move_score(api_client):
+def test_free_play_trade_does_not_move_score(api_client, market_open):
     api_client.put(f"{P}/discipline/mode", json={"enabled": False})
     before = api_client.get(f"{P}/discipline/score").json()["score"]
 
@@ -68,7 +68,7 @@ def test_free_play_trade_does_not_move_score(api_client):
     assert after == before   # free-play close excluded from the rolling window
 
 
-def test_on_restores_mandatory_sl(api_client):
+def test_on_restores_mandatory_sl(api_client, market_open):
     # Default is ON. A bare order (no SL) must be blocked by the engine.
     o = api_client.post(f"{P}/trading/orders", json=_order())
     assert o.status_code == 400, o.text
