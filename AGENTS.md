@@ -1,321 +1,369 @@
-# StrikeFluency Agent Notes
+# StrikeFluency — Agent Notes
 
-This file captures durable project context for future Codex/agent work. It was created from `CLAUDE.md`, the README files, and direct inspection of backend/frontend source on 2026-07-07.
+Durable project context for AI/agent work. **Verified against source on 2026-07-25.**
 
-## Project Summary
+> Previous versions of this file described the pre-`feature/modules-connection`
+> codebase and were badly out of date — an agent following them made changes
+> against a system that no longer existed. If you change architecture, update
+> this file in the same commit. If a statement here contradicts the code, the
+> **code wins** — fix this file.
 
-StrikeFluency is a virtual options trading simulator for Indian retail traders. The core product is a NIFTY/BANKNIFTY/SENSEX option-chain trading desk with discipline rules enforced before each virtual order.
+---
 
-- Backend: FastAPI, SQLAlchemy, Alembic, PostgreSQL, Python 3.11+
-- Frontend: React 18, Vite, Zustand, React Router v6, Axios, Recharts
-- Default market data provider: mock
-- Backend dev port: 8000
-- Frontend dev port: 5173, with Vite allowed through 5176 in backend CORS
-- Database stack: `docker-compose.yml` starts PostgreSQL 16 on 5432 and pgAdmin on 5050
+## Project summary
 
-## Running Locally
+A **paper-only** options trading simulator for Indian retail traders
+(NIFTY / BANKNIFTY / SENSEX). The differentiator is a discipline engine that
+gates every order before it fills.
 
-Backend:
+- Backend: FastAPI, Python 3.11, SQLAlchemy 2.0 (typed `Mapped[]`), Alembic, PostgreSQL 16
+- Frontend: React 18, Vite, Zustand, React Router v6, Axios, Recharts, lucide-react (no TypeScript)
+- Backend dev port 8000, frontend dev port 5173
+- `docker-compose.yml` → PostgreSQL 16 (5432), pgAdmin (5050)
+- Redis is used for scheduler leadership (see *Scheduler* below)
+
+### Two non-negotiable invariants
+
+Both are enforced **by construction**, not convention. Do not weaken either.
+
+**1. Security Kernel** — `app/core/security_kernel.py`
+
+`audit_route_security(app)` runs at import time in `main.py`, after every router
+is registered. Every HTTP and WebSocket route must be either:
+
+- **authenticated** — its dependency tree contains `get_current_user`,
+  `get_current_auth`, `get_current_active_admin`, or `get_ws_user`; or
+- **declared public** — an entry in `PUBLIC_ROUTES` with a written reason.
+
+Anything else raises `RuntimeError` and **the process never binds a port**.
+Current audit: **97 authenticated, 12 declared public**.
+
+To add an endpoint, just take `CurrentUser`:
+
+```python
+from app.dependencies import CurrentUser
+
+@router.get("/my-endpoint")
+def my_endpoint(current_user: CurrentUser):
+    ...
+```
+
+**2. Paper-trading boundary** — `app/core/paper_trading_policy.py`
+
+StrikeFluency authenticates with brokers and reads market data, but **never**
+places, modifies, or cancels a broker order.
+
+- Broker SDK clients are wrapped in `ReadOnlyBrokerClient`, an allowlist proxy.
+  `place_order`, `cancel_order`, `get_positions`, `get_holdings`, etc. fail closed.
+- `assert_market_data_payload()` rejects any request carrying private paper-ledger
+  keys (`user_id`, `virtual_order_id`, `realized_pnl`, `pre_trade_thesis`, …).
+- `EXECUTION_MODE: Literal["paper_only"]` and
+  `BROKER_ACCESS_MODE: Literal["market_data_read_only"]` are `Literal` types, so a
+  bad `.env` value fails during settings parsing, before startup.
+
+Enabling broker execution would require a deliberate architectural redesign. It
+cannot be turned on through configuration.
+
+---
+
+## Running locally
 
 ```powershell
+# Backend
 cd backend
 .venv\Scripts\activate
 alembic upgrade head
 uvicorn app.main:app --reload --port 8000
-```
 
-Frontend:
-
-```powershell
+# Frontend
 cd frontend
 npm install
 npm run dev
 npm run build
-```
 
-Tests:
-
-```powershell
+# Tests
 cd backend
-pip install -r requirements-dev.txt
-pytest
+pytest              # 276 tests; integration tests self-skip without Postgres
 ```
 
-Do not commit any `.env` file, `fyers_token.json`, `access_token.txt`, or `fyers_logs/`.
+**Never commit** `.env`, `fyers_token.json`, `access_token.txt`, or `fyers_logs/`.
 
-## Backend Architecture
+---
 
-Main entry point: `backend/app/main.py`
+## Backend architecture
 
-- FastAPI app uses lifespan startup/shutdown.
-- Startup calls `start_market_scheduler()`.
-- Shutdown calls `stop_market_scheduler()`.
-- CORS allows localhost 5173-5176 and 3000.
-- Routers are included under `/api/v1`.
-- OAuth router exists but is currently commented out in `main.py`.
-- Health check is at `/health`.
+Entry point `app/main.py`. Lifespan startup hydrates the **active** broker's
+token, starts the market scheduler and auth maintenance; shutdown reverses it.
 
-Registered routers:
+CORS and the cookie `Origin` check both read `settings.trusted_origins` — one
+list, so they cannot drift.
 
-- `/api/v1/auth`
-- `/api/v1/market`
-- `/api/v1/trading`
-- `/api/v1/discipline`
-- `/api/v1/journal`
-- `/api/v1/analytics`
+### Routers (13, all under `/api/v1`, 88 routes)
 
-Settings are in `backend/app/config.py` using `pydantic-settings` and `.env`.
+| Prefix | Purpose |
+|---|---|
+| `/auth` | register, login, refresh, logout, sessions, logout-all |
+| `/oauth` | Google / GitHub / Facebook, state + PKCE, account-link challenges |
+| `/market` | option chain, spot, status, WS, Kite quote/ohlc/depth/history/expiries |
+| `/trading` | account, orders, tradebook, positions, session |
+| `/discipline` | mode switch, rules, score, violations, progress |
+| `/journal` | list / get / update entries |
+| `/analytics` | summary, discipline trend, P&L curve, mistakes |
+| `/strategy` | templates, analyze/simulate, drafts, execution, builder configurations |
+| `/options` | chain intelligence — PCR, max pain, OI walls, GEX, greeks |
+| `/settings` | per-user preferences (JSONB) |
+| `/broker`, `/nuvama`, `/kite` | per-broker credential + connection lifecycle |
 
-Important current settings:
+### Layering conventions
 
-- `MARKET_DATA_PROVIDER`: `mock`, `fyers`, or `truedata` in comments, but provider factory currently handles `fyers` and falls back to mock otherwise.
-- `NIFTY_LOT_SIZE` defaults to 50 in settings, but canonical lot sizes in constants are NIFTY 65, BANKNIFTY 30, SENSEX 20.
-- `GOOGLE_REDIRECT_URI` defaults to `http://localhost:8000/api/v1/oauth/google/callback`; OAuth is mounted under `/api/v1/oauth`.
+- **Routers are thin.** Business logic lives in `app/services/`.
+- **Services never commit.** The router owns `db.commit()`. (Exception:
+  `brokers/connections.py` token helpers own their own short-lived sessions.)
+- Services are plain module functions taking `(db, user, ...)`, raising domain
+  exceptions from `app/core/exceptions.py`. No async in the service layer.
+- `app/strategy/` is **pure maths** — no DB, no network, floats. Everything else
+  uses `Decimal` for money. Conversion happens at the ORM boundary.
 
-## Backend Domain Rules
+---
 
-Constants live in `backend/app/core/constants.py`.
+## Domain rules
 
-Lot sizes:
+Contract specs: **`app/core/instruments.py` is the single source of truth**
+(`get_spec(symbol)`). Lot sizes, strike intervals and expiry weekdays used to be
+duplicated in six places and drifted; do not reintroduce a literal anywhere else.
 
-- NIFTY: 65
-- BANKNIFTY: 30
-- SENSEX: 20
+| | Lot size | Strike interval | Weekly | Expiry weekday |
+|---|---|---|---|---|
+| NIFTY | 65 | 50 | yes | Tuesday |
+| BANKNIFTY | 30 | 100 | no (monthly only) | Tuesday |
+| SENSEX | 20 | 100 | yes | Thursday |
 
-Market times are represented as hour/minute constants:
+`get_spec()` **raises** on an unknown symbol rather than defaulting — a silent
+default meant filling orders at the wrong lot size.
 
-- Open: 09:15 IST
-- Close: 15:30 IST
-- EOD square-off: 15:29 IST
+Times (IST): open 09:15, close 15:30, EOD square-off 15:29, pre-market reset /
+trading-day boundary 08:30.
 
-Capital tiers:
+Capital tiers: TIER_1 ₹1,00,000 · TIER_2 ₹5,00,000 · TIER_3 ₹10,00,000.
+15 consecutive disciplined trades unlocks the next tier.
 
-- `TIER_1`: 100000
-- `TIER_2`: 500000
-- `TIER_3`: 1000000
-- Unlock streak: 15 consecutive disciplined trades
+### The 7 discipline rules
 
-Implemented discipline rule codes:
+`MAX_TRADES_PER_DAY`, `MANDATORY_SL`, `NO_AVERAGING_DOWN`, `NO_DIRECTION_FLIP`,
+`REVENGE_COOLDOWN`, `MAX_DAILY_LOSS`, `MANDATORY_SETUP_TAG`.
 
-- `MAX_TRADES_PER_DAY`
-- `MANDATORY_SL`
-- `NO_AVERAGING_DOWN`
-- `NO_DIRECTION_FLIP`
-- `REVENGE_COOLDOWN`
-- `MAX_DAILY_LOSS`
-- `MANDATORY_SETUP_TAG`
+There is **no** `MARKET_HOURS` discipline rule — market-hour blocking lives in
+`virtual_order_service.place_order()` and is bypassed in development.
 
-Note: older docs/`CLAUDE.md` mention `MARKET_HOURS` as one of the 7 iron rules. Current source does not implement `MARKET_HOURS` as a discipline rule. Market-hour blocking is handled in `virtual_order_service.place_order()` and is bypassed in development.
+A **strategy counts as one trade**. Only the three strategy-level rules apply
+(`STRATEGY_DISCIPLINE_RULES`): setup tag, max trades/day, max daily loss. Per-leg
+rules are skipped by design — an iron condor is deliberately multi-directional.
 
-## Trading Flow
+### Discipline Mode (master switch)
 
-Order schema: `backend/app/schemas/virtual_order.py`
+`VirtualAccount.discipline_mode_enabled`. OFF → all rules bypassed, capital
+topped up to ₹10,00,000, tier → TIER_3, and orders are flagged `was_free_play`
+so they never affect the score, streak or cooldown. ON → rules resume; money is
+kept, never clawed back.
 
-`PlaceOrderRequest` expects:
+`MAX_DAILY_LOSS` is a percentage of `initial_balance`, so `set_mode()` raises
+`initial_balance` alongside the balance when capital unlocks. If you touch
+either, keep them in step.
 
-- `instrument`: NIFTY, BANKNIFTY, or SENSEX
-- `expiry_date`
-- `strike_price`
-- `option_type`: CE or PE
-- `action`: BUY or SELL
-- `quantity`: number of lots, not raw contract quantity
-- `sl_price`
-- optional `target_price`
-- `setup_tag`: OI_BASED, PRICE_ACTION, LEVEL_TRADE, EXPIRY_PLAY, OTHER
+---
 
-Order service: `backend/app/services/virtual_order_service.py`
+## Trading flow
 
-Placement flow:
+`app/services/virtual_order_service.py`
 
-1. Block outside market hours only when not in development.
-2. Load virtual account, today session, and open positions.
-3. Fetch option-chain LTP from current market provider.
-4. Run `DisciplineEngine.check_order()`.
-5. Apply slippage.
-6. Calculate margin as gross value / 5.
-7. Validate balance.
-8. Calculate entry brokerage.
-9. Create `VirtualOrder` and `VirtualPosition`.
-10. Deduct margin and increment session trade count.
-
-Close flow:
-
-1. Fetch order and position.
-2. Get current/exit LTP from market provider.
-3. Apply exit slippage.
-4. Calculate gross P&L and exit brokerage.
-5. Update order status, exit price/time, P&L, brokerage, and exit reason.
-6. Close position.
-7. Release margin and apply net P&L to account balance.
-8. Update session realized P&L.
-9. Activate cooldown only for `SL_HIT`.
-10. Update discipline score.
-11. Auto-create journal entry.
-
-## Market Data
-
-Provider factory: `backend/app/market/provider_factory.py`
-
-- Singleton provider instance.
-- `MARKET_DATA_PROVIDER=fyers` attempts Fyers if app ID and access token are present.
-- Missing or invalid Fyers credentials fall back to mock.
-- Other provider names currently fall back to mock.
-
-Scheduler: `backend/app/market/market_scheduler.py`
-
-- APScheduler AsyncIOScheduler, timezone `Asia/Kolkata`.
-- Broadcasts every 3 seconds.
-- Instruments: NIFTY, BANKNIFTY, SENSEX.
-- Skips outside market hours unless in development.
-- Does nothing when no WebSocket clients are connected.
-
-REST market routes:
-
-- `GET /api/v1/market/option-chain`
-- `GET /api/v1/market/spot`
-- `GET /api/v1/market/status`
-- `GET /api/v1/market/debug/raw-fyers` is marked temporary in source.
-
-WebSocket:
-
-- Current backend endpoint: `ws://localhost:8000/api/v1/market/ws`
-- No auth on WebSocket in Phase 1.
-- Scheduler broadcasts messages shaped like `{ type, instrument, data }`.
-
-## Frontend Architecture
-
-Entry/routing: `frontend/src/App.jsx`
-
-Routes currently wired:
-
-- `/login`
-- `/register`
-- `/`
-- `/dashboard`
-- `/trading`
-- `/discipline`
-- `/journal`
-- `/analytics`
-- `/settings`
-
-All non-auth routes are wrapped in `ProtectedRoute` and `AppLayout`.
-
-No `/auth/callback` route is currently wired, despite older docs mentioning it.
-
-Layout:
-
-- `AppLayout` has fixed 220px sidebar and sticky 52px top bar.
-- `AppLayout` polls `/market/status` every 30 seconds and stores `isMarketOpen`.
-- `TopBar` only displays status/clock; it does not open a WebSocket.
-
-State stores:
-
-- `authStore`: localStorage-backed `sf_access_token` and `sf_user`.
-- `marketStore`: option chain, spot price, ATM strike, market status, last update.
-- `tradingStore`: account, positions, orders, session.
-
-API client:
-
-- `frontend/src/api/client.js` uses the Vite `/api` proxy by default.
-- It does not currently read `VITE_API_BASE_URL`.
-- It does not currently perform refresh-token retry.
-- On any 401, it removes local access token/user and redirects to `/login`.
-- Auth API has `logout(refreshToken)`, but refresh tokens are not stored by `authStore` in current code.
-
-## Frontend Trading Desk
-
-Page: `frontend/src/pages/trading/TradingDeskPage.jsx`
-
-- Instrument tabs: NIFTY, BANKNIFTY, SENSEX.
-- Loads account and positions on mount.
-- Loads option chain on instrument change.
-- Uses page-local `positions`, not the Zustand `positions` from `tradingStore`.
-- `OrderFormPanel` submits directly through `placeOrder()`.
-- Position closing calls `closeOrder()` directly.
-
-Order form:
-
-- Uses lot count as backend `quantity`.
-- Sends `ltp` and `notes`, but current backend schema ignores/rejects extra fields depending Pydantic config. The backend fetches LTP from provider, not from request.
-- Requires strike, LTP, SL, and setup tag in UI.
-
-Option-chain display currently expects frontend rows shaped like:
-
-- `row.call.ltp`
-- `row.call.open_interest`
-- `row.put.ltp`
-- `row.put.open_interest`
-
-Current mock backend emits rows shaped like:
-
-- `row.ce.ltp`
-- `row.ce.oi`
-- `row.pe.ltp`
-- `row.pe.oi`
-
-This is a current integration mismatch. Also, `GET /market/option-chain` returns `{ success: true, data }`, but `TradingDeskPage` currently stores `r.data` directly instead of `r.data.data`. Future work should normalize either API response handling or provider output before debugging table rendering.
-
-## Design System
-
-Current frontend is a light, dense trading-workstation style.
-
-CSS variables are in `frontend/src/styles/index.css`.
-
-Core palette:
-
-- Background: `#f1f5f9`
-- Panels: `#ffffff`
-- Sidebar: `#f8fafc`
-- Primary blue: `#3b82f6`
-- Text: `#1e293b`
-- Subtext: `#64748b`
-- Muted: `#94a3b8`
-- Gain: `#16a34a`
-- Loss: `#dc2626`
-
-Fonts:
-
-- Inter for UI
-- JetBrains Mono for numeric cells via `.num`
-
-Existing conventions:
-
-- Sidebar fixed at 220px.
-- TopBar height 52px.
-- Inline styles are common in page/components.
-- Existing card components often use 8-12px radii.
-- Keep trading UI dense and scannable, not marketing-style.
-
-## Known Gotchas And Drift
-
-- `CLAUDE.md` has mojibake characters in several places, but the underlying meaning is still readable.
-- Backend uses `/api/v1` prefixes; older docs sometimes omit that prefix.
-- WebSocket is `/api/v1/market/ws`, not `/ws/market`.
-- OAuth backend router is commented out and frontend callback route is absent.
-- Frontend API base URL is hardcoded and does not use `.env` today.
-- Refresh-token retry is not implemented in frontend today.
-- Implemented seventh discipline rule is `MANDATORY_SETUP_TAG`, not `MARKET_HOURS`.
-- Mock option-chain shape does not match `OptionChainTable` expectations.
-- Market REST response wrapper does not match `TradingDeskPage` direct store assignment.
-- `Config.NIFTY_LOT_SIZE` default is 50 but constants and frontend use 65.
-- `MockMarketDataProvider._nearest_expiry()` uses `date.replace(day=today.day + days_until_thursday)`, which can fail near month boundaries.
-- `market.py` has a temporary `/debug/raw-fyers` endpoint that should not ship as production API.
-
-## Development Priorities For Next Work
-
-When continuing implementation, prioritize these integration fixes before adding new features:
-
-1. Normalize option-chain response shape between backend providers and frontend table.
-2. Fix frontend REST handling for `/market/option-chain` wrapper.
-3. Decide whether API client should read `VITE_API_BASE_URL` and implement refresh-token storage/retry.
-4. Decide whether OAuth should be mounted and add frontend callback route, or remove stale OAuth references.
-5. Align docs with implemented discipline rules and `/api/v1` route prefixes.
-6. Fix mock nearest-expiry date logic for month/year boundaries.
-
-## Safety Rules
+**Place** — market-hours check (skipped in dev) → lock `VirtualAccount`
+`FOR UPDATE` → idempotency check on `client_order_id` → session + open positions
+→ fetch LTP from the chain → discipline engine (skipped in free-play) → slippage
+→ margin → balance check → brokerage → create `VirtualOrder` + `VirtualPosition`
+→ deduct margin, increment trade count.
+
+**Close** — same lock order (account → order → position → session) → exit LTP →
+slippage → gross P&L → exit brokerage → update order/position → release margin,
+apply net P&L → update session → cooldown on `SL_HIT` → discipline score →
+auto journal entry.
+
+Notes:
+
+- **Lock order is identical in both paths.** Keep it that way — it is what
+  serializes manual, auto-exit and EOD closes.
+- `_get_ltp_from_chain()` returns `None` when a strike is outside the chain and
+  **never falls back to spot**. An index level is thousands of points from a
+  premium; treating it as LTP corrupts P&L and falsely triggers SL/target.
+- Margin = contract value ÷ `LEVERAGE_MULTIPLIER` (5) when the user's
+  `leverage_enabled` setting is on, ÷ 1 when off.
+- `client_order_id` makes placement retry-safe; a replay returns the original
+  fill (HTTP 200 instead of 201) and never re-prices.
+- Lot size is snapshotted onto every order row, so a SEBI revision never
+  re-values historical trades.
+
+---
+
+## Market data
+
+Provider factory `app/market/provider_factory.py` — module singleton, selected by
+`MARKET_DATA_PROVIDER`: `mock` | `fyers` | `nuvama` | `kite`.
+
+Exactly one broker is live at a time; connecting one auto-disconnects the others.
+Fyers and Nuvama **fall back to mock** on missing/invalid credentials.
+**Kite is deliberately fail-closed** and never substitutes simulated prices.
+
+Broker tokens are Fernet-encrypted in `broker_connections`
+(`BROKER_TOKEN_ENC_KEY`, else derived from `SECRET_KEY`). They are currently
+stored **globally** (`user_id=None`), not per user — a single-tenant assumption
+sitting inside an otherwise multi-tenant schema.
+
+### Scheduler — `app/market/market_scheduler.py`
+
+APScheduler `AsyncIOScheduler`, timezone `Asia/Kolkata`.
+
+| Job | Cadence | Leader-only |
+|---|---|---|
+| market status + option chain broadcast | 3s | no |
+| option metrics + analytics broadcast | 15s | no |
+| strategy mark-to-market | 15s | yes |
+| SL/target auto-exit | 5s | yes |
+| expiry + intraday square-off | 15:29 cron | yes |
+| pre-market reset | 08:30 cron | yes |
+| Kite instrument catalog sync | 08:30 cron | yes |
+
+**Leader-only jobs mutate the database** and run in one elected process
+(`SchedulerLeadership`, Redis lease). Broadcast jobs skip entirely when no
+WebSocket clients are connected; state jobs run regardless — a stop-loss must be
+honoured whether or not anyone is watching.
+
+If `REDIS_URL` is set but Redis is unreachable, development with a non-Kite
+provider falls back to single-process leadership. **Production and Kite stay
+fail-closed** — if you see "state jobs are paused" in production, start Redis;
+do not widen the fallback.
+
+### WebSocket — `ws://…/api/v1/market/ws?token=<access JWT>`
+
+Authenticated via `get_ws_user` **before** the connection is accepted; browsers
+cannot send an `Authorization` header on a WS upgrade, so the token travels as a
+query parameter and goes through the same pipeline as HTTP (signature, expiry,
+type, JTI denylist, `token_version`, active user).
+
+Frame types: `option_chain`, `market_status`, `broker_status`, `option_metrics`,
+`option_analytics`, `trading_update`.
+
+Global market frames broadcast to everyone; `trading_update` is per-user via
+`push_user_event`. The last frame of each `(type, instrument)` is replayed to a
+newly connected client. **`trading_update` carries no payload** — it is
+notify-then-refetch; REST stays the single source of truth.
+
+---
+
+## Auth
+
+- Access token: **memory only**, 5 min, never in `localStorage`.
+- Refresh token: httpOnly cookie, path `/api/v1/auth`, rotated on every use,
+  family-tracked for reuse detection.
+- `POST /auth/login|refresh|logout` additionally check `Origin` against
+  `trusted_origins`.
+- `token_version` on `User` invalidates every outstanding access token on
+  logout-all; optional JTI denylist (`JTI_DENYLIST_ENABLED`).
+- OAuth uses server-side transactions with state + PKCE. Linking an OAuth
+  identity to an existing password account requires a password challenge.
+
+### Frontend auth — the sharp edges
+
+- `api/client.js` — request interceptor attaches the in-memory token; response
+  interceptor retries once on 401 behind a single-flight `refreshPromise`.
+- **`api/auth.js` `refresh()` must call `refreshAccessToken()`, not the raw
+  client.** The raw client does not store the returned token, so the follow-up
+  `/auth/me` runs unauthenticated, 401s, and rotates the single-use refresh
+  cookie a second time — bouncing valid sessions to `/login` on every reload.
+  This has broken once already.
+- `App.jsx` dedupes session restore in a module-scoped promise, because
+  StrictMode double-invokes effects and refresh tokens are single-use.
+- **Never render an API error payload directly into JSX.** FastAPI returns 422
+  `detail` as an *array of objects*; React throws "Objects are not valid as a
+  React child" and the error boundary blanks the page. Always go through
+  `utils/apiError.js` (`getApiErrorMessage` / `toDisplayMessage`). This has also
+  broken once already.
+
+---
+
+## Frontend architecture
+
+Routes in `src/App.jsx`. Public/marketing: `/`, `/product`, `/discipline-engine`,
+`/scope`, `/docs`, `/blog`, `/varsity`, `/pricing`, `/login`, `/register`,
+`/auth/oauth-callback`. Protected (inside `ProtectedRoute` → `AppLayout`):
+`/dashboard`, `/terminal-1`, `/positions`, `/option-chain`, `/trading`,
+`/strategy-builder`, `/discipline`, `/discipline-mode`, `/journal`, `/analytics`,
+`/settings`, `/api-key`, `/reports`.
+
+Stores (Zustand): `authStore` (in-memory token + auth epoch), `marketStore`
+(chains keyed by instrument), `tradingStore` (`eventSeq` bumped by WS, pages
+re-run their REST loaders), `preferencesStore` (mirrors server defaults).
+
+`AppErrorBoundary` in `App.jsx` catches render errors; a blank page usually means
+something threw inside render — check the console before assuming a data problem.
+
+### Design system
+
+**Three themes**, all token-driven from `src/styles/index.css`: `dark` (default),
+`light` (misty), `forest-light`. `useTheme.js` stamps a class plus
+`data-theme` on `<html>`.
+
+- **Never hardcode a hex value.** Use the CSS custom properties. Use
+  `--on-primary` for text on an accent background.
+- Discipline is the hero of the UI; P&L is calm and secondary.
+- Keep the trading surface dense and scannable, not marketing-styled.
+- Sidebar 220px, TopBar 52px. Inline styles are common and idiomatic here.
+
+---
+
+## Testing
+
+276 tests. `backend/tests/unit/` is mostly pure and needs no database;
+`backend/tests/integration/` self-skips when Postgres is unreachable and wraps
+each test in a rolled-back outer transaction, so nothing persists.
+
+CI (`.github/workflows/ci.yml`) runs backend tests against Postgres 16 + Redis 7,
+then builds the frontend.
+
+**Gap worth closing:** `tests/unit/test_discipline_engine.py`,
+`test_slippage_engine.py`, `test_brokerage_calculator.py`, `test_utils.py`,
+`tests/integration/test_auth.py` and `test_journal.py` are **empty files**. The
+discipline engine — the product's core differentiator — has no direct unit tests
+and is only covered indirectly through order-placement tests.
+
+---
+
+## Known rough edges
+
+- `GET /market/debug/raw-fyers` is dev-gated but instantiates the Fyers SDK
+  directly, bypassing the `ReadOnlyBrokerClient` allowlist. Delete it.
+- `_close_mirrored_order` matches a leg's `VirtualOrder` by
+  `strategy_id + strike + option_type + action` and takes `.first()`. Two legs
+  with identical values (ratio structures) collide. A `leg_id` column on
+  `virtual_orders` would make this exact.
+- Kite-only market endpoints (`/quotes`, `/ohlc`, `/depth`, `/futures`,
+  `/history`) return 409 under other providers; `/instruments/search` and
+  `/expiries` read the `kite_instruments` table without that guard.
+- Broker tokens are global, not per user (see *Market data*).
+- Orphaned frontend files: `src/pages/LoginPage.jsx` (the live one is
+  `pages/auth/LoginPage.jsx`), plus unreferenced `StrikeRow`, `PositionsList`,
+  `MarketStatusBadge`, `RuleViolationToast`, `ViolationList`,
+  `DisciplineScoreRing`, `DisciplineStreakBadge`, `Pagination`.
+- `README.md` still lists only mock/Fyers under market data; Nuvama and Kite are
+  fully built.
+
+---
+
+## Safety rules
 
 - Never commit secrets or local tokens.
-- Do not start duplicate market WebSockets from TopBar/AppLayout.
-- Do not revert user changes in the repo unless explicitly asked.
-- Prefer existing architecture: routers thin, business logic in services, frontend API functions per domain, Zustand for shared state.
-- For frontend changes, preserve the current compact trading-app visual style.
+- Never start a second market WebSocket — one lives in `AppLayout`.
+- Do not revert user changes unless asked.
+- **Do not leave a fix on a branch that is never merged.** A post-merge fix once
+  lived only on a deleted `fix/post-merge-runtime` branch while `main` shipped
+  broken; recovery needed the reflog. Land fixes on the branch that ships.
+- Preserve the existing architecture: thin routers, logic in services, one API
+  module per domain on the frontend, Zustand for shared state.
