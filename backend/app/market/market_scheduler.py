@@ -16,9 +16,11 @@ import logging
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from app.config import settings
 from app.core.utils import get_ist_now, is_market_open
 from app.market.provider_factory import get_market_provider
 from app.market.websocket_manager import manager
+from app.services.scheduler_leadership import SchedulerLeadership
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,10 @@ INSTRUMENTS = ["NIFTY", "BANKNIFTY", "SENSEX"]
 
 # Scheduler instance (started/stopped in main.py)
 scheduler = AsyncIOScheduler(timezone="Asia/Kolkata")
+state_job_leadership = SchedulerLeadership(
+    settings.REDIS_URL,
+    ttl_seconds=settings.SCHEDULER_LEADER_TTL_SECONDS,
+)
 
 
 def build_market_status() -> dict:
@@ -37,7 +43,7 @@ def build_market_status() -> dict:
     """
     now_ist = get_ist_now()
     provider = get_market_provider()
-    return {
+    status = {
         "is_open":      is_market_open(),
         "time_ist":     now_ist.strftime("%H:%M:%S"),
         "date_ist":     now_ist.strftime("%Y-%m-%d"),
@@ -46,6 +52,10 @@ def build_market_status() -> dict:
         "market_open":  "09:15",
         "market_close": "15:30",
     }
+    provider_status = getattr(provider, "provider_status", None)
+    if callable(provider_status):
+        status.update(provider_status())
+    return status
 
 
 async def _tick():
@@ -61,7 +71,10 @@ async def _tick():
         return
 
     try:
-        await manager.broadcast({"type": "market_status", "data": build_market_status()})
+        status = build_market_status()
+        await manager.broadcast({"type": "market_status", "data": status})
+        if status.get("selected_provider") == "kite":
+            await manager.broadcast({"type": "broker_status", "data": status})
     except Exception as e:
         logger.error(f"Market status broadcast failed: {e}")
 
@@ -253,11 +266,71 @@ async def _premarket_reset_tick():
         db.close()
 
 
+async def _kite_instrument_sync_tick():
+    """Refresh the daily catalog at 08:30 only when Kite has a valid token."""
+    from app.config import settings
+    if settings.MARKET_DATA_PROVIDER != "kite":
+        return
+    from app.database import SessionLocal
+    from app.services import kite_auth_service as auth
+    from app.services.kite_instrument_service import sync_instruments
+
+    token = auth.get_saved_access_token()
+    if not token:
+        return
+    db = SessionLocal()
+    try:
+        result = await asyncio.to_thread(sync_instruments, db, auth._kite(token))
+        logger.info("Kite instrument catalog synced: %d rows", result["synced"])
+    except Exception as exc:
+        db.rollback()
+        logger.error("Kite instrument sync failed; previous catalog retained: %s", exc)
+    finally:
+        db.close()
+
+
+async def _run_state_job(job, name: str):
+    """Run a database-mutating job only in the elected API process."""
+    if not state_job_leadership.is_leader():
+        logger.debug("Skipping %s in non-leader scheduler process", name)
+        return
+    await job()
+
+
+async def _leader_mtm_tick():
+    await _run_state_job(_mtm_tick, "strategy_mtm_tick")
+
+
+async def _leader_auto_exit_tick():
+    await _run_state_job(_auto_exit_tick, "auto_exit_tick")
+
+
+async def _leader_expiry_squareoff_tick():
+    await _run_state_job(_expiry_squareoff_tick, "strategy_expiry_squareoff")
+
+
+async def _leader_intraday_squareoff_tick():
+    await _run_state_job(_intraday_squareoff_tick, "intraday_squareoff")
+
+
+async def _leader_premarket_reset_tick():
+    await _run_state_job(_premarket_reset_tick, "premarket_reset")
+
+
+async def _leader_kite_instrument_sync_tick():
+    await _run_state_job(_kite_instrument_sync_tick, "kite_instrument_sync")
+
+
 def start_market_scheduler():
     """
     Start the market data scheduler.
     Call this in main.py lifespan startup.
     """
+    if scheduler.running:
+        return
+
+    state_job_leadership.start()
+
     # Called from the async lifespan, so a loop is running. Capturing it here
     # lets sync threadpool code (routers) fire-and-forget per-user WS events.
     try:
@@ -284,7 +357,7 @@ def start_market_scheduler():
         misfire_grace_time=10,
     )
     scheduler.add_job(
-        _mtm_tick,
+        _leader_mtm_tick,
         trigger="interval",
         seconds=15,
         id="strategy_mtm_tick",
@@ -292,7 +365,7 @@ def start_market_scheduler():
         misfire_grace_time=10,
     )
     scheduler.add_job(
-        _auto_exit_tick,
+        _leader_auto_exit_tick,
         trigger="interval",
         seconds=5,
         id="auto_exit_tick",
@@ -304,7 +377,7 @@ def start_market_scheduler():
         PRE_MARKET_RESET_HOUR, PRE_MARKET_RESET_MINUTE,
     )
     scheduler.add_job(
-        _expiry_squareoff_tick,
+        _leader_expiry_squareoff_tick,
         trigger="cron",
         hour=EOD_SQUAREOFF_HOUR,
         minute=EOD_SQUAREOFF_MINUTE,
@@ -313,7 +386,7 @@ def start_market_scheduler():
         misfire_grace_time=60,
     )
     scheduler.add_job(
-        _intraday_squareoff_tick,
+        _leader_intraday_squareoff_tick,
         trigger="cron",
         hour=EOD_SQUAREOFF_HOUR,
         minute=EOD_SQUAREOFF_MINUTE,
@@ -322,13 +395,22 @@ def start_market_scheduler():
         misfire_grace_time=60,
     )
     scheduler.add_job(
-        _premarket_reset_tick,
+        _leader_premarket_reset_tick,
         trigger="cron",
         hour=PRE_MARKET_RESET_HOUR,
         minute=PRE_MARKET_RESET_MINUTE,
         id="premarket_reset",
         replace_existing=True,
         misfire_grace_time=300,
+    )
+    scheduler.add_job(
+        _leader_kite_instrument_sync_tick,
+        trigger="cron",
+        hour=8,
+        minute=30,
+        id="kite_instrument_sync",
+        replace_existing=True,
+        misfire_grace_time=900,
     )
     scheduler.start()
     logger.info(
@@ -345,3 +427,4 @@ def stop_market_scheduler():
     if scheduler.running:
         scheduler.shutdown(wait=False)
         logger.info("Market data scheduler stopped")
+    state_job_leadership.stop()

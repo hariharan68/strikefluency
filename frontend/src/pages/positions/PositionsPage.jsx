@@ -392,11 +392,11 @@ export default function PositionsPage() {
   }
 
   const handleClose = async orderId => {
-    if (confirmClose && !window.confirm('Exit this virtual position at the current market price?')) return
+    if (confirmClose && !window.confirm('Close this paper position at the current market price? Nothing will be sent to your broker.')) return
     setClosingId(orderId)
     try {
       await closeOrder(orderId)
-      success('Position closed')
+      success('Paper position closed')
       await load({ quiet: true })
     } catch {
       toastError('Could not close position')
@@ -406,11 +406,11 @@ export default function PositionsPage() {
   }
 
   const handleSquareOff = async strategyId => {
-    if (confirmClose && !window.confirm('Square off every open leg in this strategy?')) return
+    if (confirmClose && !window.confirm('Close every simulated leg in this paper strategy? Nothing will be sent to your broker.')) return
     setClosingId(strategyId)
     try {
       await squareOff(strategyId)
-      success('Strategy squared off')
+      success('Paper strategy closed')
       await load({ quiet: true })
     } catch {
       toastError('Could not square off strategy')

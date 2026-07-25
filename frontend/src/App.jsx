@@ -25,6 +25,8 @@ import DisciplineModePage from './pages/discipline/DisciplineModePage'
 import JournalPage from './pages/journal/JournalPage'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
 import SettingsPage from './pages/settings/SettingsPage'
+import ApiKeyPage from './pages/account/ApiKeyPage'
+import ReportsPage from './pages/reports/ReportsPage'
 import * as authApi from './api/auth'
 import useAuthStore, { getAccessToken } from './store/authStore'
 
@@ -142,14 +144,16 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/terminal-1" element={<Terminal1Page />} />
               <Route path="/positions" element={<PositionsPage />} />
-              <Route path="/strategy-builder" element={<StrategyBuilderPage />} />
               <Route path="/option-chain" element={<OptionChainPage />} />
               <Route path="/trading" element={<TradingDeskPage />} />
+              <Route path="/strategy-builder" element={<StrategyBuilderPage />} />
               <Route path="/discipline" element={<DisciplinePage />} />
               <Route path="/discipline-mode" element={<DisciplineModePage />} />
               <Route path="/journal" element={<JournalPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/api-key" element={<ApiKeyPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

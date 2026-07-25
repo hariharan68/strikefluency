@@ -276,7 +276,7 @@ export default function TradingDeskPage() {
   const handleClose = async orderId => {
     try {
       await closeOrder(orderId)
-      success('Position closed')
+      success('Paper position closed')
       await Promise.all([loadAccount(), loadTradingData({ quiet: true })])
     } catch {
       toastError('Could not close position')
@@ -464,8 +464,8 @@ export default function TradingDeskPage() {
 
         <aside className="trade-order-card">
           <header className="trade-panel-header quick-order-header">
-            <h2>Quick Order</h2>
-            <span>Virtual</span>
+            <h2>Paper Trade Ticket</h2>
+            <span>Simulation only</span>
           </header>
           <div className="trade-order-body">
             <OrderFormPanel

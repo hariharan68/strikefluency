@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 from datetime import datetime, date
 from typing import Optional
-from sqlalchemy import String, Integer, Numeric, Boolean, Date, ForeignKey, CheckConstraint, Index, func
+from sqlalchemy import String, Integer, Numeric, Boolean, Date, ForeignKey, CheckConstraint, Index, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
@@ -13,6 +13,9 @@ class VirtualOrder(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
     account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("virtual_accounts.id"), nullable=False)
+    # Supplied by the client for retry-safe single-order placement. Nullable for
+    # historical rows and strategy legs, which are created by server workflows.
+    client_order_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     instrument: Mapped[str] = mapped_column(String(20), default="NIFTY", nullable=False)
     expiry_date: Mapped[date] = mapped_column(Date, nullable=False)
     strike_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
@@ -62,6 +65,7 @@ class VirtualOrder(Base):
         CheckConstraint("status IN ('OPEN', 'CLOSED', 'CANCELLED', 'SL_HIT', 'TARGET_HIT')", name="ck_virtual_orders_status"),
         CheckConstraint("product_type IN ('INTRADAY', 'NRML')", name="ck_virtual_orders_product_type"),
         CheckConstraint("quantity > 0", name="ck_virtual_orders_quantity_positive"),
+        UniqueConstraint("user_id", "client_order_id", name="uq_virtual_orders_user_client_order"),
         Index("idx_virtual_orders_user_id", "user_id"),
         Index("idx_virtual_orders_tenant_id", "tenant_id"),
         Index("idx_virtual_orders_status", "status"),

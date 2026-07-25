@@ -8,6 +8,10 @@ export const expandTemplate = (templateId, underlying, expiry = null) =>
 
 // ── live analysis (no persistence) ──
 export const analyzeLegs = (payload) => client.post('/strategy/analyze', payload)
+export const simulateStrategy = (payload, signal) =>
+  client.post('/strategy/simulate', payload, { signal })
+export const getStrategyMarketContext = (underlying) =>
+  client.get('/strategy/market-context', { params: { underlying } })
 
 // ── drafts ──
 export const buildFromTemplate = (data) => client.post('/strategy/from-template', data)
@@ -31,3 +35,17 @@ export const closeLeg = (id, legId, exit_ltp = null) =>
 export const squareOff = (id, reason = 'MANUAL') =>
   client.post(`/strategy/${id}/square-off`, { reason })
 export const markToMarket = (id) => client.post(`/strategy/${id}/mark-to-market`)
+
+// Builder library. Saved configurations are reusable definitions; drafts are
+// resumable editor snapshots. Neither is consumed when it is executed.
+export const listBuilderConfigurations = (kind = null) =>
+  client.get('/strategy/configurations', { params: kind ? { kind } : {} })
+export const getBuilderConfiguration = (id) =>
+  client.get(`/strategy/configurations/${id}`)
+export const createBuilderConfiguration = (data) =>
+  client.post('/strategy/configurations', data)
+export const updateBuilderConfiguration = (id, data) =>
+  client.patch(`/strategy/configurations/${id}`, data)
+export const deleteBuilderConfiguration = (id) =>
+  client.delete(`/strategy/configurations/${id}`)
+export const executePreview = (data) => client.post('/strategy/execute-preview', data)

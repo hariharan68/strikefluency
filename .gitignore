@@ -46,6 +46,7 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
+Docm
 
 # MyPy / type checkers
 .mypy_cache/

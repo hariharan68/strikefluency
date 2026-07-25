@@ -1,7 +1,12 @@
 import client from './client'
 
 export const getAccount = () => client.get('/trading/account')
-export const placeOrder = (data) => client.post('/trading/orders', data)
+export const placeOrder = (data) => client.post('/trading/orders', {
+  ...data,
+  // Axios may replay this exact request after an auth refresh. Generate the ID
+  // once before serialization so the backend returns the original order.
+  client_order_id: data.client_order_id || crypto.randomUUID(),
+})
 // scope: 'today' (default — the orderbook resets daily) or 'all' (full history)
 export const getOrders = (page = 1, status = null, scope = 'today') =>
   client.get('/trading/orders', { params: { page, scope, ...(status ? { status } : {}) } })

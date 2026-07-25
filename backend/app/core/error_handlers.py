@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.exceptions import (
     DisciplineViolationError,
+    IdempotencyConflictError,
     InsufficientBalanceError,
     InvalidCredentialsError,
     MarketClosedError,
@@ -155,6 +156,13 @@ def register_error_handlers(app):
         return JSONResponse(
             status_code=400,
             content={"error": "ORDER_ALREADY_CLOSED", "message": str(exc)},
+        )
+
+    @app.exception_handler(IdempotencyConflictError)
+    async def idempotency_conflict_handler(request: Request, exc: IdempotencyConflictError):
+        return JSONResponse(
+            status_code=409,
+            content={"error": "IDEMPOTENCY_CONFLICT", "message": str(exc)},
         )
 
     @app.exception_handler(PositionNotFoundError)

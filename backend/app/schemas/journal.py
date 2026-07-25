@@ -53,3 +53,14 @@ class JournalListResponse(BaseModel):
     page_size: int
     win_rate: float
     avg_pnl: Decimal
+    total_pnl: Decimal
+    gross_profit: Decimal
+    gross_loss: Decimal
+    profit_factor: Optional[float] = None
+    winners: int
+    losers: int
+    breakeven: int
+    reviewed_count: int
+    rule_adherence: float
+    total_brokerage: Decimal
+    avg_duration_minutes: Optional[float] = None

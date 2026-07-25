@@ -84,6 +84,11 @@ class OrderAlreadyClosedError(StrikeFluencyError):
     pass
 
 
+class IdempotencyConflictError(StrikeFluencyError):
+    """A client order ID was reused with a different order payload."""
+    pass
+
+
 # ── Discipline errors ─────────────────────────────────────────
 
 class DisciplineViolationError(StrikeFluencyError):

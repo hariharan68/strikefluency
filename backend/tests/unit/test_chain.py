@@ -5,7 +5,7 @@ Uses a deterministic in-memory fake provider (the real mock drifts spot every
 call, which is fine for a demo but useless for exact assertions).
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -15,7 +15,9 @@ from app.strategy.chain import ChainPricer, StrikeNotInChainError
 from app.strategy.builder import make_leg
 from app.strategy.domain import Strategy
 
-EXP = date(2026, 7, 21)
+# Keep the contract live no matter when CI runs. Individual expiration behavior
+# is tested by passing an explicit as_of date where needed.
+EXP = date.today() + timedelta(days=7)
 SPOT = 24000.0
 ATM = 24000
 

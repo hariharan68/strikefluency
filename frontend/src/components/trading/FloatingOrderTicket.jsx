@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Minus, Plus, ChevronDown, ChevronUp, Zap, Check } from 'lucide-react'
+import { X, Minus, Plus, ChevronDown, ChevronUp, Zap, Check, ShieldCheck } from 'lucide-react'
 import { placeOrder, getAccount } from '../../api/trading'
 import useMarketStore from '../../store/marketStore'
 import { ltpFromChain } from '../../utils/livePnl'
 import { SETUP_TAGS, SETUP_TAG_LABELS } from '../../utils/constants'
 import { useToast } from '../common/Toast'
+import './FloatingOrderTicket.css'
 
 const money = (n) => (n == null || isNaN(n) ? '—' : '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 }))
 
 /**
- * A floating, draggable order ticket (Kite-style). Opened from a chain B/S
- * click; places a live order via placeOrder — which fires the WS trading_update
- * event, so the position shows in Positions immediately.
+ * Floating paper-trade ticket opened from an option-chain B/S click. It creates
+ * a local virtual order and never sends execution instructions to a broker.
  */
 export default function FloatingOrderTicket({ ticket, disciplineOff = false, prefs = {}, onClose, onPlaced }) {
   const { instrument, strike, optionType, expiry, lotSize = 50 } = ticket
@@ -112,7 +112,7 @@ export default function FloatingOrderTicket({ ticket, disciplineOff = false, pre
         expiry_date: expiry, setup_tag: setupTag || null,
       })
       // Always confirm — the ticket closes on success, so this is the only cue.
-      success(`${action} order placed — ${instrument} ${Math.round(strike)} ${optionType} · ${qty} qty`)
+      success(`Paper ${action} opened — ${instrument} ${Math.round(strike)} ${optionType} · ${qty} qty`)
       onPlaced?.()
       onClose?.()
     } catch (e) {
@@ -134,6 +134,7 @@ export default function FloatingOrderTicket({ ticket, disciplineOff = false, pre
   return createPortal(
     <div
       role="dialog"
+      className="floating-order-ticket"
       style={{
         position: 'fixed', left: pos.x, top: pos.y, zIndex: 1000,
         width: 'min(610px, 94vw)', background: 'var(--color-surface)',
@@ -146,7 +147,7 @@ export default function FloatingOrderTicket({ ticket, disciplineOff = false, pre
         style={{
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
           padding: '13px 16px', cursor: 'move', userSelect: 'none',
-          background: `linear-gradient(180deg, ${isBuy ? 'rgba(49,221,106,0.10)' : 'rgba(255,92,92,0.10)'} 0%, transparent 100%)`,
+          background: `linear-gradient(180deg, color-mix(in srgb, ${isBuy ? 'var(--gain)' : 'var(--loss)'} 10%, var(--color-surface)) 0%, var(--color-surface) 100%)`,
           borderBottom: '1px solid var(--border)',
         }}>
         <div>
@@ -171,6 +172,11 @@ export default function FloatingOrderTicket({ ticket, disciplineOff = false, pre
             <X size={15} />
           </button>
         </div>
+      </div>
+
+      <div className="floating-paper-only-notice">
+        <ShieldCheck size={14} />
+        <span><strong>Simulation only.</strong> Market data comes in from your provider; this paper trade never goes back to the broker.</span>
       </div>
 
       {/* ── Product tabs ── */}
@@ -310,7 +316,7 @@ export default function FloatingOrderTicket({ ticket, disciplineOff = false, pre
             background: loading ? 'var(--text-muted)' : (isBuy ? 'var(--gain)' : 'var(--loss)'),
             boxShadow: loading ? 'none' : `0 8px 20px -8px ${isBuy ? 'rgba(49,221,106,0.6)' : 'rgba(255,92,92,0.6)'}`,
           }}>
-          <Zap size={15} /> {loading ? 'Placing…' : `${isBuy ? 'BUY' : 'SELL'} · ${qty} qty`}
+          <Zap size={15} /> {loading ? 'Simulating…' : `SIMULATE ${isBuy ? 'BUY' : 'SELL'} · ${qty} qty`}
         </button>
       </div>
     </div>,

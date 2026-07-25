@@ -81,6 +81,7 @@ PUBLIC_ROUTES: dict[tuple[str, str], str] = {
     # ── Fyers broker callback (external redirect, no Bearer possible) ──
     ("GET", "/api/v1/auth/fyers/callback"): "Fyers popup redirect; carries one-time auth_code only",
     ("GET", "/api/v1/broker/fyers/callback"): "legacy alias of the Fyers redirect target",
+    ("GET", "/api/v1/auth/kite/callback"): "Kite redirect; one-time Redis operation state is consumed",
 
     # ── Market status (no user data, used by pre-login screens) ──
     ("GET", "/api/v1/market/status"): "market open/closed clock; contains no user or account data",

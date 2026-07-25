@@ -2,7 +2,23 @@
 
 > *Become fluent in the strike zone — before you trade with real money.*
 
-A virtual options trading simulator for Indian retail traders (NIFTY / BANKNIFTY / SENSEX). It combines realistic order execution with a discipline enforcement layer so traders build good habits before risking real capital.
+A virtual options trading simulator for Indian retail traders (NIFTY / BANKNIFTY / SENSEX). It combines realistic simulated execution with a discipline enforcement layer so traders build good habits before risking real capital.
+
+---
+
+## Permanent paper-only boundary
+
+StrikeFluency never places, modifies, cancels, or closes an order in a connected
+broker account. Broker connections are used only for authentication and inbound
+market data such as spot/futures quotes, option chains, OI, volume, IV, and
+historical candles.
+
+- All orders, positions, margin, P&L, square-offs, and journal entries are local simulations.
+- Virtual-account, order, position, discipline, and journal data is never included in broker market-data requests.
+- Broker SDK clients are runtime-wrapped with explicit read-operation allowlists.
+- `EXECUTION_MODE=paper_only` and
+  `BROKER_ACCESS_MODE=market_data_read_only` are startup invariants.
+- Supporting broker execution in the future requires a deliberate architectural redesign; it cannot be enabled through configuration.
 
 ---
 

@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# Test and quality tooling, pinned for a reproducible Python 3.11 environment.
+pytest==8.2.2
+pytest-cov==5.0.0

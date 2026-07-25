@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, ChevronDown, Minus, Plus, Zap } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Minus, Plus, ShieldCheck, Zap } from 'lucide-react'
 import { placeOrder } from '../../api/trading'
 import { LOT_SIZES, SETUP_TAG_LABELS, SETUP_TAGS } from '../../utils/constants'
 import { nearestThursday } from '../../utils/formatters'
@@ -139,7 +139,7 @@ export default function OrderFormPanel({
         target_price: target && targetValue > 0 ? targetValue : null,
         setup_tag: setupTag || null,
       })
-      if (prefs.notify_trade_confirm) success(`Order placed — ${instrument} ${strike} ${optionType}`)
+      if (prefs.notify_trade_confirm) success(`Paper trade opened — ${instrument} ${strike} ${optionType}`)
       setStrike('')
       setLtp('')
       setSl('')
@@ -157,6 +157,11 @@ export default function OrderFormPanel({
 
   return (
     <form className="trade-order-form" onSubmit={submitOrder}>
+      <div className="trade-paper-only-notice">
+        <ShieldCheck size={15} />
+        <span><strong>Paper trade only.</strong> This simulation is stored in StrikeFluency and is never sent to your broker.</span>
+      </div>
+
       <SegmentedControl
         value={action}
         onChange={setAction}
@@ -269,7 +274,7 @@ export default function OrderFormPanel({
 
       <button type="submit" className={`trade-place-order ${action.toLowerCase()}`} disabled={loading}>
         <Zap size={15} />
-        {loading ? 'Placing order…' : `${action} ${instrument} ${strike || '—'} ${optionType}`}
+        {loading ? 'Opening paper trade…' : `SIMULATE ${action} · ${instrument} ${strike || '—'} ${optionType}`}
       </button>
 
       <p className="trade-margin-estimate">

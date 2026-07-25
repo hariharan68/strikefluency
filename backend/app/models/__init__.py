@@ -15,7 +15,9 @@ from app.models.oauth_identity import OAuthIdentity
 from app.models.link_challenge import LinkChallenge
 from app.models.security_notification import SecurityNotification
 from app.models.strategy import Strategy, StrategyLeg, StrategyPosition
+from app.models.strategy_builder_configuration import StrategyBuilderConfiguration
 from app.models.user_settings import UserSettings
+from app.models.kite_instrument import KiteInstrument
 
 __all__ = [
     "Tenant",
@@ -37,5 +39,7 @@ __all__ = [
     'Strategy',
     'StrategyLeg',
     'StrategyPosition',
+    'StrategyBuilderConfiguration',
     'UserSettings',
+    'KiteInstrument',
 ]

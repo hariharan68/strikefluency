@@ -19,8 +19,11 @@ from app.models.broker_connection import BrokerConnection
 logger = logging.getLogger(__name__)
 
 BROKER_FYERS = "fyers"
+BROKER_NUVAMA = "nuvama"
+BROKER_KITE = "kite"
 STATUS_ACTIVE = "ACTIVE"
 STATUS_REVOKED = "REVOKED"
+STATUS_EXPIRED = "EXPIRED"
 
 
 def _fernet() -> Fernet:
@@ -105,6 +108,12 @@ def get_broker_token(
     return decrypt_token(connection.access_token_enc)
 
 
+def get_broker_connection(
+    db: Session, *, broker: str, user_id: uuid.UUID | None = None,
+) -> BrokerConnection | None:
+    return db.execute(_active_connection_query(broker, user_id)).scalars().first()
+
+
 def revoke_broker_token(
     db: Session,
     *,
@@ -115,6 +124,18 @@ def revoke_broker_token(
     if connection is None:
         return False
     connection.status = STATUS_REVOKED
+    connection.revoked_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.commit()
+    return True
+
+
+def expire_broker_token(
+    db: Session, *, broker: str, user_id: uuid.UUID | None = None,
+) -> bool:
+    connection = db.execute(_active_connection_query(broker, user_id)).scalars().first()
+    if connection is None:
+        return False
+    connection.status = STATUS_EXPIRED
     connection.revoked_at = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
     return True
@@ -169,6 +190,107 @@ def revoke_fyers_token_best_effort() -> bool:
     except Exception as exc:
         db.rollback()
         logger.warning("Unable to revoke Fyers token: %s", exc)
+        return False
+    finally:
+        db.close()
+
+
+# ── Nuvama token helpers (twins of the Fyers ones above) ─────────────────────
+
+def load_nuvama_token_into_store() -> bool:
+    try:
+        db = SessionLocal()
+    except Exception as exc:
+        logger.warning("Unable to open DB session for Nuvama token hydration: %s", exc)
+        return False
+
+    try:
+        token = get_broker_token(db, broker=BROKER_NUVAMA, user_id=None)
+        if token:
+            token_store.set_in_memory(token, source="broker_connections")
+            logger.info("Loaded Nuvama token from broker_connections")
+            return True
+        return bool(token_store.get_access_token())
+    except Exception as exc:
+        logger.warning("Unable to hydrate Nuvama token from broker_connections: %s", exc)
+        return False
+    finally:
+        db.close()
+
+
+def save_nuvama_token_best_effort(access_token: str, meta: dict[str, Any] | None = None) -> bool:
+    db = SessionLocal()
+    try:
+        save_broker_token(
+            db,
+            broker=BROKER_NUVAMA,
+            access_token=access_token,
+            user_id=None,
+            meta=meta,
+        )
+        return True
+    except Exception as exc:
+        db.rollback()
+        logger.warning("Unable to persist Nuvama token: %s", exc)
+        return False
+    finally:
+        db.close()
+
+
+def revoke_nuvama_token_best_effort() -> bool:
+    db = SessionLocal()
+    try:
+        return revoke_broker_token(db, broker=BROKER_NUVAMA, user_id=None)
+    except Exception as exc:
+        db.rollback()
+        logger.warning("Unable to revoke Nuvama token: %s", exc)
+        return False
+    finally:
+        db.close()
+
+
+# -- Zerodha Kite token helpers ---------------------------------------------
+
+def load_kite_token_into_store() -> bool:
+    db = SessionLocal()
+    try:
+        token = get_broker_token(db, broker=BROKER_KITE, user_id=None)
+        if token:
+            token_store.set_in_memory(token, source="broker_connections:kite")
+            logger.info("Loaded Kite token from broker_connections")
+            return True
+        return False
+    except Exception as exc:
+        logger.warning("Unable to hydrate Kite token from broker_connections: %s", exc)
+        return False
+    finally:
+        db.close()
+
+
+def save_kite_token_best_effort(access_token: str, meta: dict[str, Any]) -> bool:
+    db = SessionLocal()
+    try:
+        save_broker_token(
+            db, broker=BROKER_KITE, access_token=access_token, user_id=None, meta=meta,
+        )
+        return True
+    except Exception as exc:
+        db.rollback()
+        logger.warning("Unable to persist Kite token: %s", exc)
+        return False
+    finally:
+        db.close()
+
+
+def revoke_kite_token_best_effort(*, expired: bool = False) -> bool:
+    db = SessionLocal()
+    try:
+        if expired:
+            return expire_broker_token(db, broker=BROKER_KITE, user_id=None)
+        return revoke_broker_token(db, broker=BROKER_KITE, user_id=None)
+    except Exception as exc:
+        db.rollback()
+        logger.warning("Unable to revoke Kite token: %s", exc)
         return False
     finally:
         db.close()

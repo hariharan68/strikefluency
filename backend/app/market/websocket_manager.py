@@ -31,11 +31,11 @@ logger = logging.getLogger(__name__)
 
 # Frame types cached for connect-replay. Keyed by (type, instrument) so a
 # metrics frame can never clobber the cached chain for the same instrument.
-REPLAY_TYPES = {"option_chain", "market_status", "option_metrics", "option_analytics"}
+REPLAY_TYPES = {"option_chain", "market_status", "broker_status", "option_metrics", "option_analytics"}
 
 # Replay order: status first (cheap, orients the UI), then chains, then the
 # heavier derived frames.
-_REPLAY_ORDER = ["market_status", "option_chain", "option_metrics", "option_analytics"]
+_REPLAY_ORDER = ["market_status", "broker_status", "option_chain", "option_metrics", "option_analytics"]
 
 
 class ConnectionManager:

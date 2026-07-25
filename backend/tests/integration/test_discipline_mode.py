@@ -13,6 +13,7 @@ Covers the locked behaviour:
 """
 
 from datetime import date, timedelta
+import uuid
 
 from app.market.provider_factory import get_market_provider
 
@@ -24,6 +25,7 @@ def _order(**over):
     # chain's drifting window and is (correctly) rejected as unquotable.
     atm = int(get_market_provider().get_option_chain("NIFTY")["atm_strike"])
     base = {
+        "client_order_id": str(uuid.uuid4()),
         "instrument": "NIFTY",
         "expiry_date": str(date.today() + timedelta(days=7)),
         "strike_price": atm,
@@ -73,3 +75,26 @@ def test_on_restores_mandatory_sl(api_client):
     body = o.json()
     assert body["error"] == "DISCIPLINE_VIOLATION"
     assert body["rule_code"] == "MANDATORY_SL"
+
+
+def test_rule_activation_can_be_persisted(api_client):
+    path = f"{P}/discipline/rules/NO_DIRECTION_FLIP"
+    disabled = api_client.put(path, json={"is_active": False})
+    assert disabled.status_code == 200, disabled.text
+    assert disabled.json()["is_active"] is False
+
+    enabled = api_client.put(path, json={"is_active": True})
+    assert enabled.status_code == 200, enabled.text
+    assert enabled.json()["is_active"] is True
+
+
+def test_progress_endpoint_returns_real_read_model(api_client):
+    response = api_client.get(f"{P}/discipline/progress")
+    assert response.status_code == 200, response.text
+    body = response.json()
+
+    assert isinstance(body["score_history"], list)
+    assert body["tier_progress"]["current_tier"] in {"TIER_1", "TIER_2", "TIER_3"}
+    assert 0 <= body["tier_progress"]["progress_pct"] <= 100
+    assert body["discipline_on"]["total_trades"] >= 0
+    assert body["discipline_off"]["total_trades"] >= 0

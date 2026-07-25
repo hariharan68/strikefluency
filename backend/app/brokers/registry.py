@@ -2,23 +2,38 @@
 
 from functools import lru_cache
 
-from app.brokers.base import BrokerAdapter, InstrumentRef
+from app.brokers.base import InstrumentRef, MarketDataAdapter
 from app.config import settings
+from app.core.paper_trading_policy import assert_read_only_market_data_adapter
 
 
 @lru_cache(maxsize=4)
-def _adapter_for_vendor(vendor: str) -> BrokerAdapter:
+def _adapter_for_vendor(vendor: str) -> MarketDataAdapter:
     if vendor == "fyers":
-        from app.brokers.fyers.adapter import FyersAdapter
+        from app.brokers.fyers.adapter import FyersMarketDataAdapter
 
-        return FyersAdapter()
+        adapter = FyersMarketDataAdapter()
 
-    from app.brokers.mock_adapter import MockAdapter
+    elif vendor == "nuvama":
+        from app.brokers.nuvama.adapter import NuvamaMarketDataAdapter
 
-    return MockAdapter()
+        adapter = NuvamaMarketDataAdapter()
+
+    elif vendor == "kite":
+        from app.brokers.kite_adapter import KiteMarketDataAdapter
+
+        adapter = KiteMarketDataAdapter()
+
+    else:
+        from app.brokers.mock_adapter import MockMarketDataAdapter
+
+        adapter = MockMarketDataAdapter()
+
+    assert_read_only_market_data_adapter(adapter)
+    return adapter
 
 
-def get_market_data_adapter(ref: InstrumentRef | None = None) -> BrokerAdapter:
+def get_market_data_adapter(ref: InstrumentRef | None = None) -> MarketDataAdapter:
     vendor = getattr(settings, "MARKET_DATA_VENDOR", "") or getattr(settings, "MARKET_DATA_PROVIDER", "mock")
     return _adapter_for_vendor(vendor.lower())
 

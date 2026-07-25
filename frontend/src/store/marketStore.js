@@ -16,6 +16,7 @@ const useMarketStore = create((set) => ({
   // with an arrival time so consumers can fall back to REST when stale.
   status: null,
   statusAt: null,
+  brokerStatus: null,
   metrics: {},    // { [instrument]: { data, at } }
   analytics: {},  // { [instrument]: { data, at } }
   setOptionChain: (data) => set((state) => ({
@@ -27,6 +28,7 @@ const useMarketStore = create((set) => ({
   })),
   setMarketStatus: (isOpen) => set({ isMarketOpen: isOpen }),
   setStatus: (data) => set({ status: data, isMarketOpen: !!data?.is_open, statusAt: Date.now() }),
+  setBrokerStatus: (data) => set({ brokerStatus: data, statusAt: Date.now() }),
   setMetrics: (instrument, data) => set((state) => ({
     metrics: { ...state.metrics, [instrument]: { data, at: Date.now() } },
   })),

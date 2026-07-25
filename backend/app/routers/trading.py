@@ -16,7 +16,7 @@ Virtual trading endpoints:
 import uuid
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.core.constants import ExitReason, OrderStatus
@@ -91,6 +91,7 @@ def get_account(
 def place_new_order(
     data: PlaceOrderRequest,
     current_user: CurrentUser,
+    response: Response,
     db: Session = Depends(get_db),
 ):
     """
@@ -103,6 +104,7 @@ def place_new_order(
 
     Example request:
     {
+        "client_order_id": "62a1b0dd-2287-44c4-8cc5-9310720d0d6f",
         "instrument":   "NIFTY",
         "expiry_date":  "2026-07-10",
         "strike_price": 22150,
@@ -115,6 +117,7 @@ def place_new_order(
     }
     """
     order_dict = {
+        "client_order_id": data.client_order_id,
         "instrument":   data.instrument,
         "expiry_date":  data.expiry_date,
         "strike_price": data.strike_price,
@@ -131,10 +134,14 @@ def place_new_order(
     }
 
     order = place_order(db, current_user, order_dict)
+    was_replayed = getattr(order, "_idempotent_replay", False)
     db.commit()
     db.refresh(order)
 
-    notify_trading_update(current_user.id, "order_placed")
+    if was_replayed:
+        response.status_code = 200
+    else:
+        notify_trading_update(current_user.id, "order_placed")
     return OrderResponse.model_validate(order)
 
 

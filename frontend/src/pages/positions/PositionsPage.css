@@ -147,7 +147,7 @@
 .positions-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
-  align-items: start;
+  align-items: stretch;
   gap: 14px;
 }
 
@@ -162,7 +162,9 @@
 
 .positions-book-card {
   min-width: 0;
-  min-height: 420px;
+  min-height: 500px;
+  display: flex;
+  flex-direction: column;
 }
 
 .positions-book-header {
@@ -276,8 +278,13 @@
   cursor: wait;
 }
 
-.positions-book-content { min-height: 280px; }
-.positions-table-scroll { width: 100%; overflow-x: auto; }
+.positions-book-content {
+  min-height: 340px;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+.positions-table-scroll { width: 100%; flex: 1 1 auto; overflow-x: auto; }
 
 .positions-table {
   width: 100%;
@@ -292,9 +299,9 @@
   border-bottom: 1px solid var(--border);
   color: var(--text-muted);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 8.5px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.075em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -304,7 +311,7 @@
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-light);
   color: var(--text-sub);
-  font-size: 10.5px;
+  font-size: 13px;
   white-space: nowrap;
 }
 
@@ -333,7 +340,7 @@
 
 .positions-instrument strong {
   color: var(--text);
-  font-size: 10.5px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1.25;
   text-transform: capitalize;
@@ -342,7 +349,7 @@
 .positions-instrument span:not(.positions-type-badge) {
   margin-top: 2px;
   color: var(--text-muted);
-  font-size: 8.5px;
+  font-size: 11px;
 }
 
 .positions-type-badge {
@@ -355,7 +362,7 @@
   border-radius: 8px;
   background: var(--primary-bg);
   color: var(--primary);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -376,7 +383,7 @@
   border-radius: 999px;
   background: var(--gain-bg);
   color: var(--gain);
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1;
   font-weight: 750;
   letter-spacing: 0.025em;
@@ -433,7 +440,7 @@
 .positions-protection strong {
   display: block;
   color: var(--text);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -441,7 +448,7 @@
   display: block;
   margin-top: 2px;
   color: var(--text-muted);
-  font-size: 8.5px;
+  font-size: 11px;
 }
 
 .positions-row-actions {
@@ -457,7 +464,7 @@
   border-radius: 8px;
   background: transparent;
   color: var(--text-sub);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -477,6 +484,7 @@
 .positions-loading,
 .positions-empty-state {
   min-height: 280px;
+  flex: 1 1 auto;
   padding: 38px 20px;
   display: flex;
   flex-direction: column;
@@ -624,7 +632,8 @@
 }
 
 .positions-insight-list > div {
-  min-height: 38px;
+  min-height: 34px;
+  padding: 3px 0;
   display: flex;
   align-items: center;
   justify-content: space-between;

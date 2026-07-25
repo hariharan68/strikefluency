@@ -91,7 +91,7 @@ export default function OpenPositionCard({ position, onClose }) {
           disabled={loading}
           style={{ flex: 1 }}
         >
-          {loading ? 'Closing...' : confirming ? 'Confirm Close' : 'Close Position'}
+          {loading ? 'Closing paper trade...' : confirming ? 'Confirm Paper Close' : 'Close Paper Position'}
         </Button>
       </div>
     </div>

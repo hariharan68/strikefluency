@@ -17,6 +17,7 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine
 } from 'recharts'
 import useAuthStore from '../../store/authStore'
+import DisciplinePage from '../discipline/DisciplinePage'
 
 // ── Reference data ────────────────────────────────────────────────
 const TIER_META = {
@@ -223,12 +224,11 @@ function BarTooltip({ active, payload, label }) {
   )
 }
 
-// ── In-page tab nav (Dashboard / OrderBook / TradeBook / Logs) ────
+// ── In-page tab nav (Dashboard / AdvanceDashboard / Reports) ─────
 const TABS = [
   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { key: 'orderbook', label: 'OrderBook', icon: ClipboardList },
-  { key: 'tradebook', label: 'TradeBook', icon: Receipt },
-  { key: 'logs',      label: 'Logs',      icon: ScrollText },
+  { key: 'advance-dashboard', label: 'AdvanceDashboard', icon: Gauge },
+  { key: 'reports', label: 'Reports', icon: Shield },
 ]
 
 function DashTabs({ active, onChange }) {
@@ -656,12 +656,10 @@ export default function DashboardPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
 
-      {/* In-page nav — Dashboard / OrderBook / TradeBook / Logs */}
+      {/* In-page nav — Dashboard / AdvanceDashboard / Reports */}
       <DashTabs active={tab} onChange={setTab} />
 
-      {tab === 'orderbook' && <OrderBookTab />}
-      {tab === 'tradebook' && <TradeBookTab />}
-      {tab === 'logs' && <LogsTab />}
+      {tab === 'reports' && <DisciplinePage />}
 
       {tab === 'dashboard' && (<>
       {/* Discipline is the hero */}

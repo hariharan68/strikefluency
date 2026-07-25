@@ -44,6 +44,12 @@ def _ensure_strategy_schema(conn) -> None:
         if not insp.has_table(model.__tablename__):
             model.__table__.create(conn)
     vo_cols = {c["name"] for c in insp.get_columns("virtual_orders")}
+    if "client_order_id" not in vo_cols:
+        conn.execute(text(
+            "ALTER TABLE virtual_orders ADD COLUMN client_order_id UUID NULL"))
+        conn.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_virtual_orders_user_client_order "
+            "ON virtual_orders (user_id, client_order_id)"))
     if "strategy_id" not in vo_cols:
         conn.execute(text("ALTER TABLE virtual_orders ADD COLUMN strategy_id UUID NULL"))
     # ensure sl_price is nullable (Phase 5) regardless of migration state

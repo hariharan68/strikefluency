@@ -3,6 +3,8 @@ app/config.py — all configuration via .env
 """
 
 from functools import lru_cache
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,10 +36,14 @@ class Settings(BaseSettings):
     # App
     ENVIRONMENT: str = "development"
     SQL_ECHO: bool = False
+    # Permanent product boundary. Literal types make unsupported values fail
+    # during settings parsing, before the API can bind a port.
+    EXECUTION_MODE: Literal["paper_only"] = "paper_only"
+    BROKER_ACCESS_MODE: Literal["market_data_read_only"] = "market_data_read_only"
 
-    # Market data provider: mock | fyers
-    # ("truedata" and "kite" are not implemented — provider_factory falls back
-    # to mock for anything that isn't "fyers".)
+    # Market data provider: mock | fyers | nuvama | kite
+    # Exactly one is live at a time. Connecting one broker auto-disconnects the
+    # other two. Kite is deliberately fail-closed and never falls back to mock.
     MARKET_DATA_PROVIDER: str = "mock"
 
     # NIFTY_LOT_SIZE removed: it was never read anywhere, was stale (50 vs the
@@ -52,6 +58,26 @@ class Settings(BaseSettings):
     FYERS_ACCESS_TOKEN: str = ""
     FYERS_TOKEN_FILE: str = "fyers_token.json"
     FYERS_ACCESS_TOKEN_FILE: str = "access_token.txt"
+
+    # Nuvama (API Connect) — mirror of the Fyers block. app_key/secret come from
+    # the "Create New App" console; request_id is the one-time code from the
+    # login redirect, persisted so the provider can rebuild the session.
+    NUVAMA_API_KEY: str = ""
+    NUVAMA_API_SECRET: str = ""
+    NUVAMA_CLIENT_ID: str = ""
+    NUVAMA_REQUEST_ID: str = ""
+    NUVAMA_ACCESS_TOKEN: str = ""
+    NUVAMA_REDIRECT_URI: str = ""
+
+    # Zerodha Kite Connect (read-only market data).
+    KITE_API_KEY: str = ""
+    KITE_API_SECRET: str = ""
+    KITE_REDIRECT_URI: str = "http://127.0.0.1:8000/api/v1/auth/kite/callback"
+    KITE_ACCESS_TOKEN: str = ""
+    KITE_TICK_STALE_SECONDS: int = 15
+    KITE_ORDER_BLOCK_SECONDS: int = 30
+    KITE_OPTION_STRIKES_EACH_SIDE: int = 20
+
     BROKER_TOKEN_ENC_KEY: str = ""
     FRONTEND_URL: str = "http://localhost:5173"
 
@@ -78,6 +104,7 @@ class Settings(BaseSettings):
     SMTP_FROM: str = ""
     SMTP_STARTTLS: bool = True
     REDIS_URL: str = ""
+    SCHEDULER_LEADER_TTL_SECONDS: int = 30
     JTI_DENYLIST_ENABLED: bool = False
 
     @property
@@ -108,6 +135,16 @@ class Settings(BaseSettings):
             problems.append("FACEBOOK_REDIRECT_URI must use https in production")
         if self.FRONTEND_URL.startswith("http://"):
             problems.append("FRONTEND_URL must use https in production")
+        if self.MARKET_DATA_PROVIDER == "kite" and not self.REDIS_URL:
+            problems.append("REDIS_URL is required when Kite is selected")
+        if not self.REDIS_URL:
+            problems.append(
+                "REDIS_URL is required in production for scheduler leadership"
+            )
+        if self.MARKET_DATA_PROVIDER == "kite" and not self.BROKER_TOKEN_ENC_KEY:
+            problems.append("BROKER_TOKEN_ENC_KEY is required when Kite is selected")
+        if self.KITE_API_KEY and self.KITE_REDIRECT_URI.startswith("http://"):
+            problems.append("KITE_REDIRECT_URI must use https in production")
         if any(origin.startswith("http://") for origin in self.trusted_origins):
             problems.append("TRUSTED_ORIGINS must all use https in production")
         if problems:

@@ -11,7 +11,7 @@ import useMarketWebSocket from '../../hooks/useMarketWebSocket'
 const STORAGE_KEY = 'sf_sidebar_collapsed'
 
 export default function AppLayout() {
-  const setMarketStatus = useMarketStore(s => s.setMarketStatus)
+  const setStatus = useMarketStore(s => s.setStatus)
   const loadPrefs = usePreferencesStore(s => s.load)
   const { pathname } = useLocation()
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(STORAGE_KEY) === '1')
@@ -22,7 +22,7 @@ export default function AppLayout() {
   useMarketWebSocket()
 
   useEffect(() => {
-    const fetch = () => getStatus().then(r => setMarketStatus(r.data.is_open)).catch(() => {})
+    const fetch = () => getStatus().then(r => setStatus(r.data)).catch(() => {})
     fetch()
     loadPrefs()
     // The WS pushes `market_status` every 3s (even off-hours); this poll is

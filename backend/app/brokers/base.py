@@ -10,7 +10,13 @@ class InstrumentRef:
     instrument: str
 
 
-class BrokerAdapter(ABC):
+class MarketDataAdapter(ABC):
+    """Read-only broker market-data interface.
+
+    The interface deliberately has no order, position, holding, balance, or
+    journal methods. Paper execution belongs exclusively to local services.
+    """
+
     @abstractmethod
     def get_spot(self, ref: InstrumentRef) -> dict[str, Any]:
         pass
@@ -37,15 +43,3 @@ class BrokerAdapter(ABC):
     @abstractmethod
     def is_connected(self) -> bool:
         pass
-
-    def get_positions(self) -> list[dict[str, Any]]:
-        return []
-
-    def get_orders(self) -> list[dict[str, Any]]:
-        return []
-
-    def get_holdings(self) -> list[dict[str, Any]]:
-        return []
-
-    def place_order(self, payload: dict[str, Any]) -> dict[str, Any]:
-        raise NotImplementedError("Live broker order placement is not enabled")

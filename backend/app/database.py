@@ -65,5 +65,10 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        # Keep each request as one explicit transaction boundary. This also
+        # releases any SELECT ... FOR UPDATE locks immediately on failure.
+        db.rollback()
+        raise
     finally:
         db.close()

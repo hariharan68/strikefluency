@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class PlaceOrderRequest(BaseModel):
+    # Generated once by the client and reused if the HTTP request is retried.
+    client_order_id: uuid.UUID
     instrument:   Literal["NIFTY", "BANKNIFTY", "SENSEX"] = "NIFTY"
     expiry_date:  date
     strike_price: int
@@ -44,6 +46,7 @@ class OrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    client_order_id: Optional[uuid.UUID] = None
     instrument: str
     expiry_date: date
     strike_price: Decimal

@@ -3,8 +3,14 @@ import { Link } from 'react-router-dom'
 import useAuthStore from '../../store/authStore'
 import usePreferencesStore from '../../store/preferencesStore'
 import { useToast } from '../../components/common/Toast'
-import { clearFyersToken, getFyersProfile, getFyersStatus, revokeFyersCredentials } from '../../api/broker'
+import {
+  clearFyersToken, getFyersProfile, getFyersStatus, revokeFyersCredentials,
+  clearNuvamaToken, getNuvamaProfile, getNuvamaStatus, revokeNuvamaCredentials,
+  clearKiteToken, getKiteStatus, revokeKiteCredentials,
+} from '../../api/broker'
 import FyersSetupWizard from '../../components/broker/FyersSetupWizard'
+import NuvamaSetupWizard from '../../components/broker/NuvamaSetupWizard'
+import KiteSetupWizard from '../../components/broker/KiteSetupWizard'
 import DisciplineModeToggle from '../../components/discipline/DisciplineModeToggle'
 import { getSessions, logout, logoutAll, revokeSession, updateProfile } from '../../api/auth'
 import useTheme, { DARK_THEME, FOREST_LIGHT_THEME, MISTY_LIGHT_THEME } from '../../hooks/useTheme'
@@ -263,174 +269,226 @@ function NotificationSettings() {
   )
 }
 
-function BrokerIntegrationSection() {
-  const [status, setStatus] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [wizardOpen, setWizardOpen] = useState(false)
-  const { success, error } = useToast()
-
-  const loadStatus = async () => {
-    try {
-      const res = await getFyersStatus()
-      setStatus(res.data)
-    } catch (err) {
-      setStatus({
-        configured: false,
-        connected: false,
-        has_token: false,
-        message: err.response?.data?.detail || 'Unable to load Fyers status',
-      })
-    }
-  }
-
-  useEffect(() => {
-    loadStatus()
-  }, [])
-
-  const refreshProfile = async () => {
-    setLoading(true)
-    try {
-      const res = await getFyersProfile()
-      setStatus(prev => ({
-        ...(prev || {}),
-        connected: true,
-        has_token: true,
-        message: 'Connected',
-        profile: res.data?.data || res.data,
-      }))
-      success('Fyers profile refreshed')
-    } catch (err) {
-      error(err.response?.data?.detail || 'Unable to fetch Fyers profile')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // DISCONNECT — drop the session/token but keep credentials in .env.
-  // Reconnect needs only OAuth (no key re-entry).
-  const disconnect = async () => {
-    setLoading(true)
-    try {
-      const res = await clearFyersToken()
-      success(res.data?.message || 'Fyers disconnected — credentials kept, reconnect anytime')
-      await loadStatus()
-    } catch (err) {
-      error(err.response?.data?.detail || 'Unable to disconnect Fyers')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // REVOKE — wipe App ID + Secret ID from .env. Reconnect needs new keys.
-  const revoke = async () => {
-    if (!window.confirm('Revoke Fyers credentials? Your App ID and Secret ID will be removed from the server and you will need to re-enter them to reconnect.')) return
-    setLoading(true)
-    try {
-      const res = await revokeFyersCredentials()
-      success(res.data?.message || 'Fyers credentials revoked')
-      await loadStatus()
-    } catch (err) {
-      error(err.response?.data?.detail || 'Unable to revoke Fyers credentials')
-    } finally {
-      setLoading(false)
-    }
-  }
-
+// Presentational row shared by both brokers. Only one broker can be live at a
+// time (enforced server-side), so the same states drive both rows identically.
+function BrokerRow({ label, subtitle, status, loading, onAdd, onConnect, onRefresh, onDisconnect, onRevoke, canManage = true }) {
   const configured = !!status?.configured
   const connected = !!status?.connected
-  const badgeLabel = connected ? 'Connected' : status?.has_token ? 'Token saved' : 'Not connected'
-  const badgeColor = connected ? 'var(--gain-text)' : status?.has_token ? 'var(--warn)' : 'var(--text-sub)'
-  const badgeBg = connected ? 'var(--gain-bg)' : status?.has_token ? 'var(--warn-bg)' : 'var(--color-surface2)'
+  const stateLabels = {
+    connecting: 'Connecting', reconnect_required: 'Reconnect required',
+    feed_reconnecting: 'Feed reconnecting', live: 'Live',
+    stale: 'Stale', unavailable: 'Unavailable',
+  }
+  const badgeLabel = stateLabels[status?.state] || (connected ? 'Connected' : status?.has_token ? 'Token saved' : 'Not connected')
+  const healthy = connected && !['stale', 'reconnect_required', 'unavailable'].includes(status?.state)
+  const badgeColor = healthy ? 'var(--gain-text)' : status?.has_token ? 'var(--warn)' : 'var(--text-sub)'
+  const badgeBg = healthy ? 'var(--gain-bg)' : status?.has_token ? 'var(--warn-bg)' : 'var(--color-surface2)'
   const profileName = status?.profile?.name || status?.profile?.display_name
 
   return (
-    <Card>
-      <SectionHeader icon={LinkIcon} title="Broker Integration" subtitle="Connect your Fyers account for live market data" />
-      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 12, background: 'var(--primary-bg)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-            }}>
-              <LinkIcon size={20} color="var(--primary)" />
+    <div style={{
+      padding: '20px 20px 20px 17px', display: 'flex', flexDirection: 'column', gap: 16,
+      borderLeft: `3px solid ${connected ? 'var(--gain)' : 'transparent'}`,
+      background: connected ? 'color-mix(in srgb, var(--gain-bg) 55%, transparent)' : 'transparent',
+      transition: 'background 0.2s'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 12, background: 'var(--primary-bg)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+          }}>
+            <LinkIcon size={20} color="var(--primary)" />
+          </div>
+          <div>
+            <div style={{ color: 'var(--text)', fontSize: 14, fontWeight: 600 }}>
+              {label}{profileName ? ` — ${profileName}` : ''}
             </div>
-            <div>
-              <div style={{ color: 'var(--text)', fontSize: 14, fontWeight: 600 }}>
-                Fyers{profileName ? ` — ${profileName}` : ''}
-              </div>
-              <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 3 }}>
-                {connected
-                  ? `Live market data active · token ${status?.token_preview || ''}`
-                  : status?.message || 'Connect your Fyers account in a guided 3-step setup.'}
-              </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 3 }}>
+              {connected
+                ? `Live market data active · token ${status?.token_preview || ''}`
+                : status?.message || subtitle}
             </div>
           </div>
-          <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: badgeBg, color: badgeColor }}>
-            {badgeLabel}
-          </span>
         </div>
+        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20, background: badgeBg, color: badgeColor }}>
+          {badgeLabel}
+        </span>
+      </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-          {!configured ? (
-            // First time — no credentials stored. Full guided setup.
-            <button type="button" className="sf-btn-primary" onClick={() => setWizardOpen(true)}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        {!canManage ? (
+          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+            Connection management is restricted to administrators.
+          </span>
+        ) : !configured ? (
+          <button type="button" className="sf-btn-primary" onClick={onAdd}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <LinkIcon size={15} />
+            Add {label} Broker
+          </button>
+        ) : !connected ? (
+          <>
+            <button type="button" className="sf-btn-primary" onClick={onConnect}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               <LinkIcon size={15} />
-              Add Fyers Broker
+              Connect
             </button>
-          ) : !connected ? (
-            // Credentials stored but no live session — connect via OAuth only
-            // (the wizard opens straight at the Connect step), or Revoke to wipe keys.
-            <>
-              <button type="button" className="sf-btn-primary" onClick={() => setWizardOpen(true)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <LinkIcon size={15} />
-                Connect
-              </button>
-              <button type="button" className="sf-btn-outline" disabled={loading} onClick={revoke}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--loss)' }}>
-                <Trash2 size={15} />
-                Revoke
-              </button>
-            </>
-          ) : (
-            // Connected — Disconnect (keep keys) or Revoke (wipe keys).
-            <>
-              <button type="button" className="sf-btn-outline" disabled={loading} onClick={refreshProfile}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <RefreshCw size={15} />
-                Refresh Profile
-              </button>
-              <button type="button" className="sf-btn-outline" disabled={loading} onClick={disconnect}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--warn, #f5c451)' }}>
-                <Unplug size={15} />
-                Disconnect
-              </button>
-              <button type="button" className="sf-btn-outline" disabled={loading} onClick={revoke}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--loss)' }}>
-                <Trash2 size={15} />
-                Revoke
-              </button>
-            </>
-          )}
-        </div>
-
-        {connected && status?.profile && (
-          <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--color-surface2)', padding: 14 }}>
-            <div style={{ color: 'var(--text)', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Profile</div>
-            <pre style={{ margin: 0, color: 'var(--text-sub)', fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {JSON.stringify(status.profile, null, 2)}
-            </pre>
-          </div>
+            <button type="button" className="sf-btn-outline" disabled={loading} onClick={onRevoke}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--loss)' }}>
+              <Trash2 size={15} />
+              Revoke
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="sf-btn-outline" disabled={loading} onClick={onRefresh}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <RefreshCw size={15} />
+              Refresh Profile
+            </button>
+            <button type="button" className="sf-btn-outline" disabled={loading} onClick={onDisconnect}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--warn, #f5c451)' }}>
+              <Unplug size={15} />
+              Disconnect
+            </button>
+            <button type="button" className="sf-btn-outline" disabled={loading} onClick={onRevoke}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--loss)' }}>
+              <Trash2 size={15} />
+              Revoke
+            </button>
+          </>
         )}
       </div>
 
-      <FyersSetupWizard
-        isOpen={wizardOpen}
-        onClose={() => setWizardOpen(false)}
-        onConnected={loadStatus}
+      {connected && status?.profile && (
+        <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--color-surface2)', padding: 14 }}>
+          <div style={{ color: 'var(--text)', fontSize: 12, fontWeight: 600, marginBottom: 8 }}>Profile</div>
+          <pre style={{ margin: 0, color: 'var(--text-sub)', fontSize: 11, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {JSON.stringify(status.profile, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BrokerIntegrationSection() {
+  const user = useAuthStore(s => s.user)
+  const canManage = ['tenant_admin', 'super_admin'].includes(user?.role)
+  const [fyers, setFyers] = useState(null)
+  const [nuvama, setNuvama] = useState(null)
+  const [kite, setKite] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [fyersWizard, setFyersWizard] = useState(false)
+  const [nuvamaWizard, setNuvamaWizard] = useState(false)
+  const [kiteWizard, setKiteWizard] = useState(false)
+  const { success, error } = useToast()
+
+  // The two brokers are mutually exclusive on the server — connecting one
+  // auto-disconnects the other — so we always reload BOTH after any change so
+  // the "Not connected" flip is reflected immediately.
+  const loadAll = async () => {
+    try { setFyers((await getFyersStatus()).data) }
+    catch (err) { setFyers({ configured: false, connected: false, has_token: false, message: err.response?.data?.detail || 'Unable to load Fyers status' }) }
+    try { setNuvama((await getNuvamaStatus()).data) }
+    catch (err) { setNuvama({ configured: false, connected: false, has_token: false, message: err.response?.data?.detail || 'Unable to load Nuvama status' }) }
+    try { setKite((await getKiteStatus()).data) }
+    catch (err) { setKite({ configured: false, connected: false, has_token: false, state: 'unavailable', message: err.response?.data?.detail || 'Unable to load Zerodha status' }) }
+  }
+
+  useEffect(() => { loadAll() }, [])
+
+  // Shared disconnect/revoke runner — toast the server message, then reload both.
+  const run = async (fn, okMsg, failMsg) => {
+    setLoading(true)
+    try {
+      const res = await fn()
+      success(res?.data?.message || okMsg)
+      await loadAll()
+    } catch (err) {
+      error(err.response?.data?.detail || failMsg)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const refreshProfile = async (getProfile, setter, name) => {
+    setLoading(true)
+    try {
+      const res = await getProfile()
+      setter(prev => ({ ...(prev || {}), connected: true, has_token: true, message: 'Connected', profile: res.data?.data || res.data }))
+      success(`${name} profile refreshed`)
+    } catch (err) {
+      error(err.response?.data?.detail || `Unable to fetch ${name} profile`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const revokeFyers = () => {
+    if (!window.confirm('Revoke Fyers credentials? Your App ID and Secret ID will be removed from the server and you will need to re-enter them to reconnect.')) return
+    run(revokeFyersCredentials, 'Fyers credentials revoked', 'Unable to revoke Fyers credentials')
+  }
+  const revokeNuvama = () => {
+    if (!window.confirm('Revoke Nuvama credentials? Your API Key and Secret will be removed from the server and you will need to re-enter them to reconnect.')) return
+    run(revokeNuvamaCredentials, 'Nuvama credentials revoked', 'Unable to revoke Nuvama credentials')
+  }
+  const revokeKite = () => {
+    if (!window.confirm('Revoke Zerodha credentials? The API key and secret will be removed from the server.')) return
+    run(revokeKiteCredentials, 'Zerodha credentials revoked', 'Unable to revoke Zerodha credentials')
+  }
+
+  return (
+    <Card>
+      <SectionHeader icon={LinkIcon} title="Broker Integration" subtitle="Connect one provider for live market data — Fyers, Nuvama, or Zerodha" />
+
+      <BrokerRow
+        label="Fyers"
+        subtitle="Connect your Fyers account in a guided 3-step setup."
+        status={fyers}
+        loading={loading}
+        onAdd={() => setFyersWizard(true)}
+        onConnect={() => setFyersWizard(true)}
+        onRefresh={() => refreshProfile(getFyersProfile, setFyers, 'Fyers')}
+        onDisconnect={() => run(clearFyersToken, 'Fyers disconnected — credentials kept, reconnect anytime', 'Unable to disconnect Fyers')}
+        onRevoke={revokeFyers}
+        canManage={canManage}
       />
+
+      <div style={{ height: 1, background: 'var(--border)' }} />
+
+      <BrokerRow
+        label="Nuvama"
+        subtitle="Connect your Nuvama account in a guided 3-step setup."
+        status={nuvama}
+        loading={loading}
+        onAdd={() => setNuvamaWizard(true)}
+        onConnect={() => setNuvamaWizard(true)}
+        onRefresh={() => refreshProfile(getNuvamaProfile, setNuvama, 'Nuvama')}
+        onDisconnect={() => run(clearNuvamaToken, 'Nuvama disconnected — credentials kept, reconnect anytime', 'Unable to disconnect Nuvama')}
+        onRevoke={revokeNuvama}
+        canManage={canManage}
+      />
+
+      <div style={{ height: 1, background: 'var(--border)' }} />
+
+      <BrokerRow
+        label="Zerodha"
+        subtitle="Connect a shared read-only Kite Connect account."
+        status={kite}
+        loading={loading}
+        onAdd={() => setKiteWizard(true)}
+        onConnect={() => setKiteWizard(true)}
+        onRefresh={loadAll}
+        onDisconnect={() => run(clearKiteToken, 'Zerodha disconnected — credentials kept', 'Unable to disconnect Zerodha')}
+        onRevoke={revokeKite}
+        canManage={canManage}
+      />
+
+      <FyersSetupWizard isOpen={fyersWizard} onClose={() => setFyersWizard(false)} onConnected={loadAll} />
+      <NuvamaSetupWizard isOpen={nuvamaWizard} onClose={() => setNuvamaWizard(false)} onConnected={loadAll} />
+      <KiteSetupWizard isOpen={kiteWizard} onClose={() => setKiteWizard(false)} onConnected={loadAll} />
     </Card>
   )
 }
@@ -685,7 +743,7 @@ const SECTION_META = {
   discipline: 'Rules that gate your orders',
   notifications: 'In-app alerts & toasts',
   customization: 'Personalize your workspace',
-  broker: 'Live market data via Fyers',
+  broker: 'Live market data via Fyers or Nuvama',
   account: 'Sessions & sign-out',
 }
 
