@@ -3,6 +3,7 @@ import { getSpot, getStatus } from '../../api/market'
 import { getOptionMetrics } from '../../api/options'
 import useMarketStore from '../../store/marketStore'
 import { Radio, ArrowUp, ArrowDown, Minus, Clock, Activity, Scale, Target } from 'lucide-react'
+import { getApiErrorMessage } from '../../utils/apiError'
 
 const INDICES = [
   { key: 'NIFTY', label: 'NIFTY 50', short: 'NIFTY', accent: '#adc9ff' },
@@ -319,7 +320,7 @@ export default function Terminal1Page() {
         setMetrics(res.data)
         setMetricsErr('')
       } catch (e) {
-        if (!cancelled) setMetricsErr(e.response?.data?.detail || 'Unable to load option metrics')
+        if (!cancelled) setMetricsErr(getApiErrorMessage(e, 'Unable to load option metrics'))
       } finally {
         if (!cancelled) setMetricsLoading(false)
       }

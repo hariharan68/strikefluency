@@ -4,6 +4,7 @@ import { placeOrder } from '../../api/trading'
 import { LOT_SIZES, SETUP_TAG_LABELS, SETUP_TAGS } from '../../utils/constants'
 import { nearestThursday } from '../../utils/formatters'
 import { useToast } from '../common/Toast'
+import { getApiErrorMessage } from '../../utils/apiError'
 
 const money = (value, digits = 0) => `₹${Math.abs(Number(value) || 0).toLocaleString('en-IN', {
   minimumFractionDigits: digits,
@@ -148,8 +149,7 @@ export default function OrderFormPanel({
       setProductType('INTRADAY')
       await onSuccess?.()
     } catch (requestError) {
-      const detail = requestError.response?.data?.detail
-      setError(typeof detail === 'string' ? detail : detail?.message || 'Order failed — review the discipline checks and try again.')
+      setError(getApiErrorMessage(requestError, 'Order failed — review the discipline checks and try again.'))
     } finally {
       setLoading(false)
     }

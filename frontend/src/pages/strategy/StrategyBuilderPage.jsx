@@ -22,6 +22,7 @@ import useMarketStore from '../../store/marketStore'
 import { useToast } from '../../components/common/Toast'
 import { formatCurrency } from '../../utils/formatters'
 import { SETUP_TAGS, SETUP_TAG_LABELS } from '../../utils/constants'
+import { getApiErrorMessage, toDisplayMessage } from '../../utils/apiError'
 import './StrategyBuilderPage.css'
 
 const INSTRUMENTS = ['NIFTY', 'BANKNIFTY', 'SENSEX']
@@ -254,7 +255,7 @@ export default function StrategyBuilderPage() {
 
   const reportError = useCallback((message, retry) => {
     retryRef.current = retry
-    setErrorState(new Error(message))
+    setErrorState(new Error(toDisplayMessage(message)))
   }, [])
 
   const refreshLibraries = useCallback(async () => {
@@ -558,7 +559,7 @@ export default function StrategyBuilderPage() {
       toast.success('Paper strategy executed')
       navigate('/positions')
     } catch (error) {
-      reportError(error.response?.data?.detail?.message || error.response?.data?.detail || 'The strategy could not be executed.', execute)
+      reportError(getApiErrorMessage(error, 'The strategy could not be executed.'), execute)
     } finally {
       setExecuting(false)
     }

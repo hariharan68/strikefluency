@@ -15,6 +15,7 @@ import DisciplineModeToggle from '../../components/discipline/DisciplineModeTogg
 import { getSessions, logout, logoutAll, revokeSession, updateProfile } from '../../api/auth'
 import useTheme, { DARK_THEME, FOREST_LIGHT_THEME, MISTY_LIGHT_THEME } from '../../hooks/useTheme'
 import { User, Bell, Shield, ShieldCheck, Globe, LogOut, ChevronRight, Link as LinkIcon, RefreshCw, Unplug, Trash2, Palette, Check } from 'lucide-react'
+import { getApiErrorMessage } from '../../utils/apiError'
 
 const Card = ({ children, style = {} }) => (
   <div style={{
@@ -89,7 +90,7 @@ function ProfileSection({ user }) {
       setUser(r.data)          // refresh name app-wide (sidebar/topbar)
       success('Profile updated')
     } catch (err) {
-      error(err.response?.data?.detail || 'Could not update profile')
+      error(getApiErrorMessage(err, 'Could not update profile'))
     } finally {
       setSaving(false)
     }
@@ -390,11 +391,11 @@ function BrokerIntegrationSection() {
   // the "Not connected" flip is reflected immediately.
   const loadAll = async () => {
     try { setFyers((await getFyersStatus()).data) }
-    catch (err) { setFyers({ configured: false, connected: false, has_token: false, message: err.response?.data?.detail || 'Unable to load Fyers status' }) }
+    catch (err) { setFyers({ configured: false, connected: false, has_token: false, message: getApiErrorMessage(err, 'Unable to load Fyers status') }) }
     try { setNuvama((await getNuvamaStatus()).data) }
-    catch (err) { setNuvama({ configured: false, connected: false, has_token: false, message: err.response?.data?.detail || 'Unable to load Nuvama status' }) }
+    catch (err) { setNuvama({ configured: false, connected: false, has_token: false, message: getApiErrorMessage(err, 'Unable to load Nuvama status') }) }
     try { setKite((await getKiteStatus()).data) }
-    catch (err) { setKite({ configured: false, connected: false, has_token: false, state: 'unavailable', message: err.response?.data?.detail || 'Unable to load Zerodha status' }) }
+    catch (err) { setKite({ configured: false, connected: false, has_token: false, state: 'unavailable', message: getApiErrorMessage(err, 'Unable to load Zerodha status') }) }
   }
 
   useEffect(() => { loadAll() }, [])
@@ -407,7 +408,7 @@ function BrokerIntegrationSection() {
       success(res?.data?.message || okMsg)
       await loadAll()
     } catch (err) {
-      error(err.response?.data?.detail || failMsg)
+      error(getApiErrorMessage(err, failMsg))
     } finally {
       setLoading(false)
     }
@@ -420,7 +421,7 @@ function BrokerIntegrationSection() {
       setter(prev => ({ ...(prev || {}), connected: true, has_token: true, message: 'Connected', profile: res.data?.data || res.data }))
       success(`${name} profile refreshed`)
     } catch (err) {
-      error(err.response?.data?.detail || `Unable to fetch ${name} profile`)
+      error(getApiErrorMessage(err, `Unable to fetch ${name} profile`))
     } finally {
       setLoading(false)
     }

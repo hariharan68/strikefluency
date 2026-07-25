@@ -6,6 +6,7 @@ import useMarketStore from '../../store/marketStore'
 import { ltpFromChain } from '../../utils/livePnl'
 import { SETUP_TAGS, SETUP_TAG_LABELS } from '../../utils/constants'
 import { useToast } from '../common/Toast'
+import { getApiErrorMessage } from '../../utils/apiError'
 import './FloatingOrderTicket.css'
 
 const money = (n) => (n == null || isNaN(n) ? '—' : '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 }))
@@ -116,8 +117,7 @@ export default function FloatingOrderTicket({ ticket, disciplineOff = false, pre
       onPlaced?.()
       onClose?.()
     } catch (e) {
-      const d = e.response?.data?.detail
-      setError(typeof d === 'string' ? d : d?.message || 'Order failed — check discipline rules, margin, or market hours.')
+      setError(getApiErrorMessage(e, 'Order failed — check discipline rules, margin, or market hours.'))
     } finally {
       setLoading(false)
     }

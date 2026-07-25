@@ -56,6 +56,17 @@ def test_redis_failure_pauses_state_jobs():
     assert leadership.is_leader() is False
 
 
+def test_development_fallback_runs_state_jobs_when_redis_is_offline():
+    leadership = SchedulerLeadership(
+        "redis://test",
+        client=BrokenRedis(),
+        allow_local_fallback=True,
+    )
+
+    assert leadership.refresh() is True
+    assert leadership.is_leader() is True
+
+
 def test_single_process_development_mode_needs_no_redis():
     leadership = SchedulerLeadership("")
 

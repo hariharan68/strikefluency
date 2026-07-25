@@ -1,7 +1,9 @@
 import { XCircle } from 'lucide-react'
+import { toDisplayMessage } from '../../utils/apiError'
 
 export default function ErrorMessage({ message }) {
   if (!message) return null
+  const displayMessage = toDisplayMessage(message)
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 10,
@@ -14,7 +16,7 @@ export default function ErrorMessage({ message }) {
       fontFamily: 'Inter,sans-serif'
     }}>
       <XCircle size={16} color="#ff6875" style={{ flexShrink: 0 }} />
-      <span>{message}</span>
+      <span>{displayMessage}</span>
     </div>
   )
 }

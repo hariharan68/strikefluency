@@ -7,6 +7,7 @@ import usePreferencesStore from '../../store/preferencesStore'
 import useDiscipline from '../../hooks/useDiscipline'
 import { LOT_SIZES } from '../../utils/constants'
 import FloatingOrderTicket from '../../components/trading/FloatingOrderTicket'
+import { getApiErrorMessage } from '../../utils/apiError'
 
 // WS metrics/analytics broadcasts cover the DEFAULT expiry only; when the user
 // picks another expiry the page falls back to plain REST polling as before.
@@ -163,7 +164,7 @@ export default function OptionChainPage() {
       setChain(c.data)
       setErr('')
     } catch (e) {
-      setErr(e.response?.data?.detail || 'Unable to load option chain')
+      setErr(getApiErrorMessage(e, 'Unable to load option chain'))
     }
   }
 

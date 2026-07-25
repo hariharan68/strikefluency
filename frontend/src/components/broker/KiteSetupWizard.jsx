@@ -5,6 +5,7 @@ import {
 } from '../../api/broker'
 import { useToast } from '../common/Toast'
 import Modal from '../common/Modal'
+import { getApiErrorMessage } from '../../utils/apiError'
 
 const REDIRECT_URI = 'http://127.0.0.1:8000/api/v1/auth/kite/callback'
 
@@ -47,7 +48,7 @@ export default function KiteSetupWizard({ isOpen, onClose, onConnected }) {
       setStep(3)
       success('Kite app credentials saved securely')
     } catch (err) {
-      error(err.response?.data?.detail || 'Could not save Kite credentials')
+      error(getApiErrorMessage(err, 'Could not save Kite credentials'))
     } finally {
       setBusy(false)
     }
@@ -79,7 +80,7 @@ export default function KiteSetupWizard({ isOpen, onClose, onConnected }) {
       setStatus({ state: 'connecting', message: 'Complete Zerodha login in the popup' })
       poll()
     } catch (err) {
-      const message = err.response?.data?.detail || err.message || 'Could not start Zerodha login'
+      const message = getApiErrorMessage(err, 'Could not start Zerodha login')
       setStatus({ state: 'unavailable', message })
       error(message)
     } finally {
@@ -93,7 +94,7 @@ export default function KiteSetupWizard({ isOpen, onClose, onConnected }) {
       const response = await syncKiteInstruments()
       success(`${response.data.synced?.toLocaleString() || ''} Kite instruments synced`)
     } catch (err) {
-      error(err.response?.data?.detail || 'Instrument sync failed; previous catalog kept')
+      error(getApiErrorMessage(err, 'Instrument sync failed; previous catalog kept'))
     } finally {
       setBusy(false)
     }

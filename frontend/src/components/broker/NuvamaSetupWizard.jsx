@@ -8,6 +8,7 @@ import {
   getNuvamaLogin,
   saveNuvamaCredentials,
 } from '../../api/broker'
+import { getApiErrorMessage } from '../../utils/apiError'
 
 const FALLBACK_REDIRECT = 'https://127.0.0.1/'
 const NUVAMA_CONSOLE = 'https://www.nuvamawealth.com/api-connect/'
@@ -122,7 +123,7 @@ export default function NuvamaSetupWizard({ isOpen, onClose, onConnected }) {
       setApiSecret('')
       setStep(3)
     } catch (err) {
-      setFormError(err.response?.data?.detail || 'Could not save credentials')
+      setFormError(getApiErrorMessage(err, 'Could not save credentials'))
     } finally {
       setSaving(false)
     }
@@ -136,7 +137,7 @@ export default function NuvamaSetupWizard({ isOpen, onClose, onConnected }) {
       const res = await getNuvamaLogin()
       window.open(res.data.login_url, 'nuvama-connect', 'width=520,height=720')
     } catch (err) {
-      error(err.response?.data?.detail || 'Unable to generate the Nuvama login URL')
+      error(getApiErrorMessage(err, 'Unable to generate the Nuvama login URL'))
     }
   }
 
@@ -150,7 +151,7 @@ export default function NuvamaSetupWizard({ isOpen, onClose, onConnected }) {
       onConnected?.()
       onClose?.()
     } catch (err) {
-      setFormError(err.response?.data?.detail || 'Could not connect Nuvama — check the request_id and your whitelisted IP')
+      setFormError(getApiErrorMessage(err, 'Could not connect Nuvama — check the request_id and your whitelisted IP'))
     } finally {
       setConnecting(false)
     }

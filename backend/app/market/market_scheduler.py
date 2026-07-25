@@ -32,6 +32,13 @@ scheduler = AsyncIOScheduler(timezone="Asia/Kolkata")
 state_job_leadership = SchedulerLeadership(
     settings.REDIS_URL,
     ttl_seconds=settings.SCHEDULER_LEADER_TTL_SECONDS,
+    # Local mock/Fyers/Nuvama development normally runs one Uvicorn worker.
+    # Keep scheduled paper-trading state healthy when Docker/Redis is offline,
+    # while production and Kite remain fail-closed.
+    allow_local_fallback=(
+        settings.is_development
+        and settings.MARKET_DATA_PROVIDER != "kite"
+    ),
 )
 
 

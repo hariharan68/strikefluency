@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react'
 import { CheckCircle, XCircle, AlertTriangle, X } from 'lucide-react'
+import { toDisplayMessage } from '../../utils/apiError'
 
 const ToastContext = createContext(null)
 
@@ -8,7 +9,7 @@ export function ToastProvider({ children }) {
 
   const add = useCallback((type, message) => {
     const id = Date.now() + Math.random()
-    setToasts(prev => [...prev, { id, type, message }])
+    setToasts(prev => [...prev, { id, type, message: toDisplayMessage(message) }])
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
   }, [])
 

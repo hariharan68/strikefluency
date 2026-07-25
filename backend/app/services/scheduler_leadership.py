@@ -42,17 +42,21 @@ class SchedulerLeadership:
         ttl_seconds: int = 30,
         key: str = "strikefluency:scheduler:state-leader",
         client=None,
+        allow_local_fallback: bool = False,
     ):
         self.redis_url = redis_url.strip()
         self.ttl_seconds = max(9, int(ttl_seconds))
         self.key = key
         self.token = uuid.uuid4().hex
         self._client = client
+        self.allow_local_fallback = bool(allow_local_fallback)
         self._leader = not bool(self.redis_url)
         self._state_lock = threading.Lock()
         self._stop = threading.Event()
         self._thread = None
         self._last_error_log = 0.0
+        self._fallback_logged = False
+        self._redis_lease_active = False
 
     @property
     def distributed(self) -> bool:
@@ -96,6 +100,8 @@ class SchedulerLeadership:
             with self._state_lock:
                 changed = leader != self._leader
                 self._leader = leader
+                self._redis_lease_active = leader
+            self._fallback_logged = False
             if changed:
                 logger.info(
                     "Scheduler state-job leadership %s",
@@ -104,15 +110,24 @@ class SchedulerLeadership:
             return leader
         except RedisError as exc:
             with self._state_lock:
-                self._leader = False
+                self._leader = self.allow_local_fallback
+                self._redis_lease_active = False
             now = time.monotonic()
-            if now - self._last_error_log >= 30:
+            if self.allow_local_fallback:
+                if not self._fallback_logged:
+                    logger.warning(
+                        "Redis leadership unavailable; using single-process "
+                        "development scheduler fallback: %s",
+                        exc,
+                    )
+                    self._fallback_logged = True
+            elif now - self._last_error_log >= 30:
                 logger.error(
                     "Scheduler leadership unavailable; state jobs are paused: %s",
                     exc,
                 )
-                self._last_error_log = now
-            return False
+            self._last_error_log = now
+            return self.allow_local_fallback
 
     def is_leader(self) -> bool:
         with self._state_lock:
@@ -147,7 +162,7 @@ class SchedulerLeadership:
             self._thread.join(timeout=3)
         self._thread = None
 
-        if self.distributed:
+        if self.distributed and self._redis_lease_active:
             try:
                 self._get_client().eval(
                     _RELEASE_SCRIPT,
@@ -160,4 +175,5 @@ class SchedulerLeadership:
                     "Could not release scheduler leadership; lease will expire"
                 )
         with self._state_lock:
+            self._redis_lease_active = False
             self._leader = not self.distributed

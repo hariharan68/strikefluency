@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as authApi from '../api/auth'
 import useAuthStore from '../store/authStore'
+import { getApiErrorMessage } from '../utils/apiError'
 
 export function useLogin() {
   const [error, setError] = useState(null)
@@ -17,7 +18,7 @@ export function useLogin() {
       setAuth(res.data.user, res.data.access_token)
       navigate('/dashboard')
     } catch (e) {
-      setError(e.response?.data?.detail || e.response?.data?.message || 'Login failed')
+      setError(getApiErrorMessage(e, 'Login failed'))
     } finally {
       setLoading(false)
     }
@@ -40,7 +41,7 @@ export function useRegister() {
       setAuth(res.data.user, res.data.access_token)
       navigate('/dashboard')
     } catch (e) {
-      setError(e.response?.data?.detail || e.response?.data?.message || 'Registration failed')
+      setError(getApiErrorMessage(e, 'Registration failed'))
     } finally {
       setLoading(false)
     }

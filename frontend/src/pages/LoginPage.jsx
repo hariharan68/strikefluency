@@ -6,6 +6,7 @@ import { oauthStartUrl, confirmOAuthLink } from '../api/oauth'
 import useAuthStore, { getAccessToken } from '../store/authStore'
 import * as authApi from '../api/auth'
 import { useNavigate } from 'react-router-dom'
+import { getApiErrorMessage } from '../utils/apiError'
 
 // ── Sidebar feature row ───────────────────────────────────────────
 function Feature({ children }) {
@@ -64,7 +65,7 @@ function LinkChallengeBanner({ challengeId, provider, onSuccess }) {
       setAuth(data.user, data.access_token)
       navigate('/dashboard', { replace: true })
     } catch (err) {
-      setError(err.response?.data?.detail || 'Incorrect password or expired link.')
+      setError(getApiErrorMessage(err, 'Incorrect password or expired link.'))
     } finally {
       setLoading(false)
     }

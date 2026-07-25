@@ -3,6 +3,7 @@ import { Check, Copy, ExternalLink, Link as LinkIcon } from 'lucide-react'
 import Modal from '../common/Modal'
 import { useToast } from '../common/Toast'
 import { getFyersCredentials, getFyersLogin, getFyersStatus, saveFyersCredentials } from '../../api/broker'
+import { getApiErrorMessage } from '../../utils/apiError'
 
 const FALLBACK_REDIRECT = 'http://127.0.0.1:8000/api/v1/auth/fyers/callback'
 const FYERS_DASHBOARD = 'https://myapi.fyers.in/dashboard'
@@ -114,7 +115,7 @@ export default function FyersSetupWizard({ isOpen, onClose, onConnected }) {
       setSecretId('')
       setStep(3)
     } catch (err) {
-      setFormError(err.response?.data?.detail || 'Could not save credentials')
+      setFormError(getApiErrorMessage(err, 'Could not save credentials'))
     } finally {
       setSaving(false)
     }
@@ -155,7 +156,7 @@ export default function FyersSetupWizard({ isOpen, onClose, onConnected }) {
     } catch (err) {
       try { popup.close() } catch {}
       setConnecting(false)
-      error(err.response?.data?.detail || 'Unable to generate the Fyers login URL')
+      error(getApiErrorMessage(err, 'Unable to generate the Fyers login URL'))
     }
   }
 
