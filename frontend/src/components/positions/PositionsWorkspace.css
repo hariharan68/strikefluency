@@ -20,6 +20,25 @@
   letter-spacing: -0.045em;
 }
 
+/* Embedded inside the Trading Desk: the desk owns the page title, so the
+   heading collapses to a compact section label. Everything below it renders
+   exactly as it does on the standalone /positions route. */
+.positions-page.embedded { max-width: none; }
+
+.positions-page.embedded .positions-page-heading {
+  align-items: center;
+  margin: 0 0 14px;
+}
+
+.positions-page-heading h2 {
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.positions-page.embedded .positions-page-heading p { margin-top: 4px; font-size: 12px; }
+
 .positions-page-heading p {
   margin-top: 7px;
   color: var(--text-sub);

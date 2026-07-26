@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Ban, LogIn, LogOut, RefreshCw, Wallet } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { Activity, AlertTriangle, Ban, LogIn, LogOut, RefreshCw, ShieldCheck, Wallet } from 'lucide-react'
 import { getOptionChain } from '../../api/market'
 import { closeOrder, getOrders, getPositions, getTradebook } from '../../api/trading'
 import { getTodayViolations } from '../../api/discipline'
-import OptionChainTable from '../../components/trading/OptionChainTable'
-import OrderFormPanel from '../../components/trading/OrderFormPanel'
+import OptionChainWorkspace from '../../components/optionchain/OptionChainWorkspace'
+import PositionsWorkspace from '../../components/positions/PositionsWorkspace'
 import DisciplineModeToggle from '../../components/discipline/DisciplineModeToggle'
 import { useToast } from '../../components/common/Toast'
 import useDiscipline from '../../hooks/useDiscipline'
@@ -15,13 +16,15 @@ import useTradingStore from '../../store/tradingStore'
 import { livePnl, ltpFromChain } from '../../utils/livePnl'
 import './TradingDeskPage.css'
 
-const INSTRUMENTS = ['NIFTY', 'BANKNIFTY', 'SENSEX']
-const WINDOWS = [5, 10, 15, 'All']
 const BOOK_TABS = [
   { key: 'positions', label: 'Open Positions' },
   { key: 'tradebook', label: 'Position Book' },
   { key: 'orderbook', label: 'Orderbook' },
   { key: 'activity', label: 'Activity' },
+]
+const VIEWS = [
+  { key: 'trade', label: 'Trade', icon: Activity },
+  { key: 'positions', label: 'Positions', icon: Wallet },
 ]
 
 const asNumber = value => {
@@ -47,6 +50,19 @@ const formatTime = iso => {
     second: '2-digit',
     hour12: false,
   })
+}
+
+function StatTile({ label, flag, value, note, tone = 'default', accent = false }) {
+  return (
+    <article className={`trade-stat-tile${accent ? ' accent' : ''}`}>
+      <div className="trade-stat-head">
+        <span>{label}</span>
+        {flag && <span className="trade-stat-flag">{flag}</span>}
+      </div>
+      <strong className={`trade-stat-value num ${tone}`}>{value}</strong>
+      <p>{note}</p>
+    </article>
+  )
 }
 
 function SideBadge({ side }) {
@@ -133,50 +149,36 @@ export default function TradingDeskPage() {
   const account = useTradingStore(state => state.account)
   const eventSeq = useTradingStore(state => state.eventSeq)
   const allChains = useMarketStore(state => state.chains)
+  const lastUpdate = useMarketStore(state => state.lastUpdate)
   const { loadAccount } = useVirtualTrading()
   const { mode, loadMode } = useDiscipline()
   const { success, error: toastError } = useToast()
 
+  // The desk hosts two views. Keeping the active one in the URL means
+  // /trading?view=positions deep-links (and survives a reload) exactly the way
+  // the standalone /positions route does.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const view = searchParams.get('view') === 'positions' ? 'positions' : 'trade'
+
+  // The chain desk owns the instrument selector now; the desk only mirrors it so
+  // it can keep the market store seeded for open-position marks.
   const [instrument, setInstrument] = useState(prefs.default_instrument || 'NIFTY')
-  const [strikeCount, setStrikeCount] = useState(5)
-  const [prefill, setPrefill] = useState(null)
-  const [chainLoading, setChainLoading] = useState(false)
   const [positions, setPositions] = useState([])
+  const [marginBlocked, setMarginBlocked] = useState(0)
   const [orders, setOrders] = useState([])
   const [trades, setTrades] = useState([])
   const [violations, setViolations] = useState([])
   const [bookTab, setBookTab] = useState('positions')
   const [bookLoading, setBookLoading] = useState(true)
-  const pickedInstrument = useRef(false)
 
-  const optionChain = useMarketStore(state => state.chains[instrument]) || null
   const disciplineOff = mode?.enabled === false
 
-  useEffect(() => {
-    if (!pickedInstrument.current) setInstrument(prefs.default_instrument || 'NIFTY')
-  }, [prefs.default_instrument])
-
-  const pickInstrument = value => {
-    pickedInstrument.current = true
-    setInstrument(value)
+  const changeView = next => {
+    const params = new URLSearchParams(searchParams)
+    if (next === 'positions') params.set('view', 'positions')
+    else params.delete('view')
+    setSearchParams(params, { replace: true })
   }
-
-  const viewChain = useMemo(() => {
-    const strikes = optionChain?.strikes
-    if (!strikes?.length || strikeCount === 'All') return optionChain
-    const atm = optionChain.atm_strike
-    const atmIndex = strikes.reduce(
-      (best, row, index) => Math.abs(row.strike - atm) < Math.abs(strikes[best].strike - atm) ? index : best,
-      0,
-    )
-    return {
-      ...optionChain,
-      strikes: strikes.slice(
-        Math.max(0, atmIndex - strikeCount),
-        Math.min(strikes.length, atmIndex + strikeCount + 1),
-      ),
-    }
-  }, [optionChain, strikeCount])
 
   const loadTradingData = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) setBookLoading(true)
@@ -187,7 +189,10 @@ export default function TradingDeskPage() {
       safe(getTradebook(1, 'today')),
       safe(getTodayViolations()),
     ])
-    if (positionData) setPositions(positionData.positions || positionData || [])
+    if (positionData) {
+      setPositions(positionData.positions || positionData || [])
+      setMarginBlocked(asNumber(positionData.total_margin_blocked))
+    }
     if (orderData) setOrders(orderData.orders || [])
     if (tradeData) setTrades(tradeData.orders || [])
     if (Array.isArray(violationData)) setViolations(violationData)
@@ -209,13 +214,12 @@ export default function TradingDeskPage() {
     return () => clearTimeout(timeout)
   }, [eventSeq, loadTradingData])
 
+  // Seed the market store for the visible instrument so open-position marks have
+  // a price before the first WebSocket chain frame lands.
   useEffect(() => {
-    setChainLoading(true)
-    setPrefill(null)
     getOptionChain(instrument)
       .then(response => useMarketStore.getState().setOptionChain(response.data?.data ?? response.data))
       .catch(() => {})
-      .finally(() => setChainLoading(false))
   }, [instrument])
 
   const openPositions = positions.filter(position => position.is_open || position.status === 'OPEN')
@@ -236,6 +240,11 @@ export default function TradingDeskPage() {
   const bookedPnl = account?.today_realized_pnl != null ? asNumber(account.today_realized_pnl) : tradebookPnl
   const winners = trades.filter(trade => asNumber(trade.pnl) > 0).length
   const winRate = trades.length ? winners / trades.length * 100 : 0
+  const balance = asNumber(account?.account?.balance)
+  const initialCapital = asNumber(account?.account?.initial_balance) || balance
+  const disciplineScore = asNumber(account?.account?.discipline_score)
+  const disciplineStreak = asNumber(account?.account?.consecutive_disciplined_trades)
+  const chainLive = lastUpdate != null && Date.now() - lastUpdate < 12000
 
   const activity = useMemo(() => {
     const rows = orders.map(order => ({
@@ -284,7 +293,6 @@ export default function TradingDeskPage() {
   }
 
   const refreshAfterOrder = async () => {
-    setPrefill(null)
     await Promise.all([loadAccount(), loadTradingData({ quiet: true })])
   }
 
@@ -299,7 +307,7 @@ export default function TradingDeskPage() {
 
     if (bookTab === 'positions') {
       if (!openPositions.length) {
-        return <EmptyBook title="No open positions" description="Tap an option-chain LTP and place a virtual order to begin." />
+        return <EmptyBook title="No open positions" description="Hover a strike in the chain above and hit B or S to open a paper trade." />
       }
       return (
         <div className="trade-book-scroll">
@@ -398,27 +406,27 @@ export default function TradingDeskPage() {
 
   return (
     <div className="trading-desk-page">
-      <section className="trade-instrument-bar">
-        <div className="trade-instrument-tabs" role="tablist" aria-label="Underlying instrument">
-          {INSTRUMENTS.map(item => (
+      {/* The top bar already carries the page title, so the desk head is pure
+          control surface: which view is showing, and the discipline switch. */}
+      <header className="trade-page-head">
+        <div className="trade-view-switch" role="tablist" aria-label="Desk view">
+          {VIEWS.map(({ key, label, icon: Icon }) => (
             <button
               type="button"
               role="tab"
-              aria-selected={instrument === item}
-              className={instrument === item ? 'active' : ''}
-              key={item}
-              onClick={() => pickInstrument(item)}
+              key={key}
+              aria-selected={view === key}
+              className={view === key ? 'active' : ''}
+              onClick={() => changeView(key)}
             >
-              {item}
+              <Icon size={15} strokeWidth={2} />
+              {label}
+              {key === 'positions' && counts.positions > 0 && <span>{counts.positions}</span>}
             </button>
           ))}
         </div>
-        <div className="trade-status-strip">
-          <span>Open P&amp;L:</span>
-          <strong className={`num ${openPnl >= 0 ? 'gain' : 'loss'}`}>{signedMoney(openPnl)}</strong>
-          <DisciplineModeToggle variant="compact" onChange={loadMode} />
-        </div>
-      </section>
+        <DisciplineModeToggle variant="compact" onChange={loadMode} />
+      </header>
 
       {disciplineOff && (
         <div className="trade-free-play-banner">
@@ -427,84 +435,76 @@ export default function TradingDeskPage() {
         </div>
       )}
 
-      <section className="trade-execution-grid">
-        <article className="trade-chain-card">
-          <header className="trade-panel-header">
-            <div>
-              <h2>Option Chain — {instrument}</h2>
-              <p>Tap any LTP to prefill the order ticket</p>
-            </div>
-            <div className="trade-window-control">
-              <span>Strikes ±ATM</span>
-              {WINDOWS.map(window => (
-                <button
-                  type="button"
-                  key={window}
-                  className={strikeCount === window ? 'active' : ''}
-                  onClick={() => setStrikeCount(window)}
-                >
-                  {window === 'All' ? 'All' : `±${window}`}
-                </button>
-              ))}
-            </div>
-          </header>
-          <OptionChainTable
-            data={viewChain}
-            instrument={instrument}
-            loading={chainLoading && !optionChain}
-            onCellClick={(strike, optionType, ltp) => setPrefill({
-              strike,
-              optionType,
-              ltp: prefs.auto_fill_ltp ? ltp : null,
-              expiry: optionChain?.expiry,
-              lotSize: optionChain?.lot_size,
-            })}
-          />
-        </article>
-
-        <aside className="trade-order-card">
-          <header className="trade-panel-header quick-order-header">
-            <h2>Paper Trade Ticket</h2>
-            <span>Simulation only</span>
-          </header>
-          <div className="trade-order-body">
-            <OrderFormPanel
-              prefill={prefill}
-              instrument={instrument}
-              disciplineOff={disciplineOff}
-              prefs={prefs}
-              chainExpiry={optionChain?.expiry}
-              chainLotSize={optionChain?.lot_size}
-              onSuccess={refreshAfterOrder}
+      {view === 'positions' ? (
+        <PositionsWorkspace embedded onNewTrade={() => changeView('trade')} />
+      ) : (
+        <>
+          <section className="trade-stat-rail" aria-label="Desk summary">
+            <StatTile
+              accent
+              label="Discipline Score"
+              flag={disciplineOff ? 'Paused' : <><ShieldCheck size={11} /> Active</>}
+              value={account ? disciplineScore.toFixed(0) : '—'}
+              note={`${disciplineStreak} disciplined trade${disciplineStreak === 1 ? '' : 's'} in a row`}
             />
-          </div>
-        </aside>
-      </section>
+            <StatTile
+              label="Open P&L"
+              flag={chainLive ? 'Live' : 'Last price'}
+              value={signedMoney(openPnl, 0)}
+              note={`${openPositions.length} open position${openPositions.length === 1 ? '' : 's'} · ${money(marginBlocked, 0)} margin`}
+              tone={openPnl >= 0 ? 'gain' : 'loss'}
+            />
+            <StatTile
+              label="Booked P&L"
+              flag="Today"
+              value={signedMoney(bookedPnl, 0)}
+              note={`${trades.length} closed trade${trades.length === 1 ? '' : 's'} · ${winRate.toFixed(0)}% win rate`}
+              tone={bookedPnl >= 0 ? 'default' : 'loss'}
+            />
+            <StatTile
+              label="Available Capital"
+              flag="Virtual"
+              value={money(balance, 0)}
+              note={`of ${money(initialCapital, 0)} sandbox capital`}
+            />
+          </section>
 
-      <section className="trade-books-card">
-        <header className="trade-books-header">
-          <div className="trade-book-tabs" role="tablist" aria-label="Trading books">
-            {BOOK_TABS.map(item => (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={bookTab === item.key}
-                className={bookTab === item.key ? 'active' : ''}
-                key={item.key}
-                onClick={() => setBookTab(item.key)}
-              >
-                {item.label} <span>{counts[item.key]}</span>
-              </button>
-            ))}
-          </div>
-          <div className="trade-book-summary">
-            <div><span>Open P&amp;L</span><strong className={openPnl >= 0 ? 'gain' : 'loss'}>{signedMoney(openPnl, 0)}</strong></div>
-            <div><span>Booked P&amp;L</span><strong className={bookedPnl >= 0 ? 'gain' : 'loss'}>{signedMoney(bookedPnl, 0)}</strong></div>
-            <div><span>Win Rate</span><strong>{winRate.toFixed(1)}%</strong></div>
-          </div>
-        </header>
-        <div className="trade-book-content">{renderBook()}</div>
-      </section>
+          {/* The full option-chain desk — instrument, expiry, market stats and
+              the chain itself. Buy/Sell on a strike opens the floating ticket. */}
+          <OptionChainWorkspace
+            onInstrumentChange={setInstrument}
+            onOrderPlaced={refreshAfterOrder}
+          />
+
+          <section className="trade-books-card">
+            <header className="trade-books-header">
+              <div className="trade-book-tabs" role="tablist" aria-label="Trading books">
+                {BOOK_TABS.map(item => (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={bookTab === item.key}
+                    className={bookTab === item.key ? 'active' : ''}
+                    key={item.key}
+                    onClick={() => setBookTab(item.key)}
+                  >
+                    {item.label} <span>{counts[item.key]}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="trade-book-summary">
+                <div><span>Open P&amp;L</span><strong className={openPnl >= 0 ? 'gain' : 'loss'}>{signedMoney(openPnl, 0)}</strong></div>
+                <div><span>Booked P&amp;L</span><strong className={bookedPnl >= 0 ? 'gain' : 'loss'}>{signedMoney(bookedPnl, 0)}</strong></div>
+                <div><span>Win Rate</span><strong>{winRate.toFixed(1)}%</strong></div>
+                <button type="button" className="trade-books-link" onClick={() => changeView('positions')}>
+                  Full positions view
+                </button>
+              </div>
+            </header>
+            <div className="trade-book-content">{renderBook()}</div>
+          </section>
+        </>
+      )}
     </div>
   )
 }
