@@ -7,6 +7,7 @@ import { getStatus } from '../../api/market'
 import useMarketStore from '../../store/marketStore'
 import usePreferencesStore from '../../store/preferencesStore'
 import useMarketWebSocket from '../../hooks/useMarketWebSocket'
+import useLayoutMode from '../../hooks/useLayoutMode'
 
 const STORAGE_KEY = 'sf_sidebar_collapsed'
 
@@ -20,6 +21,10 @@ export default function AppLayout() {
   // protected routes) into marketStore — the Trade desk chain updates without
   // a manual instrument change.
   useMarketWebSocket()
+
+  // Keeps <html data-layout> in step with the saved choice (and with a change
+  // made in another tab) for the whole protected shell.
+  useLayoutMode()
 
   useEffect(() => {
     const fetch = () => getStatus().then(r => setStatus(r.data)).catch(() => {})

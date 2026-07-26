@@ -15,6 +15,12 @@
         if (t !== 'dark' && t !== 'light' && t !== 'forest-light') t = 'dark';
         document.documentElement.classList.add(t);
         document.documentElement.dataset.theme = t;
+
+        // Same idea for the shell layout — set it before paint so the sidebar
+        // doesn't start wide and snap to the icon rail.
+        var l = localStorage.getItem('sf-layout') || 'full';
+        if (l !== 'full' && l !== 'icon') l = 'full';
+        document.documentElement.dataset.layout = l;
       })();
     </script>
     <script type="module" src="/src/main.jsx"></script>

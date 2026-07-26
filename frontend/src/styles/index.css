@@ -756,6 +756,69 @@ input:focus, select:focus, textarea:focus { outline: none; }
 .sf-empty-workspace h2 { margin-top: 14px; color: var(--text); font-size: 16px; font-weight: 700; }
 .sf-empty-workspace p { margin-top: 5px; color: var(--text-muted); font-size: 12px; }
 
+/* ── Icon-only sidebar rail (Settings → Customization → Layout) ────────
+   Only needed on wide screens: below 1180px the responsive rules further
+   down already collapse the sidebar to icons, and below 820px it becomes a
+   top row where a rail makes no sense. */
+@media (min-width: 1181px) {
+  :root[data-layout='icon'] .sf-main-shell { margin-left: 72px; }
+  :root[data-layout='icon'] .sf-sidebar { width: 72px; padding: 20px 10px 16px; }
+  :root[data-layout='icon'] .sf-sidebar-toggle { left: 72px; }
+
+  :root[data-layout='icon'] .sf-brand {
+    justify-content: center;
+    padding: 0 0 16px;
+  }
+  :root[data-layout='icon'] .sf-brand span { display: none; }
+
+  :root[data-layout='icon'] .sf-side-nav { gap: 4px; }
+  :root[data-layout='icon'] .sf-nav-link {
+    position: relative;
+    justify-content: center;
+    min-height: 42px;
+    padding: 0;
+  }
+
+  /* Label becomes a hover tooltip on the rail's right edge. */
+  :root[data-layout='icon'] .sf-nav-link > span { display: none; }
+  :root[data-layout='icon'] .sf-nav-link::after {
+    content: attr(data-label);
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 70;
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: var(--shadow-md);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s ease;
+  }
+  :root[data-layout='icon'] .sf-nav-link:hover::after,
+  :root[data-layout='icon'] .sf-nav-link:focus-visible::after { opacity: 1; }
+
+  :root[data-layout='icon'] .sf-nav-button {
+    width: 42px !important;
+    margin: 0 auto 16px !important;
+  }
+
+  /* The rules above tie on specificity with the collapse rules and would win on
+     source order, stranding a 72px gutter when the rail is hidden. Restate them
+     for the collapsed shell. */
+  :root[data-layout='icon'] .sf-app-shell.sidebar-collapsed .sf-main-shell { margin-left: 0; }
+  :root[data-layout='icon'] .sf-app-shell.sidebar-collapsed .sf-sidebar-toggle {
+    left: 12px;
+    transform: none;
+  }
+}
+
 @media (max-width: 1180px) {
   .sf-main-shell { margin-left: 84px; }
   .sf-sidebar { width: 84px; padding: 18px 12px; }

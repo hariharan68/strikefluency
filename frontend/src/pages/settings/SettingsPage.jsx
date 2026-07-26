@@ -14,7 +14,8 @@ import KiteSetupWizard from '../../components/broker/KiteSetupWizard'
 import DisciplineModeToggle from '../../components/discipline/DisciplineModeToggle'
 import { getSessions, logout, logoutAll, revokeSession, updateProfile } from '../../api/auth'
 import useTheme, { DARK_THEME, FOREST_LIGHT_THEME, MISTY_LIGHT_THEME } from '../../hooks/useTheme'
-import { User, Bell, Shield, ShieldCheck, Globe, LogOut, ChevronRight, Link as LinkIcon, RefreshCw, Unplug, Trash2, Palette, Check } from 'lucide-react'
+import useLayoutMode, { FULL_LAYOUT, ICON_LAYOUT } from '../../hooks/useLayoutMode'
+import { User, Bell, Shield, ShieldCheck, Globe, LogOut, ChevronRight, Link as LinkIcon, RefreshCw, Unplug, Trash2, Palette, PanelLeft, Check } from 'lucide-react'
 import { getApiErrorMessage } from '../../utils/apiError'
 
 const Card = ({ children, style = {} }) => (
@@ -628,10 +629,160 @@ const THEME_OPTIONS = [
   },
 ]
 
+const LAYOUT_OPTIONS = [
+  {
+    id: FULL_LAYOUT,
+    name: 'Default',
+    badge: 'Default',
+    description: 'Sidebar shows an icon and a label for every section.',
+    railWidth: 46,
+    showLabels: true,
+  },
+  {
+    id: ICON_LAYOUT,
+    name: 'Icon Rail',
+    badge: 'Compact',
+    description: 'Icon-only sidebar. Labels appear on hover, giving pages more width.',
+    railWidth: 18,
+    showLabels: false,
+  },
+]
+
+// Miniature of the app shell: rail on the left, page on the right. Drawn from
+// theme tokens so it always matches the palette the user is actually on.
+function LayoutPreview({ option }) {
+  const rows = [0, 1, 2, 3]
+  return (
+    <div style={{
+      height: 112, padding: 12,
+      background: 'var(--color-surface2)',
+      borderBottom: '1px solid var(--border)',
+    }}>
+      <div style={{
+        height: '100%', display: 'grid', gridTemplateColumns: `${option.railWidth}px 1fr`,
+        overflow: 'hidden', border: '1px solid var(--border)', borderRadius: 10,
+        background: 'var(--color-surface)',
+      }}>
+        <div style={{
+          padding: '8px 5px', display: 'flex', flexDirection: 'column', gap: 7,
+          alignItems: option.showLabels ? 'stretch' : 'center',
+          borderRight: '1px solid var(--border)',
+          background: 'var(--sidebar-bg, var(--color-surface))',
+        }}>
+          <div style={{ width: 8, height: 8, borderRadius: 3, background: 'var(--primary)', flexShrink: 0 }} />
+          {rows.map(row => (
+            <div key={row} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{
+                width: 6, height: 6, borderRadius: 2, flexShrink: 0,
+                background: row === 0 ? 'var(--primary)' : 'var(--text-muted)',
+                opacity: row === 0 ? 1 : 0.55,
+              }} />
+              {option.showLabels && (
+                <div style={{
+                  width: row === 1 ? 20 : 26, height: 3, borderRadius: 99,
+                  background: row === 0 ? 'var(--primary)' : 'var(--border)',
+                }} />
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: 9 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 9 }}>
+            <div style={{ width: 48, height: 5, borderRadius: 99, background: 'var(--text)', opacity: 0.8 }} />
+            <div style={{ width: 24, height: 8, borderRadius: 99, background: 'var(--primary)' }} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+            {rows.map(item => (
+              <div key={item} style={{ height: 24, border: '1px solid var(--border)', borderRadius: 6, padding: 5 }}>
+                <div style={{
+                  width: item % 2 ? '62%' : '78%', height: 3, borderRadius: 99,
+                  background: item === 0 ? 'var(--primary)' : 'var(--border)',
+                }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LayoutSection() {
+  const { layout, setLayout } = useLayoutMode()
+
+  return (
+    <Card>
+      <SectionHeader icon={PanelLeft} title="Layout" subtitle="Choose how the app shell and sidebar are arranged" />
+      <div style={{ padding: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
+          {LAYOUT_OPTIONS.map(option => {
+            const selected = layout === option.id
+            return (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setLayout(option.id)}
+                style={{
+                  minWidth: 0, padding: 0, overflow: 'hidden', textAlign: 'left', cursor: 'pointer',
+                  borderRadius: 14,
+                  border: selected ? '2px solid var(--primary)' : '1px solid var(--border)',
+                  background: 'var(--color-surface)',
+                  boxShadow: selected ? '0 0 0 3px var(--primary-bg), var(--shadow)' : 'var(--shadow)',
+                  fontFamily: 'Inter,sans-serif',
+                  position: 'relative',
+                }}
+              >
+                <LayoutPreview option={option} />
+                {selected && (
+                  <span style={{
+                    position: 'absolute', top: 8, right: 8, width: 22, height: 22,
+                    display: 'grid', placeItems: 'center', borderRadius: '50%',
+                    color: 'var(--on-primary)', background: 'var(--primary)',
+                    boxShadow: '0 4px 12px rgba(var(--primary-glow-rgb),0.28)',
+                  }}>
+                    <Check size={13} strokeWidth={3} />
+                  </span>
+                )}
+
+                <div style={{ padding: '13px 14px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={{ color: 'var(--text)', fontSize: 13, fontWeight: 700 }}>{option.name}</span>
+                    <span style={{
+                      flexShrink: 0, padding: '2px 7px', borderRadius: 999,
+                      color: selected ? 'var(--primary)' : 'var(--text-muted)',
+                      background: selected ? 'var(--primary-bg)' : 'var(--color-surface2)',
+                      fontSize: 9, fontWeight: 700, letterSpacing: '0.02em',
+                    }}>
+                      {selected ? 'Selected' : option.badge}
+                    </span>
+                  </div>
+                  <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: 10.5, lineHeight: 1.5, marginTop: 6 }}>
+                    {option.description}
+                  </span>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+
+        <div style={{
+          marginTop: 16, padding: '10px 12px', borderRadius: 10,
+          color: 'var(--text-muted)', background: 'var(--color-surface2)',
+          border: '1px solid var(--border)', fontSize: 11, lineHeight: 1.5,
+        }}>
+          Saved on this device, like your theme. Only the sidebar changes — every page keeps its own layout. On narrow screens the sidebar already collapses to icons on its own.
+        </div>
+      </div>
+    </Card>
+  )
+}
+
 function CustomizationSection() {
   const { theme, setTheme } = useTheme()
 
   return (
+    <>
     <Card>
       <SectionHeader icon={Palette} title="Theme" subtitle="Choose the color and texture used across StrikeFluency" />
       <div style={{ padding: 20 }}>
@@ -725,6 +876,9 @@ function CustomizationSection() {
         </div>
       </div>
     </Card>
+
+    <LayoutSection />
+    </>
   )
 }
 

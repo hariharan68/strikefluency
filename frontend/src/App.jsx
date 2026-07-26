@@ -19,6 +19,7 @@ import Terminal1Page from './pages/terminal/Terminal1Page'
 import PositionsPage from './pages/positions/PositionsPage'
 import StrategyBuilderPage from './pages/strategy/StrategyBuilderPage'
 import OptionChainPage from './pages/optionchain/OptionChainPage'
+import ToolsPage from './pages/tools/ToolsPage'
 import TradingDeskPage from './pages/trading/TradingDeskPage'
 import DisciplinePage from './pages/discipline/DisciplinePage'
 import DisciplineModePage from './pages/discipline/DisciplineModePage'
@@ -145,6 +146,7 @@ export default function App() {
               <Route path="/terminal-1" element={<Terminal1Page />} />
               <Route path="/positions" element={<PositionsPage />} />
               <Route path="/option-chain" element={<OptionChainPage />} />
+              <Route path="/tools" element={<ToolsPage />} />
               <Route path="/trading" element={<TradingDeskPage />} />
               <Route path="/strategy-builder" element={<StrategyBuilderPage />} />
               <Route path="/discipline" element={<DisciplinePage />} />

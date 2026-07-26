@@ -16,6 +16,7 @@ const PAGE_META = {
   '/trading': { title: 'Trading Desk', subtitle: 'Scan the option chain, place virtual orders, and manage positions.' },
   '/strategy-builder': { title: 'Strategy Builder', subtitle: 'Build, model, and paper-trade multi-leg option strategies.' },
   '/option-chain': { title: 'Option Chain', subtitle: 'Analyze strikes, open interest, volume, and market positioning.' },
+  '/tools': { title: 'Tools', subtitle: 'Trading utilities and calculators.' },
   '/journal': { title: 'Trade Journal', subtitle: 'Review setups, emotions, mistakes, and lessons from each trade.' },
   '/analytics': { title: 'Analytics', subtitle: 'Measure P&L, discipline trends, and execution quality over time.' },
   '/discipline': { title: 'Reports', subtitle: 'Monitor rule compliance, violations, and discipline score health.' },

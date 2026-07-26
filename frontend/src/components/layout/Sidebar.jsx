@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, ShieldCheck, BookOpen, BarChart2, LogOut,
-  TrendingUp, Settings, Radio, Layers, Table2, Wallet
+  TrendingUp, Settings, Radio, Layers, Table2, Wallet, Wrench
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import * as authApi from '../../api/auth'
@@ -13,6 +13,7 @@ const navItems = [
   { to: '/positions', icon: Wallet, label: 'Positions' },
   { to: '/strategy-builder', icon: Layers, label: 'Strategy Builder' },
   { to: '/option-chain', icon: Table2, label: 'Option Chain' },
+  { to: '/tools', icon: Wrench, label: 'Tools' },
   { to: '/discipline-mode', icon: ShieldCheck, label: 'Discipline Mode' },
   { to: '/journal', icon: BookOpen, label: 'Journal' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },
@@ -46,8 +47,15 @@ export default function Sidebar() {
       </div>
 
       <nav className="sf-side-nav" aria-label="Primary navigation">
+        {/* data-label feeds the hover tooltip when the icon-rail layout hides
+            the text (Settings → Customization → Layout). */}
         {navItems.map(({ to, icon: Icon, label }) => (
-          <NavLink key={to} to={to} className={({ isActive }) => `sf-nav-link${isActive ? ' active' : ''}`}>
+          <NavLink
+            key={to}
+            to={to}
+            data-label={label}
+            className={({ isActive }) => `sf-nav-link${isActive ? ' active' : ''}`}
+          >
             <Icon size={17} strokeWidth={1.9} />
             <span>{label}</span>
           </NavLink>
@@ -59,6 +67,7 @@ export default function Sidebar() {
       <button
         type="button"
         onClick={handleSignOut}
+        data-label="Sign out"
         className="sf-nav-link sf-nav-button"
         style={{ margin: '0 8px 16px', width: 'calc(100% - 16px)' }}
       >
