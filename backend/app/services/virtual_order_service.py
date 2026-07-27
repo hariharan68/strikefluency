@@ -211,19 +211,29 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
     )
     db.add(position)
 
-    # ── Deduct margin + update session ─────────────────────
+    # ── Deduct margin + charge entry brokerage + update session ──
     ledger_service.block_margin(
         db, account, margin_required,
         reference_type=ledger_service.LedgerRef.VIRTUAL_ORDER,
         reference_id=order.id,
         description=f"Margin blocked: {instrument} {strike_price} {option_type} {action}",
     )
+    # Charged at entry, not netted into `pnl`. `pnl` deducts only the exit leg
+    # (close_position), so adding the entry leg there as well would charge it
+    # twice. Reporting reads `pnl - entry_brokerage` for the round-trip net.
+    ledger_service.charge(
+        db, account, entry_brokerage.total,
+        reference_type=ledger_service.LedgerRef.VIRTUAL_ORDER,
+        reference_id=order.id,
+        description=f"Entry brokerage: {instrument} {strike_price} {option_type} {action}",
+    )
     increment_trade_count(session)
     order._idempotent_replay = False
 
     logger.info(
         f"Order placed: {instrument} {strike_price} {option_type} {action} "
-        f"qty={quantity} fill=₹{fill_price} margin=₹{margin_required}"
+        f"qty={quantity} fill=₹{fill_price} margin=₹{margin_required} "
+        f"brokerage=₹{entry_brokerage.total}"
     )
 
     return order

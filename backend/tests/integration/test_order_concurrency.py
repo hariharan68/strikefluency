@@ -299,7 +299,12 @@ def test_manual_close_race_releases_margin_once(db_engine, committed_user):
     assert sorted(outcome[0] for outcome in outcomes) == ["already_closed", "closed"]
     assert position.is_open is False
     assert journals == 1
-    assert account.balance == Decimal("100000.00") + order.pnl
+    # `pnl` nets the exit brokerage only; the entry leg was debited separately
+    # at placement, so it must be subtracted here too. Expressed relative to
+    # order.entry_brokerage rather than a literal because slippage is random.
+    assert account.balance == (
+        Decimal("100000.00") + order.pnl - order.entry_brokerage
+    )
     # The losing thread must not have double-posted the margin release.
     with Session(db_engine) as db:
         assert_ledger_reconciles(db, committed_user)
