@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import useTheme from '../../hooks/useTheme'
 import useAuthStore from '../../store/authStore'
+import { isAdminRole } from './AdminRoute'
 
 const PAGE_META = {
   '/positions': { title: 'Positions & Books', subtitle: 'Trading workspace' },
@@ -24,6 +25,7 @@ const PAGE_META = {
   '/settings': { title: 'Settings', subtitle: 'Manage profile, broker integration, preferences, and account controls.' },
   '/api-key': { title: 'API Key', subtitle: 'Manage application credentials and API access.' },
   '/reports': { title: 'Reports', subtitle: 'Review generated trading and account reports.' },
+  '/admin': { title: 'Administration', subtitle: 'Read-only operator view: audit trail, users, funds ledger, and system health.' },
 }
 
 export default function TopBar() {
@@ -41,7 +43,7 @@ export default function TopBar() {
   const providerStatus = brokerStatus || marketStatus
   const kiteProblem = providerStatus?.selected_provider === 'kite'
     && ['connecting', 'reconnect_required', 'feed_reconnecting', 'stale', 'unavailable'].includes(providerStatus?.state)
-  const isAdmin = ['tenant_admin', 'super_admin'].includes(user?.role)
+  const isAdmin = isAdminRole(user?.role)
   const profileName = user?.full_name || user?.email || 'Trader'
   const profileInitial = profileName.charAt(0).toUpperCase()
 

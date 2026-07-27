@@ -238,6 +238,42 @@ denominator that `discipline_mode_service` mutates on capital unlock.
   conftest drift patcher *and* to the `committed_user` teardown in
   `tests/integration/test_order_concurrency.py`, or the suite breaks confusingly.
 
+### Admin surface (`app/routers/admin.py`, `/admin`)
+
+Read-only operator view: overview + system health, the **audit trail read
+surface** (previously psql-only), users, funds ledger, and daily snapshots.
+
+**Deliberately read-only.** Every mutation an admin might want already exists
+behind a user-facing endpoint or belongs in psql, and a half-built "adjust this
+balance" button is a bigger liability than its absence. Any write added here
+must post to `virtual_fund_ledger` and `audit_logs` like anything else.
+
+**Scoping is the security-critical part**, and this is the first place
+`tenant_id` is used for read *isolation* rather than only being written:
+
+- `tenant_admin` → own tenant only. `super_admin` → all tenants.
+- The scope comes from the **admin's own row**, never a query parameter, so no
+  request input can widen it. Naming another tenant's `user_id` returns empty
+  (audit) or 404 (ledger) rather than that user's data — both are tested.
+- Unattributable failed logins (unknown email → no `user_id`/`tenant_id`) are
+  visible only to a `super_admin`; a tenant admin could not attribute them.
+
+`GET /admin/ledger?user_id=…` reports **`reconciles`** — whether that account's
+balance still equals the sum of its ledger rows. That is the Phase 1 invariant
+made visible, and it surfaces a balance mutated outside `ledger_service` instead
+of letting it pass unnoticed. It stays `null` when unscoped, where it is
+meaningless.
+
+Frontend: `AdminRoute.jsx` is the **first role guard in the app**
+(`ProtectedRoute` is authentication-only) and exports `isAdminRole` /
+`ADMIN_ROLES`, which `TopBar` now uses instead of its own inline array. The
+sidebar gained `adminOnly` filtering — items without the flag stay visible to
+everyone. The guard is UX only; every endpoint is independently enforced by
+`get_current_active_admin`.
+
+Roles are still assigned only at registration: **no `tenant_code` → tenant_admin,
+with one → trader**. There is no endpoint to change a role after the fact.
+
 ### Trading events (`app/events/`)
 
 Deliberately small — publisher and consumer are the same process, so this is a
