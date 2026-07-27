@@ -39,7 +39,13 @@ class VirtualOrder(Base):
     entry_time: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     exit_time: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     pnl: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    # Round-trip total: entry leg at placement, exit leg added on close.
     brokerage: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)
+    # The entry leg alone, kept separately because `pnl` nets only the exit leg
+    # (the entry leg is debited from balance at placement, so netting it into
+    # `pnl` as well would double-charge). Reporting reads `pnl - entry_brokerage`
+    # for the true round-trip net.
+    entry_brokerage: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)
     slippage_points: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0.00"), nullable=False)
     setup_tag: Mapped[str] = mapped_column(String(30), nullable=False)
     exit_reason: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)

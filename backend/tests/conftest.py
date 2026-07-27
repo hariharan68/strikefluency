@@ -71,6 +71,11 @@ def _ensure_strategy_schema(conn) -> None:
     if "was_free_play" not in vo_cols:
         conn.execute(text(
             "ALTER TABLE virtual_orders ADD COLUMN was_free_play BOOLEAN NOT NULL DEFAULT FALSE"))
+    # Entry brokerage leg (migration 20260728) — add if not yet applied.
+    if "entry_brokerage" not in vo_cols:
+        conn.execute(text(
+            "ALTER TABLE virtual_orders ADD COLUMN entry_brokerage "
+            "NUMERIC(10, 2) NOT NULL DEFAULT 0.00"))
     va_cols = {c["name"] for c in insp.get_columns("virtual_accounts")}
     if "discipline_mode_enabled" not in va_cols:
         conn.execute(text(

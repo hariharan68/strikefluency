@@ -139,14 +139,22 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
     gross_value     = fill_price * Decimal(lot_size) * Decimal(quantity)
     margin_required = (gross_value / Decimal(leverage)).quantize(Decimal("0.01"))
 
-    if account.balance < margin_required:
+    # ── Brokerage on entry ─────────────────────────────────
+    # Computed before the affordability check: entry brokerage is debited from
+    # the balance alongside the margin, so the check must cover both. Checking
+    # margin alone lets an order at the boundary drive the balance negative,
+    # which trips ck_virtual_accounts_balance_non_negative at the router's
+    # commit — an IntegrityError 500 instead of this clean 400.
+    entry_brokerage = calculate_brokerage(fill_price, quantity, lot_size, action)
+
+    total_required = margin_required + entry_brokerage.total
+
+    if account.balance < total_required:
         raise InsufficientBalanceError(
-            f"Insufficient balance. Required: ₹{margin_required}, "
+            f"Insufficient balance. Required: ₹{total_required} "
+            f"(margin ₹{margin_required} + brokerage ₹{entry_brokerage.total}), "
             f"Available: ₹{account.balance}"
         )
-
-    # ── Brokerage on entry ─────────────────────────────────
-    entry_brokerage = calculate_brokerage(fill_price, quantity, lot_size, action)
 
     # ── Create order ───────────────────────────────────────
     # SL / setup tag may be absent in free-play mode (the engine that requires
@@ -173,6 +181,7 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
         product_type=product_type,
         trading_day=current_trading_day(),
         brokerage=entry_brokerage.total,
+        entry_brokerage=entry_brokerage.total,
         slippage_points=slippage_points,
         setup_tag=order_data.get("setup_tag") or "OTHER",
         is_discipline_compliant=True,
