@@ -4,7 +4,7 @@ app/market/freshness.py
 One staleness contract for every market-data provider.
 
 Before this module, only Kite carried `as_of` / `age_ms` / `is_stale`, and only
-Kite had `assert_orderable`. Fyers, Nuvama and the mock had no staleness
+Kite had `assert_orderable`. Fyers and the mock had no staleness
 concept at all — a frozen chain looked exactly like a live one — and even on
 Kite the check ran at just two of the five places a fill can happen.
 
@@ -49,7 +49,6 @@ NON_LIVE_SOURCES = {
     "unavailable",
     "mock",
     "mock_fallback",
-    "nuvama_live_spot_mock_chain",
 }
 
 

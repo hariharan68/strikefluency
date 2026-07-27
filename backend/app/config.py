@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     EXECUTION_MODE: Literal["paper_only"] = "paper_only"
     BROKER_ACCESS_MODE: Literal["market_data_read_only"] = "market_data_read_only"
 
-    # Market data provider: mock | fyers | nuvama | kite
+    # Market data provider: mock | fyers | kite
     # Exactly one is live at a time. Connecting one broker auto-disconnects the
     # other two. Kite is deliberately fail-closed and never falls back to mock.
     MARKET_DATA_PROVIDER: str = "mock"
@@ -58,16 +58,6 @@ class Settings(BaseSettings):
     FYERS_ACCESS_TOKEN: str = ""
     FYERS_TOKEN_FILE: str = "fyers_token.json"
     FYERS_ACCESS_TOKEN_FILE: str = "access_token.txt"
-
-    # Nuvama (API Connect) — mirror of the Fyers block. app_key/secret come from
-    # the "Create New App" console; request_id is the one-time code from the
-    # login redirect, persisted so the provider can rebuild the session.
-    NUVAMA_API_KEY: str = ""
-    NUVAMA_API_SECRET: str = ""
-    NUVAMA_CLIENT_ID: str = ""
-    NUVAMA_REQUEST_ID: str = ""
-    NUVAMA_ACCESS_TOKEN: str = ""
-    NUVAMA_REDIRECT_URI: str = ""
 
     # Zerodha Kite Connect (read-only market data).
     KITE_API_KEY: str = ""

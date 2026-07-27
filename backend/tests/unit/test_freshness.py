@@ -46,7 +46,7 @@ def test_age_falls_back_to_as_of():
 
 
 def test_age_falls_back_to_plain_timestamp():
-    """Fyers, Nuvama and mock stamp `timestamp`, never `as_of`."""
+    """Fyers and mock stamp `timestamp`, never `as_of`."""
     ts = (datetime.now() - timedelta(seconds=3)).isoformat()   # naive, as they emit
     age = freshness.age_ms({"timestamp": ts})
     assert 2000 <= age <= 5000
@@ -79,7 +79,7 @@ def test_missing_timestamp_is_refused_in_production(production):
         freshness.assert_orderable({"source": "fyers"})
 
 
-@pytest.mark.parametrize("source", ["mock", "mock_fallback", "nuvama_live_spot_mock_chain"])
+@pytest.mark.parametrize("source", ["mock", "mock_fallback"])
 def test_simulated_sources_are_refused_in_production(production, source):
     with pytest.raises(RuntimeError, match="simulated"):
         freshness.assert_orderable(chain(source=source), instrument="NIFTY")

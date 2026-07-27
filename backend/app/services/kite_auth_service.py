@@ -162,10 +162,9 @@ def exchange_request_token(request_token: str, operation_id: str) -> dict[str, A
 
 
 def _disconnect_other_brokers() -> None:
-    from app.services import fyers_auth_service, nuvama_auth_service
+    from app.services import fyers_auth_service
 
     fyers_auth_service.clear_saved_token(revoke_db=True)
-    nuvama_auth_service.clear_saved_token(revoke_db=True)
 
 
 def activate_provider() -> None:

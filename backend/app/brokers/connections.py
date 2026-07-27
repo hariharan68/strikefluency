@@ -19,7 +19,6 @@ from app.models.broker_connection import BrokerConnection
 logger = logging.getLogger(__name__)
 
 BROKER_FYERS = "fyers"
-BROKER_NUVAMA = "nuvama"
 BROKER_KITE = "kite"
 STATUS_ACTIVE = "ACTIVE"
 STATUS_REVOKED = "REVOKED"
@@ -190,60 +189,6 @@ def revoke_fyers_token_best_effort() -> bool:
     except Exception as exc:
         db.rollback()
         logger.warning("Unable to revoke Fyers token: %s", exc)
-        return False
-    finally:
-        db.close()
-
-
-# ── Nuvama token helpers (twins of the Fyers ones above) ─────────────────────
-
-def load_nuvama_token_into_store() -> bool:
-    try:
-        db = SessionLocal()
-    except Exception as exc:
-        logger.warning("Unable to open DB session for Nuvama token hydration: %s", exc)
-        return False
-
-    try:
-        token = get_broker_token(db, broker=BROKER_NUVAMA, user_id=None)
-        if token:
-            token_store.set_in_memory(token, source="broker_connections")
-            logger.info("Loaded Nuvama token from broker_connections")
-            return True
-        return bool(token_store.get_access_token())
-    except Exception as exc:
-        logger.warning("Unable to hydrate Nuvama token from broker_connections: %s", exc)
-        return False
-    finally:
-        db.close()
-
-
-def save_nuvama_token_best_effort(access_token: str, meta: dict[str, Any] | None = None) -> bool:
-    db = SessionLocal()
-    try:
-        save_broker_token(
-            db,
-            broker=BROKER_NUVAMA,
-            access_token=access_token,
-            user_id=None,
-            meta=meta,
-        )
-        return True
-    except Exception as exc:
-        db.rollback()
-        logger.warning("Unable to persist Nuvama token: %s", exc)
-        return False
-    finally:
-        db.close()
-
-
-def revoke_nuvama_token_best_effort() -> bool:
-    db = SessionLocal()
-    try:
-        return revoke_broker_token(db, broker=BROKER_NUVAMA, user_id=None)
-    except Exception as exc:
-        db.rollback()
-        logger.warning("Unable to revoke Nuvama token: %s", exc)
         return False
     finally:
         db.close()

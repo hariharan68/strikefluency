@@ -14,11 +14,6 @@ def _adapter_for_vendor(vendor: str) -> MarketDataAdapter:
 
         adapter = FyersMarketDataAdapter()
 
-    elif vendor == "nuvama":
-        from app.brokers.nuvama.adapter import NuvamaMarketDataAdapter
-
-        adapter = NuvamaMarketDataAdapter()
-
     elif vendor == "kite":
         from app.brokers.kite_adapter import KiteMarketDataAdapter
 

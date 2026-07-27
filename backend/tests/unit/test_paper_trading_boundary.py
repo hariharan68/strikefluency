@@ -12,7 +12,6 @@ from app.brokers.base import MarketDataAdapter
 from app.brokers.fyers.adapter import FyersMarketDataAdapter
 from app.brokers.kite_adapter import KiteMarketDataAdapter
 from app.brokers.mock_adapter import MockMarketDataAdapter
-from app.brokers.nuvama.adapter import NuvamaMarketDataAdapter
 from app.core.paper_trading_policy import (
     BROKER_ACCESS_MODE,
     EXECUTION_MODE,
@@ -44,7 +43,6 @@ def test_market_data_interface_exposes_no_broker_account_or_execution_methods():
         MarketDataAdapter,
         FyersMarketDataAdapter,
         KiteMarketDataAdapter,
-        NuvamaMarketDataAdapter,
         MockMarketDataAdapter,
     )
     for adapter_type in adapter_types:
@@ -112,7 +110,6 @@ def test_broker_and_provider_source_contains_no_execution_sdk_calls():
         *sorted((backend / "app" / "brokers").rglob("*.py")),
         backend / "app" / "market" / "fyers_provider.py",
         backend / "app" / "market" / "kite_provider.py",
-        backend / "app" / "market" / "nuvama_provider.py",
         backend / "app" / "services" / "kite_instrument_service.py",
     ]
     violations: list[str] = []

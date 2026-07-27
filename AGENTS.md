@@ -112,7 +112,7 @@ list, so they cannot drift.
 | `/strategy` | templates, analyze/simulate, drafts, execution, builder configurations |
 | `/options` | chain intelligence — PCR, max pain, OI walls, GEX, greeks |
 | `/settings` | per-user preferences (JSONB) |
-| `/broker`, `/nuvama`, `/kite` | per-broker credential + connection lifecycle |
+| `/broker`, `/kite` | per-broker credential + connection lifecycle |
 
 ### Layering conventions
 
@@ -375,14 +375,14 @@ Mark-to-market still runs on a stale chain in `scan_and_exit`. Staleness pauses
 broken during a brief feed hiccup.
 
 - `age_ms()` derives from `age_ms` → `as_of` → `timestamp`, so providers that
-  never stamped freshness fields (Fyers, Nuvama, mock) needed **no changes**.
+  never stamped freshness fields (Fyers, mock) needed **no changes**.
   An unknowable age counts as stale, never as fresh.
 - `MARKET_ORDER_BLOCK_SECONDS` (120s) is a **backstop, not a replacement**. A
   provider's own `assert_orderable` runs first and still wins where stricter —
   Kite demands <30s because it has a live tick feed. The generic bound must stay
   above the slowest provider's cache TTL (Fyers caches chains for 95s), or it
   rejects orders during entirely normal operation.
-- Simulated sources (`mock`, `mock_fallback`, `nuvama_live_spot_mock_chain`) are
+- Simulated sources (`mock`, `mock_fallback`) are
   refused in production but **allowed in development** — locally the mock
   provider *is* the data source, and blocking it would block all local trading.
 - `assert_orderable` raises `RuntimeError` on purpose: the order paths already
@@ -466,10 +466,10 @@ Notes:
 ## Market data
 
 Provider factory `app/market/provider_factory.py` — module singleton, selected by
-`MARKET_DATA_PROVIDER`: `mock` | `fyers` | `nuvama` | `kite`.
+`MARKET_DATA_PROVIDER`: `mock` | `fyers` | `kite`.
 
 Exactly one broker is live at a time; connecting one auto-disconnects the others.
-Fyers and Nuvama **fall back to mock** on missing/invalid credentials.
+Fyers **falls back to mock** on missing/invalid credentials.
 **Kite is deliberately fail-closed** and never substitutes simulated prices.
 
 Broker tokens are Fernet-encrypted in `broker_connections`
@@ -626,8 +626,10 @@ and is only covered indirectly through order-placement tests.
 - `pages/reports/ReportsPage.jsx` and `pages/account/ApiKeyPage.jsx` are
   deliberate placeholders ("will appear here"), routed and reachable from the
   TopBar profile menu. They are unbuilt features, not broken wiring.
-- `README.md` still lists only mock/Fyers under market data; Nuvama and Kite are
-  fully built.
+- `README.md` still lists only mock/Fyers under market data; Kite is fully built.
+- **Nuvama was removed entirely** (2026-07-27): provider, router, auth service,
+  broker adapter, SDK wrapper, setup wizard, settings, SDK dependency and
+  `broker_connections` rows. Do not reintroduce references to it.
 
 ---
 
