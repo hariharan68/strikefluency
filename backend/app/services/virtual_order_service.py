@@ -32,6 +32,7 @@ from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.services.brokerage_calculator import calculate_brokerage
 from app.services.discipline_engine import DisciplineEngine
+from app.services import ledger_service
 from app.services.slippage_engine import calculate_slippage
 from app.services.trading_session_service import (
     activate_cooldown,
@@ -211,7 +212,12 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
     db.add(position)
 
     # ── Deduct margin + update session ─────────────────────
-    account.balance -= margin_required
+    ledger_service.block_margin(
+        db, account, margin_required,
+        reference_type=ledger_service.LedgerRef.VIRTUAL_ORDER,
+        reference_id=order.id,
+        description=f"Margin blocked: {instrument} {strike_price} {option_type} {action}",
+    )
     increment_trade_count(session)
     order._idempotent_replay = False
 
@@ -315,8 +321,23 @@ def close_position(
         position.current_ltp = exit_fill_price
 
     # ── Release margin + apply P&L to balance ─────────────
+    # Posted as two rows rather than one combined movement: a statement line
+    # reading "+1113.19 margin released" then "-42.60 P&L" is legible, whereas
+    # a single net figure explains nothing.
     margin_to_release = position.margin_blocked if position else Decimal("0")
-    account.balance  += margin_to_release + net_pnl
+    if margin_to_release:
+        ledger_service.release_margin(
+            db, account, margin_to_release,
+            reference_type=ledger_service.LedgerRef.VIRTUAL_ORDER,
+            reference_id=order.id,
+            description=f"Margin released: {order.instrument} {order.strike_price} {order.option_type}",
+        )
+    ledger_service.settle_pnl(
+        db, account, net_pnl,
+        reference_type=ledger_service.LedgerRef.VIRTUAL_ORDER,
+        reference_id=order.id,
+        description=f"Realised P&L ({exit_reason}): {order.instrument} {order.strike_price} {order.option_type}",
+    )
 
     # ── Update session ─────────────────────────────────────
     update_realized_pnl(session, net_pnl)

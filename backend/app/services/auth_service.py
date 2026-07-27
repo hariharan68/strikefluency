@@ -16,10 +16,11 @@ authenticate_user() verifies email + password and returns the User.
 
 import uuid
 import unicodedata
+from decimal import Decimal
 from datetime import date, datetime, timezone
 from sqlalchemy.orm import Session
 
-from app.core.constants import DEFAULT_DISCIPLINE_RULES, UserRole
+from app.core.constants import DEFAULT_DISCIPLINE_RULES, TIER_CAPITALS, Tier, UserRole
 from app.core.exceptions import (
     InvalidCredentialsError,
     UserAlreadyExistsError,
@@ -32,6 +33,7 @@ from app.models.trading_session import TradingSession
 from app.models.user import User
 from app.models.virtual_account import VirtualAccount
 from app.schemas.auth import RegisterRequest
+from app.services import ledger_service
 
 # Precomputed once so the "unknown email" login path can still run a bcrypt
 # verify (constant-time defence against user-enumeration via response timing).
@@ -93,11 +95,19 @@ def register_user(db: Session, data: RegisterRequest) -> User:
     db.flush()  # flush to get user.id
 
     # ── Step 4: Create VirtualAccount ─────────────────────
+    # Opened at zero and credited through the ledger, so the account's very
+    # first row already satisfies `balance == SUM(ledger.amount)`. Creating it
+    # at full balance would leave an unexplained opening figure.
+    opening_capital = Decimal(str(TIER_CAPITALS[Tier.TIER_1]))
     account = VirtualAccount(
         user_id=user.id,
         tenant_id=tenant.id,
+        balance=Decimal("0.00"),
+        initial_balance=opening_capital,
     )
     db.add(account)
+    db.flush()  # need account.id for the ledger reference
+    ledger_service.open_account(db, account, opening_capital)
 
     # ── Step 5: Seed all 7 discipline rules ───────────────
     for rule_code, rule_value in DEFAULT_DISCIPLINE_RULES.items():

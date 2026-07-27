@@ -22,6 +22,9 @@ from app.models.user import User
 from app.models.virtual_account import VirtualAccount
 from app.models.virtual_order import VirtualOrder
 from app.models.virtual_position import VirtualPosition
+from app.models.virtual_fund_ledger import VirtualFundLedger
+from app.services import ledger_service
+from tests.conftest import assert_ledger_reconciles
 from app.services.trading_session_service import get_or_create_today
 from app.services.virtual_order_service import close_position, place_order
 
@@ -58,14 +61,19 @@ def committed_user(db_engine):
             role="trader",
         ))
         db.flush()
-        db.add(VirtualAccount(
+        # Opened at zero and credited through the ledger, mirroring
+        # registration, so the balance reconciles against SUM(ledger.amount).
+        account = VirtualAccount(
             id=uuid.uuid4(),
             user_id=user_id,
             tenant_id=tenant_id,
-            balance=Decimal("100000.00"),
+            balance=Decimal("0.00"),
             initial_balance=Decimal("100000.00"),
             discipline_mode_enabled=False,
-        ))
+        )
+        db.add(account)
+        db.flush()
+        ledger_service.open_account(db, account, Decimal("100000.00"))
         db.commit()
 
     yield user_id
@@ -73,6 +81,9 @@ def committed_user(db_engine):
     # These tests intentionally commit from independent connections, so clean
     # up their isolated user in dependency order.
     with Session(db_engine) as db:
+        # Ledger first: it FKs virtual_accounts, users and tenants. Deleting is
+        # allowed (only UPDATE is blocked by trg_vfl_forbid_update).
+        db.query(VirtualFundLedger).filter(VirtualFundLedger.user_id == user_id).delete()
         db.query(JournalEntry).filter(JournalEntry.user_id == user_id).delete()
         db.query(VirtualPosition).filter(VirtualPosition.user_id == user_id).delete()
         db.query(VirtualOrder).filter(VirtualOrder.user_id == user_id).delete()
@@ -153,7 +164,12 @@ def test_concurrent_distinct_orders_cannot_overspend(db_engine, committed_user):
             VirtualAccount.user_id == committed_user
         ).one()
         # One lot requires roughly 3,900 at the fixed quote; two do not fit.
-        account.balance = Decimal("5000.00")
+        # Applied through the ledger so the account still reconciles — a direct
+        # write here would look exactly like the bug this test now checks for.
+        ledger_service.adjust(
+            db, account, Decimal("5000.00") - account.balance,
+            "Test setup: constrain balance for the overspend race",
+        )
         db.commit()
 
     start = Barrier(2)
@@ -187,6 +203,9 @@ def test_concurrent_distinct_orders_cannot_overspend(db_engine, committed_user):
     assert sorted(outcome[0] for outcome in outcomes) == ["placed", "rejected"]
     assert count == 1
     assert account.balance >= 0
+    # The rejected thread must not have left a half-posted ledger row behind.
+    with Session(db_engine) as db:
+        assert_ledger_reconciles(db, committed_user)
 
 
 def test_concurrent_orders_cannot_bypass_daily_trade_limit(
@@ -281,3 +300,6 @@ def test_manual_close_race_releases_margin_once(db_engine, committed_user):
     assert position.is_open is False
     assert journals == 1
     assert account.balance == Decimal("100000.00") + order.pnl
+    # The losing thread must not have double-posted the margin release.
+    with Session(db_engine) as db:
+        assert_ledger_reconciles(db, committed_user)

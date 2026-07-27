@@ -117,8 +117,14 @@ list, so they cannot drift.
 ### Layering conventions
 
 - **Routers are thin.** Business logic lives in `app/services/`.
-- **Services never commit.** The router owns `db.commit()`. (Exception:
-  `brokers/connections.py` token helpers own their own short-lived sessions.)
+- **Services never commit.** The router owns `db.commit()`. Known and accepted
+  exceptions, all deliberate: `brokers/connections.py` token helpers own their
+  own short-lived sessions; `pending_order_service.scan_and_fill()` commits per
+  order (it is a scheduler sweep with no router above it, and one bad order must
+  not roll back the whole sweep — see its docstring); `token_service` and
+  `oauth_service` commit around refresh-token rotation.
+- **`virtual_accounts.balance` is written in exactly one place:**
+  `app/services/ledger_service.py`. See the funds ledger section below.
 - Services are plain module functions taking `(db, user, ...)`, raising domain
   exceptions from `app/core/exceptions.py`. No async in the service layer.
 - `app/strategy/` is **pure maths** — no DB, no network, floats. Everything else
@@ -198,6 +204,46 @@ Notes:
   `leverage_enabled` setting is on, ÷ 1 when off.
 - `client_order_id` makes placement retry-safe; a replay returns the original
   fill (HTTP 200 instead of 201) and never re-prices.
+
+### The funds ledger (`virtual_fund_ledger`)
+
+Every change to `virtual_accounts.balance` posts a matching append-only ledger
+row in the same transaction, so the balance and its explanation can never
+disagree. The invariant is **`balance == SUM(ledger.amount)`** — note *not*
+`initial_balance + SUM(...)`, because `initial_balance` is a discipline-rule
+denominator that `discipline_mode_service` mutates on capital unlock.
+
+- **Never write `account.balance` directly.** Use `ledger_service.post()` or a
+  wrapper (`block_margin`, `release_margin`, `charge`, `settle_pnl`, `adjust`,
+  `open_account`). `tests/unit/test_ledger_boundary.py` AST-scans `app/` and
+  fails the suite on any direct write — including in new code you add.
+- `post()` takes a **signed delta**, never a target balance, and raises
+  `InsufficientBalanceError` *before* mutating if the delta would go negative.
+  That converts what would be an `IntegrityError` 500 at commit into the 400
+  every caller already handles.
+- Accounts are created at **zero** and credited via `open_account()`, so the
+  first row already reconciles. Test fixtures do the same.
+- `UPDATE` is blocked by a Postgres trigger (`trg_vfl_forbid_update`) plus an
+  ORM `before_update` listener. `DELETE` is deliberately allowed — test teardown
+  and account deletion need it, and a delete fails loudly as a gap in `seq`
+  whereas an update corrupts history silently. To correct a row, post a
+  compensating `MANUAL_ADJUSTMENT`.
+- The trigger travels with the table via an `after_create` DDL event, so the
+  conftest schema-drift patcher and Alembic produce identical schemas.
+- The ledger is **observational**: balances live in `virtual_accounts` and are
+  never derived from it, which is what makes the migration safe to drop. Do not
+  turn `balance` into a view over the ledger — that trades the reversibility
+  away.
+- A new table with an FK to `users`/`virtual_accounts` must be added to the
+  conftest drift patcher *and* to the `committed_user` teardown in
+  `tests/integration/test_order_concurrency.py`, or the suite breaks confusingly.
+
+**Known inconsistency, deliberately not fixed:** single orders charge entry
+brokerage at *entry* (debited from balance), while
+`strategy_execution_service._close_if_all_legs_done` nets the strategy's entry
+brokerage at *close* (`net = realized_pnl - position.brokerage`). Two
+conventions. Unifying them changes strategy P&L semantics, so it is out of
+scope until deliberately scheduled.
 - Lot size is snapshotted onto every order row, so a SEBI revision never
   re-values historical trades.
 

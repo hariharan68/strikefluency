@@ -28,6 +28,7 @@ from app.models.strategy import StrategyPosition
 from app.models.user import User
 from app.models.virtual_account import VirtualAccount
 from app.models.virtual_position import VirtualPosition
+from app.services import ledger_service
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,11 @@ def set_mode(db: Session, user: User, enabled: bool) -> dict:
         blocked = _blocked_margin(db, user)
         target = Decimal(str(FULL_SANDBOX_CAPITAL)) - blocked
         if target > account.balance:
-            account.balance = target
+            # The ledger records movements, not target balances, so convert.
+            ledger_service.adjust(
+                db, account, target - account.balance,
+                "Discipline Mode OFF — sandbox capital unlocked",
+            )
         account.tier = Tier.TIER_3
         account.capital_unlocked = True
         # MAX_DAILY_LOSS is a percentage of initial_balance. Raising the balance

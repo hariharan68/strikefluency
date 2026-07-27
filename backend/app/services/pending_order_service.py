@@ -56,6 +56,7 @@ from app.models.user_settings import UserSettings
 from app.models.virtual_account import VirtualAccount
 from app.models.virtual_position import VirtualPosition
 from app.services.discipline_engine import DisciplineEngine
+from app.services import ledger_service
 from app.services.trading_session_service import get_or_create_today
 from app.services.virtual_order_service import _get_ltp_from_chain, place_order
 
@@ -180,7 +181,12 @@ def place_pending_order(db: Session, user: User, order_data: dict) -> PendingOrd
     db.add(pending)
     db.flush()
 
-    account.balance -= margin_required
+    ledger_service.block_margin(
+        db, account, margin_required,
+        reference_type=ledger_service.LedgerRef.PENDING_ORDER,
+        reference_id=pending.id,
+        description=f"Margin blocked for resting limit: {instrument} {strike_price} {option_type}",
+    )
     pending._idempotent_replay = False
 
     logger.info(
@@ -214,7 +220,15 @@ def cancel_pending_order(db: Session, user: User, pending_id: uuid.UUID) -> Pend
         )
 
     released = _close_pending(pending, PendingOrderStatus.CANCELLED)
-    account.balance += released
+    if released:
+        ledger_service.release_margin(
+            db, account, released,
+            reference_type=ledger_service.LedgerRef.PENDING_ORDER,
+            reference_id=pending.id,
+            description=f"Limit cancelled, margin refunded: {pending.instrument} "
+                        f"{int(pending.strike_price)} {pending.option_type}",
+            txn_type=ledger_service.LedgerTxnType.REFUND,
+        )
     # The row's reservation is zeroed by now, so carry the amount out-of-band
     # for the response rather than making the caller re-derive it.
     pending._released_margin = released
@@ -332,7 +346,15 @@ def _fill_one(db: Session, pending_id: uuid.UUID, ltp: Decimal) -> None:
     # Release the reservation first — place_order blocks its own margin from the
     # live fill price, and must not be charged twice for the same order.
     reserved = pending.margin_blocked or Decimal("0.00")
-    account.balance += reserved
+    if reserved:
+        ledger_service.release_margin(
+            db, account, reserved,
+            reference_type=ledger_service.LedgerRef.PENDING_ORDER,
+            reference_id=pending.id,
+            description=f"Limit triggered, reservation returned before fill: "
+                        f"{pending.instrument} {int(pending.strike_price)} {pending.option_type}",
+            txn_type=ledger_service.LedgerTxnType.REFUND,
+        )
     pending.margin_blocked = Decimal("0.00")
 
     order = place_order(db, user, {
@@ -378,8 +400,14 @@ def _reject_one(db: Session, pending_id: uuid.UUID, reason: str) -> None:
     ).with_for_update().first()
 
     released = _close_pending(pending, PendingOrderStatus.REJECTED, reason=reason)
-    if account is not None:
-        account.balance += released
+    if account is not None and released:
+        ledger_service.release_margin(
+            db, account, released,
+            reference_type=ledger_service.LedgerRef.PENDING_ORDER,
+            reference_id=pending.id,
+            description=f"Limit rejected at trigger, margin refunded: {reason}"[:200],
+            txn_type=ledger_service.LedgerTxnType.REFUND,
+        )
 
     logger.info(
         "Limit order REJECTED at trigger: %s %s %s — %s",
@@ -421,8 +449,15 @@ def expire_pending_orders(db: Session, before_trading_day=None) -> int:
             accounts[pending.user_id] = account
 
         released = _close_pending(pending, PendingOrderStatus.EXPIRED)
-        if account is not None:
-            account.balance += released
+        if account is not None and released:
+            ledger_service.release_margin(
+                db, account, released,
+                reference_type=ledger_service.LedgerRef.PENDING_ORDER,
+                reference_id=pending.id,
+                description=f"Limit expired unfilled, margin refunded: {pending.instrument} "
+                            f"{int(pending.strike_price)} {pending.option_type}",
+                txn_type=ledger_service.LedgerTxnType.REFUND,
+            )
 
     logger.info("Expired %d unfilled limit order(s), margin released", len(pendings))
     return len(pendings)

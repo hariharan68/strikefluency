@@ -91,6 +91,12 @@ def _ensure_strategy_schema(conn) -> None:
     from app.models.pending_order import PendingOrder as POORM
     if not inspect(conn).has_table(POORM.__tablename__):
         POORM.__table__.create(conn)
+    # Append-only funds ledger (migration 20260729) — create if not yet applied.
+    # The append-only trigger rides along via the after_create DDL event on the
+    # table, so this path and Alembic produce the same schema.
+    from app.models.virtual_fund_ledger import VirtualFundLedger as VFLORM
+    if not inspect(conn).has_table(VFLORM.__tablename__):
+        VFLORM.__table__.create(conn)
 
 
 @pytest.fixture
@@ -107,6 +113,35 @@ def db_session(db_engine):
         conn.close()
 
 
+def assert_ledger_reconciles(db, user_id) -> None:
+    """
+    The invariant the ledger exists to guarantee: the account balance equals
+    the sum of every ledger row ever written for it.
+
+    This is the real guarantee, as opposed to the AST gate in
+    tests/unit/test_ledger_boundary.py — the AST scan catches a syntactically
+    direct write, this catches a balance change that never posted at all.
+
+    Note it reconciles against `balance`, not `initial_balance + SUM(amount)`:
+    initial_balance is a discipline-rule denominator that discipline_mode_service
+    mutates when capital is unlocked, so it is not a money anchor.
+    """
+    from sqlalchemy import func as sa_func
+    from app.models.virtual_account import VirtualAccount
+    from app.models.virtual_fund_ledger import VirtualFundLedger
+
+    account = db.query(VirtualAccount).filter(
+        VirtualAccount.user_id == user_id).one()
+    total = db.query(sa_func.coalesce(sa_func.sum(VirtualFundLedger.amount), 0)).filter(
+        VirtualFundLedger.account_id == account.id).scalar()
+
+    assert Decimal(str(account.balance)) == Decimal(str(total)), (
+        f"ledger does not reconcile: balance={account.balance} "
+        f"but SUM(ledger.amount)={total}. A balance change was applied without "
+        f"posting a matching virtual_fund_ledger row."
+    )
+
+
 @pytest.fixture
 def seeded_user(db_session):
     """A throwaway tenant/user/account with a funded balance and default rules."""
@@ -120,9 +155,14 @@ def seeded_user(db_session):
     user = User(id=uuid.uuid4(), tenant_id=tenant.id, email=f"{uuid.uuid4().hex}@t.com",
                 hashed_password="x", full_name="Test", role="trader")
     db_session.add(user); db_session.flush()
-    db_session.add(VirtualAccount(
+    # Opened at zero and credited through the ledger, mirroring registration,
+    # so assert_ledger_reconciles() holds for every test using this fixture.
+    from app.services import ledger_service
+    account = VirtualAccount(
         id=uuid.uuid4(), user_id=user.id, tenant_id=tenant.id,
-        balance=Decimal("1000000"), initial_balance=Decimal("1000000")))
+        balance=Decimal("0.00"), initial_balance=Decimal("1000000"))
+    db_session.add(account); db_session.flush()
+    ledger_service.open_account(db_session, account, Decimal("1000000"))
     for code, val in DEFAULT_DISCIPLINE_RULES.items():
         db_session.add(DisciplineRule(
             id=uuid.uuid4(), user_id=user.id, tenant_id=tenant.id,
