@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Minus, Plus, ChevronDown, ChevronUp, Zap, Check, ShieldCheck } from 'lucide-react'
-import { placeOrder, getAccount } from '../../api/trading'
+import { X, Minus, Plus, ChevronDown, ChevronUp, Zap, Check, ShieldCheck, Clock, Info } from 'lucide-react'
+import { placeOrder, placePendingOrder, getAccount } from '../../api/trading'
 import useMarketStore from '../../store/marketStore'
 import { ltpFromChain } from '../../utils/livePnl'
 import { SETUP_TAGS, SETUP_TAG_LABELS } from '../../utils/constants'
@@ -39,7 +39,17 @@ export default function FloatingOrderTicket({ ticket, disciplineOff = false, pre
   const liveLtp = ltpFromChain(chains[instrument], strike, optionType) ?? Number(ticket.ltp) ?? 0
 
   const qty = lots * lotSize
-  const priceUsed = orderType === 'LIMIT' ? (parseFloat(limitPrice) || liveLtp) : liveLtp
+  const isLimit = orderType === 'LIMIT'
+  const limitValue = parseFloat(limitPrice)
+  const hasLimit = isLimit && Number.isFinite(limitValue) && limitValue > 0
+  // Margin is blocked against the limit for a resting order — that is the price
+  // it has committed to — and against the live premium for a market fill.
+  const priceUsed = hasLimit ? limitValue : liveLtp
+  // A BUY at or above the market (or a SELL at or below) is already tradable, so
+  // it fills on the very next scan instead of resting. Say so up front.
+  const marketable = hasLimit && (action === 'BUY'
+    ? limitValue >= liveLtp
+    : limitValue <= liveLtp)
   const gross = priceUsed * qty
   // Leverage setting: ON → 5x margin; OFF → full contract value (1x) from funds.
   const leverage = prefs?.leverage_enabled === false ? 1 : 5
@@ -102,18 +112,32 @@ export default function FloatingOrderTicket({ ticket, disciplineOff = false, pre
       if (!sl || parseFloat(sl) <= 0) { setError('Stop Loss is mandatory when Discipline is ON.'); setAdvanced(true); return }
       if (!setupTag) { setError('Setup tag is mandatory when Discipline is ON.'); setAdvanced(true); return }
     }
+    if (isLimit && !hasLimit) {
+      setError('Enter a limit price above zero, or switch to Market.')
+      return
+    }
     setLoading(true)
+    const common = {
+      instrument, strike_price: parseInt(strike), option_type: optionType,
+      action, quantity: lots, product_type: product,
+      sl_price: sl && parseFloat(sl) > 0 ? parseFloat(sl) : null,
+      target_price: target ? parseFloat(target) : null,
+      expiry_date: expiry, setup_tag: setupTag || null,
+    }
+    const label = `${instrument} ${Math.round(strike)} ${optionType} · ${qty} qty`
     try {
-      await placeOrder({
-        instrument, strike_price: parseInt(strike), option_type: optionType,
-        action, quantity: lots, product_type: product,
-        ltp: priceUsed,
-        sl_price: sl && parseFloat(sl) > 0 ? parseFloat(sl) : null,
-        target_price: target ? parseFloat(target) : null,
-        expiry_date: expiry, setup_tag: setupTag || null,
-      })
-      // Always confirm — the ticket closes on success, so this is the only cue.
-      success(`Paper ${action} opened — ${instrument} ${Math.round(strike)} ${optionType} · ${qty} qty`)
+      if (isLimit) {
+        // A limit order is an intention, not a trade: it rests in the pending
+        // book until the premium reaches it. Nothing opens here.
+        await placePendingOrder({ ...common, limit_price: limitValue })
+        success(marketable
+          ? `Limit ${action} placed at ${limitValue.toFixed(2)} — already at market, filling now · ${label}`
+          : `Limit ${action} resting at ${limitValue.toFixed(2)} — see Open Pending · ${label}`)
+      } else {
+        await placeOrder({ ...common, ltp: priceUsed })
+        // Always confirm — the ticket closes on success, so this is the only cue.
+        success(`Paper ${action} opened — ${label}`)
+      }
       onPlaced?.()
       onClose?.()
     } catch (e) {
@@ -208,12 +232,22 @@ export default function FloatingOrderTicket({ ticket, disciplineOff = false, pre
             <button type="button" aria-label="Increase" className="sf-stepper-btn" onClick={() => setLots(l => l + 1)}><Plus size={15} /></button>
           </div>
 
-          <label style={{ ...fieldLabel, marginTop: 12 }}>Price</label>
-          <input className="sf-input num" value={orderType === 'LIMIT' ? limitPrice : Number(liveLtp).toFixed(2)}
+          <label style={{ ...fieldLabel, marginTop: 12 }}>{isLimit ? 'Limit Price' : 'Price'}</label>
+          <input className="sf-input num" value={isLimit ? limitPrice : Number(liveLtp).toFixed(2)}
             onChange={e => setLimitPrice(e.target.value)}
-            readOnly={orderType !== 'LIMIT'}
+            readOnly={!isLimit}
             style={{ minHeight: 34, textAlign: 'right', fontWeight: 700 }} />
-          {orderType === 'MARKET' && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Fills at live premium.</div>}
+          {!isLimit && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Fills at live premium.</div>}
+          {isLimit && hasLimit && (
+            <div style={{ display: 'flex', gap: 5, fontSize: 10, lineHeight: 1.45, marginTop: 4, color: marketable ? 'var(--warn)' : 'var(--text-muted)' }}>
+              {marketable ? <Info size={12} style={{ flexShrink: 0, marginTop: 1 }} /> : <Clock size={12} style={{ flexShrink: 0, marginTop: 1 }} />}
+              <span>
+                {marketable
+                  ? 'Already at market — this will fill almost immediately.'
+                  : `Waits until the premium ${isBuy ? 'falls to' : 'rises to'} ${limitValue.toFixed(2)}. Nothing opens until then.`}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* right: order type */}
@@ -316,7 +350,12 @@ export default function FloatingOrderTicket({ ticket, disciplineOff = false, pre
             background: loading ? 'var(--text-muted)' : (isBuy ? 'var(--gain)' : 'var(--loss)'),
             boxShadow: loading ? 'none' : `0 8px 20px -8px ${isBuy ? 'rgba(49,221,106,0.6)' : 'rgba(255,92,92,0.6)'}`,
           }}>
-          <Zap size={15} /> {loading ? 'Simulating…' : `SIMULATE ${isBuy ? 'BUY' : 'SELL'} · ${qty} qty`}
+          {isLimit && !marketable ? <Clock size={15} /> : <Zap size={15} />}
+          {loading
+            ? (isLimit ? 'Placing…' : 'Simulating…')
+            : isLimit
+              ? `PLACE LIMIT ${isBuy ? 'BUY' : 'SELL'} · ${qty} qty`
+              : `SIMULATE ${isBuy ? 'BUY' : 'SELL'} · ${qty} qty`}
         </button>
       </div>
     </div>,

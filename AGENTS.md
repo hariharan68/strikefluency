@@ -201,6 +201,43 @@ Notes:
 - Lot size is snapshotted onto every order row, so a SEBI revision never
   re-values historical trades.
 
+### Resting LIMIT orders — `app/services/pending_order_service.py`
+
+`place_order()` above is the **MARKET** path only. A **LIMIT** order is a
+decision about a price that has not happened yet, so it never touches
+`VirtualOrder` at placement: it lands in `pending_orders` and waits.
+
+**Place** (`POST /trading/pending`) — market-hours check → lock account →
+idempotency on `client_order_id` → strike must be quotable → discipline engine →
+block margin → create `PendingOrder` (status `PENDING`).
+
+**Fill** — the 5s `limit_fill_tick` scans every resting order; on trigger it
+releases the reservation and calls `place_order()`, which creates the real
+`VirtualOrder` + `VirtualPosition`. That indirection is the point: orderbook,
+auto-exit, EOD square-off, journal and analytics all keep working on
+`VirtualOrder` with no changes.
+
+Trigger: `BUY` fills when `ltp <= limit_price`, `SELL` when `ltp >= limit_price`.
+An order placed at or through the market is marketable and fills on the next
+scan — the ticket warns before you place it.
+
+Notes:
+
+- **Discipline runs twice** — at placement and again at the fill. A trigger that
+  would breach a cooldown or trade cap set in the meantime becomes `REJECTED`
+  with the rule's message in `reject_reason`, never filled quietly.
+- **Margin is blocked at placement** (priced off the limit) and released the
+  moment the order leaves `PENDING` — fill, cancel, expiry or rejection. The
+  fill releases before `place_order()` re-blocks, so it is never charged twice.
+- `scan_and_fill()` **owns its transaction and commits per order**, unlike
+  `scan_and_exit()`. A rejection must persist without discarding fills that
+  already succeeded in the same sweep.
+- Prices are quantized to 2dp on the way in. The columns are `Numeric(10,2)`, so
+  comparing an unrounded input against the stored value would make an honest
+  retry look like a different order and 409.
+- LIMIT orders are **DAY validity** — `expire_pending_orders()` clears the book
+  at 15:29, and the 08:30 reset sweeps anything a missed EOD run stranded.
+
 ---
 
 ## Market data
@@ -227,6 +264,7 @@ APScheduler `AsyncIOScheduler`, timezone `Asia/Kolkata`.
 | option metrics + analytics broadcast | 15s | no |
 | strategy mark-to-market | 15s | yes |
 | SL/target auto-exit | 5s | yes |
+| resting LIMIT order fills | 5s | yes |
 | expiry + intraday square-off | 15:29 cron | yes |
 | pre-market reset | 08:30 cron | yes |
 | Kite instrument catalog sync | 08:30 cron | yes |

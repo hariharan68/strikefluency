@@ -11,6 +11,10 @@ Virtual trading endpoints:
   POST /trading/orders/{id}/close → close an open position manually
   GET  /trading/positions         → all open positions with live P&L
   GET  /trading/sessions/today    → today's trading session state
+
+  POST /trading/pending             → park a LIMIT order in the pending book
+  GET  /trading/pending             → the pending book (?view=open|executed|all)
+  POST /trading/pending/{id}/cancel → withdraw a resting limit order
 """
 
 import uuid
@@ -19,16 +23,23 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
-from app.core.constants import ExitReason, OrderStatus
+from app.core.constants import ExitReason, OrderStatus, PendingOrderStatus
 from app.core.exceptions import OrderNotFoundError
 from app.core.instruments import get_spec
 from app.core.utils import current_trading_day
 from app.database import get_db
 from app.dependencies import CurrentUser
 from app.market.websocket_manager import notify_trading_update
+from app.models.pending_order import PendingOrder
 from app.models.virtual_account import VirtualAccount
 from app.models.virtual_order import VirtualOrder
 from app.models.virtual_position import VirtualPosition
+from app.schemas.pending_order import (
+    CancelPendingOrderResponse,
+    PendingOrderListResponse,
+    PendingOrderResponse,
+    PlacePendingOrderRequest,
+)
 from app.schemas.virtual_account import AccountSummaryResponse, VirtualAccountResponse
 from app.schemas.virtual_order import (
     CloseOrderResponse,
@@ -37,6 +48,10 @@ from app.schemas.virtual_order import (
     PlaceOrderRequest,
 )
 from app.schemas.virtual_position import PositionListResponse, PositionResponse
+from app.services.pending_order_service import (
+    cancel_pending_order,
+    place_pending_order,
+)
 from app.services.trading_session_service import (
     get_cooldown_remaining,
     get_or_create_today,
@@ -269,6 +284,120 @@ def close_order(
         order=OrderResponse.model_validate(order),
         net_pnl=order.pnl or Decimal("0"),
         message=f"Position closed. Net P&L: ₹{order.pnl}",
+    )
+
+
+# ── Pending (resting LIMIT) orders ────────────────────────────
+
+@router.post("/pending", response_model=PendingOrderResponse, status_code=201)
+def place_new_pending_order(
+    data: PlacePendingOrderRequest,
+    current_user: CurrentUser,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    """
+    Park a LIMIT order in the pending book.
+
+    Unlike POST /orders, this does NOT open a position. The order rests until
+    the option premium reaches `limit_price` — a BUY fills at the limit or
+    cheaper, a SELL at the limit or richer — at which point the fill scanner
+    creates the real order and position. Margin is blocked now and released if
+    the order is cancelled, expires at EOD, or is rejected at trigger.
+
+    Discipline rules run here and again at the fill.
+    """
+    order_dict = {
+        "client_order_id": data.client_order_id,
+        "instrument":   data.instrument,
+        "expiry_date":  data.expiry_date,
+        "strike_price": data.strike_price,
+        "option_type":  data.option_type,
+        "action":       data.action,
+        "quantity":     data.quantity,
+        # Snapshotted onto the row, never re-read: a limit placed today keeps
+        # its lot size even if SEBI revises it before the order fills.
+        "lot_size":     get_spec(data.instrument).lot_size,
+        "product_type": data.product_type,
+        "limit_price":  data.limit_price,
+        "sl_price":     data.sl_price,
+        "target_price": data.target_price,
+        "setup_tag":    data.setup_tag,
+    }
+
+    pending = place_pending_order(db, current_user, order_dict)
+    was_replayed = getattr(pending, "_idempotent_replay", False)
+    db.commit()
+    db.refresh(pending)
+
+    if was_replayed:
+        response.status_code = 200
+    else:
+        notify_trading_update(current_user.id, "limit_placed")
+    return PendingOrderResponse.model_validate(pending)
+
+
+@router.get("/pending", response_model=PendingOrderListResponse)
+def list_pending_orders(
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+    view: str = Query(default="all", pattern="^(open|executed|all)$"),
+    scope: str = Query(default="today", pattern="^(today|all)$"),
+):
+    """
+    The pending book, newest first.
+
+    view=open     → still resting, waiting for the limit
+    view=executed → everything that has left the book (filled, cancelled,
+                    expired, rejected)
+    view=all      → both, with counts for each
+
+    scope=today (default) matches the orderbook's 08:30 IST reset boundary.
+    """
+    base = db.query(PendingOrder).filter(PendingOrder.user_id == current_user.id)
+    if scope == "today":
+        base = base.filter(PendingOrder.trading_day == current_trading_day())
+
+    open_count = base.filter(PendingOrder.status == PendingOrderStatus.PENDING).count()
+    executed_count = base.filter(
+        PendingOrder.status.in_(PendingOrderStatus.CLOSED_STATES)
+    ).count()
+
+    query = base
+    if view == "open":
+        query = query.filter(PendingOrder.status == PendingOrderStatus.PENDING)
+    elif view == "executed":
+        query = query.filter(PendingOrder.status.in_(PendingOrderStatus.CLOSED_STATES))
+
+    rows = query.order_by(PendingOrder.created_at.desc()).all()
+
+    return PendingOrderListResponse(
+        pending_orders=[PendingOrderResponse.model_validate(r) for r in rows],
+        total=len(rows),
+        open_count=open_count,
+        executed_count=executed_count,
+    )
+
+
+@router.post("/pending/{pending_id}/cancel", response_model=CancelPendingOrderResponse)
+def cancel_resting_order(
+    pending_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+):
+    """Withdraw a resting limit order before it triggers and release its margin."""
+    pending = cancel_pending_order(db, current_user, pending_id)
+    # The row's reservation is zeroed by the cancel, so read the amount the
+    # service carried out-of-band before db.refresh() drops the attribute.
+    released = Decimal(str(getattr(pending, "_released_margin", 0) or 0))
+    db.commit()
+    db.refresh(pending)
+
+    notify_trading_update(current_user.id, "limit_cancelled")
+    return CancelPendingOrderResponse(
+        pending_order=PendingOrderResponse.model_validate(pending),
+        margin_released=released,
+        message="Limit order cancelled. Blocked funds released.",
     )
 
 

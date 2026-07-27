@@ -89,6 +89,16 @@ class IdempotencyConflictError(StrikeFluencyError):
     pass
 
 
+class PendingOrderNotFoundError(StrikeFluencyError):
+    """No pending (resting limit) order found with given ID for this user."""
+    pass
+
+
+class PendingOrderNotCancellableError(StrikeFluencyError):
+    """Attempted to cancel a pending order that has already left PENDING."""
+    pass
+
+
 # ── Discipline errors ─────────────────────────────────────────
 
 class DisciplineViolationError(StrikeFluencyError):

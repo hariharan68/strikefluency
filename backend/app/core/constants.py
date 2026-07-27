@@ -46,6 +46,32 @@ class OrderStatus:
     TARGET_HIT = "TARGET_HIT"
 
 
+# ── Order type ───────────────────────────────────────────────
+# MARKET fills immediately at the live premium. LIMIT rests as a PendingOrder
+# until the premium reaches the limit, then becomes an ordinary VirtualOrder.
+class OrderType:
+    MARKET = "MARKET"
+    LIMIT = "LIMIT"
+    ALL = [MARKET, LIMIT]
+
+
+# ── Pending (resting limit) order status ─────────────────────
+# PENDING   → waiting for the premium to reach the limit
+# FILLED    → triggered; a VirtualOrder now exists (filled_order_id)
+# CANCELLED → withdrawn by the user
+# EXPIRED   → still unfilled at EOD; limit orders are DAY-validity only
+# REJECTED  → triggered but could not be placed (discipline / funds / no quote)
+class PendingOrderStatus:
+    PENDING = "PENDING"
+    FILLED = "FILLED"
+    CANCELLED = "CANCELLED"
+    EXPIRED = "EXPIRED"
+    REJECTED = "REJECTED"
+    ALL = [PENDING, FILLED, CANCELLED, EXPIRED, REJECTED]
+    # Terminal states that belong in the "Executed" view alongside FILLED.
+    CLOSED_STATES = [FILLED, CANCELLED, EXPIRED, REJECTED]
+
+
 # ── Exit reasons ──────────────────────────────────────────────
 class ExitReason:
     MANUAL = "MANUAL"

@@ -4,6 +4,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Ban,
+  Clock,
   Download,
   Layers,
   LogIn,
@@ -16,9 +17,11 @@ import {
   Wallet,
 } from 'lucide-react'
 import {
+  cancelPendingOrder,
   closeOrder,
   getAccount,
   getOrders,
+  getPendingOrders,
   getPositions,
   getTradebook,
 } from '../../api/trading'
@@ -35,8 +38,24 @@ const TABS = [
   { key: 'positions', label: 'Live Positions' },
   { key: 'tradebook', label: 'Position Book' },
   { key: 'orderbook', label: 'Orderbook' },
+  { key: 'pending', label: 'Open Pending' },
   { key: 'logs', label: 'Logs' },
 ]
+
+// Sub-views of the pending book: orders still waiting for their limit, and
+// orders that have left it (filled, cancelled, expired, rejected).
+const PENDING_VIEWS = [
+  { key: 'open', label: 'Open' },
+  { key: 'executed', label: 'Executed' },
+]
+
+const PENDING_STATUS_TONE = {
+  PENDING: 'open',
+  FILLED: 'gain',
+  CANCELLED: '',
+  EXPIRED: '',
+  REJECTED: 'loss',
+}
 
 const LOG_META = {
   ENTRY: { icon: LogIn, color: 'var(--primary)' },
@@ -106,14 +125,16 @@ function SideBadge({ side }) {
   return <span className={`positions-side-badge ${side === 'SELL' ? 'sell' : ''}`}>{side || 'BUY'}</span>
 }
 
-function StatusPill({ status = 'OPEN' }) {
-  const className = status === 'OPEN'
+/** `tone` overrides the derived colour for statuses outside the order lifecycle. */
+function StatusPill({ status = 'OPEN', tone }) {
+  const derived = status === 'OPEN'
     ? 'open'
     : status === 'TARGET_HIT'
       ? 'gain'
       : status === 'SL_HIT'
         ? 'loss'
         : ''
+  const className = tone === undefined ? derived : tone
   return <span className={`positions-status-pill ${className}`}>{status.replaceAll('_', ' ')}</span>
 }
 
@@ -176,11 +197,15 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
   const eventSeq = useTradingStore(state => state.eventSeq)
 
   const [tab, setTab] = useState('positions')
+  const [pendingView, setPendingView] = useState('open')
   const [instrumentFilter, setInstrumentFilter] = useState('ALL')
   const [productFilter, setProductFilter] = useState('ALL')
   const [positions, setPositions] = useState([])
   const [strategies, setStrategies] = useState([])
   const [orders, setOrders] = useState([])
+  const [pendingOrders, setPendingOrders] = useState([])
+  const [pendingCounts, setPendingCounts] = useState({ open: 0, executed: 0 })
+  const [cancellingId, setCancellingId] = useState(null)
   const [trades, setTrades] = useState([])
   const [violations, setViolations] = useState([])
   const [rules, setRules] = useState([])
@@ -198,7 +223,7 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
       .then(response => ({ ok: true, data: response.data }))
       .catch(error => ({ ok: false, data: null, error }))
 
-    const [positionsResult, strategiesResult, ordersResult, tradesResult, violationsResult, accountResult, rulesResult] =
+    const [positionsResult, strategiesResult, ordersResult, tradesResult, violationsResult, accountResult, rulesResult, pendingResult] =
       await Promise.all([
         safe(getPositions()),
         safe(listStrategies('EXECUTED')),
@@ -207,6 +232,7 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
         safe(getTodayViolations()),
         safe(getAccount()),
         safe(getRules()),
+        safe(getPendingOrders('all', 'today')),
       ])
 
     if (positionsResult.ok) {
@@ -219,6 +245,13 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
     if (violationsResult.ok) setViolations(Array.isArray(violationsResult.data) ? violationsResult.data : [])
     if (accountResult.ok) setAccount(accountResult.data)
     if (rulesResult.ok) setRules(Array.isArray(rulesResult.data) ? rulesResult.data : [])
+    if (pendingResult.ok) {
+      setPendingOrders(pendingResult.data?.pending_orders || [])
+      setPendingCounts({
+        open: asNumber(pendingResult.data?.open_count),
+        executed: asNumber(pendingResult.data?.executed_count),
+      })
+    }
 
     const coreFailed = !positionsResult.ok || !ordersResult.ok || !tradesResult.ok
     if (coreFailed) setLoadError('Some trading data could not be refreshed. Showing the latest available values.')
@@ -307,6 +340,31 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
 
   const visibleOrders = useMemo(() => filterBook(orders), [filterBook, orders])
   const visibleTrades = useMemo(() => filterBook(trades), [filterBook, trades])
+
+  const restingOrders = useMemo(
+    () => filterBook(pendingOrders.filter(item => item.status === 'PENDING')),
+    [filterBook, pendingOrders],
+  )
+  const settledPending = useMemo(
+    () => filterBook(pendingOrders.filter(item => item.status !== 'PENDING')),
+    [filterBook, pendingOrders],
+  )
+  const visiblePending = pendingView === 'open' ? restingOrders : settledPending
+
+  // Funds a resting order is holding — capital that is committed but not yet
+  // deployed, so it belongs nowhere near Open P&L.
+  const pendingMargin = restingOrders.reduce(
+    (sum, item) => sum + asNumber(item.margin_blocked), 0,
+  )
+
+  /** How far the live premium still has to travel before this limit triggers. */
+  const distanceFor = item => {
+    const ltp = ltpFromChain(chains[item.instrument], item.strike_price, item.option_type)
+    if (ltp == null) return { ltp: null, gap: null, reached: false }
+    const limit = asNumber(item.limit_price)
+    const reached = item.action === 'BUY' ? ltp <= limit : ltp >= limit
+    return { ltp, gap: limit - ltp, reached }
+  }
 
   const logs = useMemo(() => {
     const events = []
@@ -401,6 +459,8 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
     positions: positions.length + strategies.length,
     orderbook: orders.length,
     tradebook: trades.length,
+    // The actionable number is what is still waiting, not the day's total.
+    pending: pendingCounts.open,
     logs: orders.length + orders.filter(order => order.status !== 'OPEN').length + violations.length,
   }
 
@@ -415,6 +475,20 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
       toastError('Could not close position')
     } finally {
       setClosingId(null)
+    }
+  }
+
+  const handleCancelPending = async pendingId => {
+    if (confirmClose && !window.confirm('Cancel this resting limit order? The blocked funds are released immediately.')) return
+    setCancellingId(pendingId)
+    try {
+      await cancelPendingOrder(pendingId)
+      success('Limit order cancelled — funds released')
+      await load({ quiet: true })
+    } catch {
+      toastError('Could not cancel this limit order')
+    } finally {
+      setCancellingId(null)
     }
   }
 
@@ -467,6 +541,36 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
         order.target_price,
         order.status,
       ])
+    } else if (tab === 'pending') {
+      if (pendingView === 'open') {
+        headers = ['Placed', 'Instrument', 'Side', 'Product', 'Lots', 'Limit', 'LTP', 'To go', 'Funds held']
+        rows = restingOrders.map(item => {
+          const { ltp, gap } = distanceFor(item)
+          return [
+            formatTime(item.created_at),
+            `${item.instrument} ${Math.round(asNumber(item.strike_price))} ${item.option_type}`,
+            item.action,
+            item.product_type,
+            item.quantity,
+            item.limit_price,
+            ltp,
+            gap == null ? null : Math.abs(gap),
+            item.margin_blocked,
+          ]
+        })
+      } else {
+        headers = ['Time', 'Instrument', 'Side', 'Lots', 'Limit', 'Filled at', 'Status', 'Outcome']
+        rows = settledPending.map(item => [
+          formatTime(item.closed_at || item.filled_at || item.created_at),
+          `${item.instrument} ${Math.round(asNumber(item.strike_price))} ${item.option_type}`,
+          item.action,
+          item.quantity,
+          item.limit_price,
+          item.fill_price,
+          item.status,
+          item.reject_reason || '',
+        ])
+      }
     } else if (tab === 'tradebook') {
       headers = ['Time', 'Instrument', 'Side', 'Lots', 'Entry', 'Exit', 'P&L', 'Reason']
       rows = visibleTrades.map(trade => [
@@ -489,7 +593,8 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `strikefluency-${tab}-${new Date().toISOString().slice(0, 10)}.csv`
+    const slug = tab === 'pending' ? `pending-${pendingView}` : tab
+    anchor.download = `strikefluency-${slug}-${new Date().toISOString().slice(0, 10)}.csv`
     anchor.click()
     URL.revokeObjectURL(url)
   }
@@ -619,6 +724,102 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
       )
     }
 
+    if (tab === 'pending') {
+      if (!visiblePending.length) {
+        return pendingView === 'open'
+          ? (
+            <EmptyState
+              icon={Clock}
+              title="No resting limit orders"
+              description="Place a Limit order from the Trade desk and it waits here until the premium reaches your price."
+            />
+          )
+          : (
+            <EmptyState
+              icon={Table2}
+              title="Nothing has left the pending book today"
+              description="Limit orders that fill, are cancelled, or expire at close will be listed here."
+            />
+          )
+      }
+
+      if (pendingView === 'open') {
+        return (
+          <div className="positions-table-scroll">
+            <table className="positions-table book-table">
+              <thead><tr>
+                <th>Placed</th><th>Instrument</th><th>Side</th><th>Product</th>
+                <th className="align-right">Lots</th><th className="align-right">Limit</th>
+                <th className="align-right">LTP</th><th className="align-right">To go</th>
+                <th className="align-right">Funds Held</th><th>Status</th><th>Actions</th>
+              </tr></thead>
+              <tbody>{restingOrders.map(item => {
+                const { ltp, gap, reached } = distanceFor(item)
+                return (
+                  <tr key={item.id}>
+                    <td className="num muted">{formatTime(item.created_at)}</td>
+                    <td><InstrumentCell item={item} /></td>
+                    <td><SideBadge side={item.action} /></td>
+                    <td>{productLabel(item.product_type)}</td>
+                    <td className="align-right num">{item.quantity}</td>
+                    <td className="align-right num"><strong>{money(item.limit_price)}</strong></td>
+                    <td className="align-right num">{ltp == null ? '—' : money(ltp)}</td>
+                    <td className={`align-right num${reached ? ' pnl gain' : ''}`}>
+                      {gap == null ? '—' : reached ? 'Triggering' : money(Math.abs(gap))}
+                    </td>
+                    <td className="align-right num">{money(item.margin_blocked, 0)}</td>
+                    <td><StatusPill status="PENDING" /></td>
+                    <td>
+                      <div className="positions-row-actions">
+                        <button
+                          type="button"
+                          className="exit"
+                          disabled={cancellingId === item.id}
+                          onClick={() => handleCancelPending(item.id)}
+                        >
+                          {cancellingId === item.id ? '…' : 'Cancel'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}</tbody>
+            </table>
+          </div>
+        )
+      }
+
+      return (
+        <div className="positions-table-scroll">
+          <table className="positions-table book-table">
+            <thead><tr>
+              <th>Time</th><th>Instrument</th><th>Side</th>
+              <th className="align-right">Lots</th><th className="align-right">Limit</th>
+              <th className="align-right">Filled At</th><th>Status</th><th>Outcome</th>
+            </tr></thead>
+            <tbody>{settledPending.map(item => (
+              <tr key={item.id}>
+                <td className="num muted">{formatTime(item.closed_at || item.filled_at || item.created_at)}</td>
+                <td><InstrumentCell item={item} /></td>
+                <td><SideBadge side={item.action} /></td>
+                <td className="align-right num">{item.quantity}</td>
+                <td className="align-right num">{money(item.limit_price)}</td>
+                <td className="align-right num">{item.fill_price == null ? '—' : <strong>{money(item.fill_price)}</strong>}</td>
+                <td><StatusPill status={item.status} tone={PENDING_STATUS_TONE[item.status]} /></td>
+                <td className="positions-pending-outcome">
+                  {item.status === 'FILLED'
+                    ? 'Limit reached — position opened'
+                    : item.reject_reason || (item.status === 'EXPIRED'
+                      ? 'Unfilled at close'
+                      : item.status === 'CANCELLED' ? 'Cancelled by you' : '—')}
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )
+    }
+
     if (tab === 'tradebook') {
       if (!visibleTrades.length) {
         return <EmptyState icon={Wallet} title="No closed positions today" description="Completed trades will appear here with their realized result." />
@@ -740,7 +941,7 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
           <header className="positions-book-header">
             <div>
               <h2>Trading Book</h2>
-              <p>Live positions, orders, completed trades, and activity records</p>
+              <p>Live positions, orders, resting limits, completed trades, and activity records</p>
             </div>
             <div className="positions-tabs" role="tablist" aria-label="Trading book views">
               {TABS.map(item => (
@@ -757,6 +958,29 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
               ))}
             </div>
           </header>
+
+          {tab === 'pending' && (
+            <div className="positions-subtabs" role="tablist" aria-label="Pending book views">
+              {PENDING_VIEWS.map(view => (
+                <button
+                  type="button"
+                  key={view.key}
+                  className={pendingView === view.key ? 'active' : ''}
+                  onClick={() => setPendingView(view.key)}
+                  role="tab"
+                  aria-selected={pendingView === view.key}
+                >
+                  {view.label} <span>({view.key === 'open' ? pendingCounts.open : pendingCounts.executed})</span>
+                </button>
+              ))}
+              {pendingMargin > 0 && (
+                <p className="positions-subtabs-note">
+                  <ShieldCheck size={13} />
+                  {money(pendingMargin, 0)} held against resting orders
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="positions-book-controls">
             <div className="positions-filters">

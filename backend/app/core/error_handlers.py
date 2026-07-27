@@ -23,6 +23,8 @@ from app.core.exceptions import (
     MarketClosedError,
     OrderAlreadyClosedError,
     OrderNotFoundError,
+    PendingOrderNotCancellableError,
+    PendingOrderNotFoundError,
     PositionNotFoundError,
     QuoteUnavailableError,
     StrategyValidationError,
@@ -163,6 +165,20 @@ def register_error_handlers(app):
         return JSONResponse(
             status_code=409,
             content={"error": "IDEMPOTENCY_CONFLICT", "message": str(exc)},
+        )
+
+    @app.exception_handler(PendingOrderNotFoundError)
+    async def pending_order_not_found_handler(request: Request, exc: PendingOrderNotFoundError):
+        return JSONResponse(
+            status_code=404,
+            content={"error": "PENDING_ORDER_NOT_FOUND", "message": str(exc)},
+        )
+
+    @app.exception_handler(PendingOrderNotCancellableError)
+    async def pending_order_not_cancellable_handler(request: Request, exc: PendingOrderNotCancellableError):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "PENDING_ORDER_NOT_CANCELLABLE", "message": str(exc)},
         )
 
     @app.exception_handler(PositionNotFoundError)

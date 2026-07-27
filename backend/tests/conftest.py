@@ -82,6 +82,10 @@ def _ensure_strategy_schema(conn) -> None:
     from app.models.user_settings import UserSettings as USORM
     if not inspect(conn).has_table(USORM.__tablename__):
         USORM.__table__.create(conn)
+    # Resting LIMIT orders (migration 20260727) — create if not yet applied.
+    from app.models.pending_order import PendingOrder as POORM
+    if not inspect(conn).has_table(POORM.__tablename__):
+        POORM.__table__.create(conn)
 
 
 @pytest.fixture

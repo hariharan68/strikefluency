@@ -207,6 +207,49 @@ async def _auto_exit_tick():
         })
 
 
+async def _limit_fill_tick():
+    """
+    Fill resting LIMIT orders whose premium has reached the limit, every 5s.
+
+    A limit order is a promise about a price the user is not watching for — this
+    is what honours it. Runs independently of connected WebSocket clients, for
+    the same reason the auto-exit scanner does.
+
+    Unlike the other state jobs, scan_and_fill owns its own transaction and
+    commits per order, so a rejection at trigger persists without discarding the
+    fills that already succeeded in the same sweep.
+    """
+    from datetime import datetime, timezone
+
+    from app.config import settings
+    from app.database import SessionLocal
+    from app.services.pending_order_service import scan_and_fill
+
+    if not is_market_open() and not settings.is_development:
+        return
+
+    fill_events: list[tuple] = []
+    db = SessionLocal()
+    try:
+        n = scan_and_fill(db, on_fill=lambda uid, reason: fill_events.append((uid, reason)))
+        if n:
+            logger.info("Limit scanner filled %d resting order(s)", n)
+    except Exception as e:
+        db.rollback()
+        fill_events.clear()   # nothing committed — don't announce phantom fills
+        logger.error("Limit fill tick failed: %s", e)
+    finally:
+        db.close()
+
+    # scan_and_fill commits as it goes, so these are already durable.
+    for uid, reason in fill_events:
+        manager.push_user_event(uid, {
+            "type": "trading_update",
+            "reason": reason,
+            "ts": datetime.now(timezone.utc).isoformat(),
+        })
+
+
 async def _expiry_squareoff_tick():
     """
     On expiry day at EOD, cash-settle every open strategy whose leg expires today
@@ -236,14 +279,20 @@ async def _intraday_squareoff_tick():
     """
     from app.database import SessionLocal
     from app.services.eod_service import square_off_intraday, settle_expiring_options
+    from app.services.pending_order_service import expire_pending_orders
 
     db = SessionLocal()
     try:
         n = square_off_intraday(db)
         m = settle_expiring_options(db)
+        # Limit orders are DAY validity — nothing rests overnight.
+        p = expire_pending_orders(db)
         db.commit()
-        if n or m:
-            logger.info("EOD square-off: %d intraday position(s), %d expiring option(s)", n, m)
+        if n or m or p:
+            logger.info(
+                "EOD square-off: %d intraday position(s), %d expiring option(s), "
+                "%d unfilled limit order(s) expired", n, m, p,
+            )
     except Exception as e:
         db.rollback()
         logger.error("Intraday square-off failed: %s", e)
@@ -257,15 +306,23 @@ async def _premarket_reset_tick():
     position still OPEN from a prior trading day using the last stored price.
     Also marks the logical start of the new trading day.
     """
+    from app.core.utils import current_trading_day
     from app.database import SessionLocal
     from app.services.eod_service import premarket_reset
+    from app.services.pending_order_service import expire_pending_orders
 
     db = SessionLocal()
     try:
         n = premarket_reset(db)
+        # Safety net for limit orders stranded by a missed EOD run. Scoped to
+        # earlier trading days so a fresh morning's orders are never touched.
+        p = expire_pending_orders(db, before_trading_day=current_trading_day())
         db.commit()
-        if n:
-            logger.info("Pre-market reset: closed %d stale intraday position(s)", n)
+        if n or p:
+            logger.info(
+                "Pre-market reset: closed %d stale intraday position(s), "
+                "expired %d stale limit order(s)", n, p,
+            )
     except Exception as e:
         db.rollback()
         logger.error("Pre-market reset failed: %s", e)
@@ -310,6 +367,10 @@ async def _leader_mtm_tick():
 
 async def _leader_auto_exit_tick():
     await _run_state_job(_auto_exit_tick, "auto_exit_tick")
+
+
+async def _leader_limit_fill_tick():
+    await _run_state_job(_limit_fill_tick, "limit_fill_tick")
 
 
 async def _leader_expiry_squareoff_tick():
@@ -379,6 +440,14 @@ def start_market_scheduler():
         replace_existing=True,
         misfire_grace_time=5,
     )
+    scheduler.add_job(
+        _leader_limit_fill_tick,
+        trigger="interval",
+        seconds=5,
+        id="limit_fill_tick",
+        replace_existing=True,
+        misfire_grace_time=5,
+    )
     from app.core.constants import (
         EOD_SQUAREOFF_HOUR, EOD_SQUAREOFF_MINUTE,
         PRE_MARKET_RESET_HOUR, PRE_MARKET_RESET_MINUTE,
@@ -422,7 +491,8 @@ def start_market_scheduler():
     scheduler.start()
     logger.info(
         "Market data scheduler started (3s data, 15s MTM, 5s auto-exit, "
-        "15:29 EOD square-off [expiry + intraday], 08:30 pre-market reset)"
+        "5s limit fill, 15:29 EOD square-off [expiry + intraday + limit expiry], "
+        "08:30 pre-market reset)"
     )
 
 
