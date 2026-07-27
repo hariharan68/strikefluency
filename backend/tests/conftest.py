@@ -76,6 +76,11 @@ def _ensure_strategy_schema(conn) -> None:
         conn.execute(text(
             "ALTER TABLE virtual_orders ADD COLUMN entry_brokerage "
             "NUMERIC(10, 2) NOT NULL DEFAULT 0.00"))
+    # Subscription seam (migration 20260801) — add if not yet applied.
+    u_cols = {c["name"] for c in insp.get_columns("users")}
+    if "plan" not in u_cols:
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN plan VARCHAR(20) NOT NULL DEFAULT 'free'"))
     va_cols = {c["name"] for c in insp.get_columns("virtual_accounts")}
     if "discipline_mode_enabled" not in va_cols:
         conn.execute(text(

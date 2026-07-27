@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Boolean, ForeignKey, UniqueConstraint, Index, func
+from sqlalchemy import CheckConstraint, String, Boolean, ForeignKey, UniqueConstraint, Index, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
@@ -19,6 +19,11 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
     role: Mapped[str] = mapped_column(String(20), default="trader", nullable=False)
+    # Subscription seam. The app is free, so everyone is on "free" and nothing
+    # gates on this yet — see app/core/plans.py. The column exists so that
+    # introducing a paid tier is a policy change rather than a migration
+    # against a live users table.
+    plan: Mapped[str] = mapped_column(String(20), default="free", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     token_version: Mapped[int] = mapped_column(default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -65,5 +70,6 @@ class User(Base):
         # Login and OAuth both look users up by email alone, so a per-tenant
         # constraint would let colliding emails make logins non-deterministic.
         UniqueConstraint("email", name="uq_users_email"),
+        CheckConstraint("plan IN ('free', 'pro')", name="ck_users_plan"),
         Index("idx_users_tenant_id", "tenant_id"),
     )

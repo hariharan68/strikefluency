@@ -92,6 +92,11 @@ class Settings(BaseSettings):
     MARKET_TICK_STALE_SECONDS: int = 60
     MARKET_ORDER_BLOCK_SECONDS: int = 120
 
+    # Subscription seam (app/core/plans.py). The app is free; this stays False
+    # until there is something to sell. While False, require_plan() allows
+    # everyone through, so the gate can be wired onto routes ahead of time.
+    BILLING_ENABLED: bool = False
+
     BROKER_TOKEN_ENC_KEY: str = ""
     FRONTEND_URL: str = "http://localhost:5173"
 

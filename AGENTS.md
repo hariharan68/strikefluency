@@ -238,6 +238,38 @@ denominator that `discipline_mode_service` mutates on capital unlock.
   conftest drift patcher *and* to the `committed_user` teardown in
   `tests/integration/test_order_concurrency.py`, or the suite breaks confusingly.
 
+### Subscriptions — a seam, not machinery (`app/core/plans.py`)
+
+The app is free. There are **no** `subscriptions` / `payments` / `plan` tables
+and no payment provider, on purpose — see `Docs/adr/0002-no-billing-machinery.md`.
+
+What exists is only the expensive-to-retrofit part: `users.plan` (default
+`'free'`, `ck_users_plan`), an ordering so "at least pro" is expressible, and
+`require_plan(minimum)`.
+
+`settings.BILLING_ENABLED` is `False`, so the gate admits everyone — an explicit
+kill switch, tested on both sides, not a stub that silently does nothing. That
+means `require_plan` can be attached to a route today and change nothing, and is
+already correct the day billing is switched on. Unknown plan values rank lowest,
+so a bad value fails closed.
+
+`require_plan` does **not** authenticate. Compose it with `CurrentUser`; a route
+depending only on it would fail the Security Kernel and stop the app booting.
+
+`tests/unit/test_plans.py` fails if subscription or payment models appear, so
+adding them is a deliberate decision rather than a drive-by.
+
+### Architecture decisions (`Docs/adr/`)
+
+Where the codebase deliberately diverges from
+`PAPER_TRADING_SAAS_ARCHITECTURE.md`. Read these before "fixing" a missing table:
+
+- `0001-executions-table-deferred.md` — `virtual_orders` **is** the execution
+  record until partial fills exist; under `uq_virtual_positions_order_id` an
+  `executions` table would be a 1:1 duplicate.
+- `0002-no-billing-machinery.md` — why the subscription seam exists but the
+  billing tables do not.
+
 ### Admin surface (`app/routers/admin.py`, `/admin`)
 
 Read-only operator view: overview + system health, the **audit trail read
