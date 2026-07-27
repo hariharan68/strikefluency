@@ -23,6 +23,7 @@ from app.core.exceptions import (
     QuoteUnavailableError,
 )
 from app.core.utils import calculate_pnl, current_trading_day, is_market_open
+from app.market import freshness
 from app.market.provider_factory import get_market_provider
 from app.models.journal_entry import JournalEntry
 from app.models.virtual_account import VirtualAccount
@@ -99,9 +100,13 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
 
     try:
         chain = provider.get_option_chain(instrument)
-        assert_orderable = getattr(provider, "assert_orderable", None)
-        if callable(assert_orderable):
-            assert_orderable(chain)
+        # The provider's own check first, where it is stricter (Kite demands a
+        # tick under 30s old because it has a live feed), then the shared
+        # backstop that every provider is held to.
+        provider_check = getattr(provider, "assert_orderable", None)
+        if callable(provider_check):
+            provider_check(chain)
+        freshness.assert_orderable(chain, instrument=instrument)
     except RuntimeError as exc:
         raise QuoteUnavailableError(str(exc)) from exc
     ltp, atm_strike = _get_ltp_from_chain(chain, strike_price, option_type)

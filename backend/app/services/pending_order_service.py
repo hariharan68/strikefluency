@@ -49,6 +49,7 @@ from app.core.exceptions import (
 )
 from app.core.instruments import get_spec
 from app.core.utils import current_trading_day, is_market_open
+from app.market import freshness
 from app.market.provider_factory import get_market_provider
 from app.models.pending_order import PendingOrder
 from app.models.user import User
@@ -120,9 +121,10 @@ def place_pending_order(db: Session, user: User, order_data: dict) -> PendingOrd
     provider = get_market_provider()
     try:
         chain = provider.get_option_chain(instrument)
-        assert_orderable = getattr(provider, "assert_orderable", None)
-        if callable(assert_orderable):
-            assert_orderable(chain)
+        provider_check = getattr(provider, "assert_orderable", None)
+        if callable(provider_check):
+            provider_check(chain)
+        freshness.assert_orderable(chain, instrument=instrument)
     except RuntimeError as exc:
         raise QuoteUnavailableError(str(exc)) from exc
 
@@ -278,6 +280,13 @@ def scan_and_fill(db: Session,
             chain = provider.get_option_chain(instrument)
         except Exception as e:
             logger.error("Limit fill: chain fetch failed for %s: %s", instrument, e)
+            continue
+
+        # Pause rather than fill on stale data (architecture doc, section 18).
+        # A frozen chain would fill a resting limit at a price the market never
+        # actually printed; the order simply stays resting until the feed
+        # recovers, which is what a real exchange would do.
+        if not freshness.is_tradeable(chain, instrument=instrument):
             continue
 
         for pending in instr_pendings:

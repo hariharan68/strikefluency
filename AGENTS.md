@@ -238,6 +238,38 @@ denominator that `discipline_mode_service` mutates on capital unlock.
   conftest drift patcher *and* to the `committed_user` teardown in
   `tests/integration/test_order_concurrency.py`, or the suite breaks confusingly.
 
+### Stale market data (`app/market/freshness.py`)
+
+One staleness contract for every provider. Previously only Kite had one, and it
+ran at two of the five places a fill can happen.
+
+**Three answers, deliberately different:**
+
+| Path | Behaviour | Why |
+|---|---|---|
+| `place_order`, `place_limit_order` | **raise** (`assert_orderable`) | Never open a position on stale data. |
+| `scan_and_exit`, `scan_and_fill` | **skip** (`is_tradeable`) | A stale tick fires a stop-loss the market never hit, or fills a limit at a price that never printed. Pause and retry next tick — a stale sweep is not an error. |
+| `close_position` | **not gated** | Serves manual exits, EOD square-off and expiry settlement. Refusing to close traps the user in a position and would leave intraday positions open overnight — strictly worse than exiting at a slightly old price, which the `current_ltp` fallback already bounds. |
+
+Mark-to-market still runs on a stale chain in `scan_and_exit`. Staleness pauses
+*triggering*, not display; freezing the P&L number too would make the desk look
+broken during a brief feed hiccup.
+
+- `age_ms()` derives from `age_ms` → `as_of` → `timestamp`, so providers that
+  never stamped freshness fields (Fyers, Nuvama, mock) needed **no changes**.
+  An unknowable age counts as stale, never as fresh.
+- `MARKET_ORDER_BLOCK_SECONDS` (120s) is a **backstop, not a replacement**. A
+  provider's own `assert_orderable` runs first and still wins where stricter —
+  Kite demands <30s because it has a live tick feed. The generic bound must stay
+  above the slowest provider's cache TTL (Fyers caches chains for 95s), or it
+  rejects orders during entirely normal operation.
+- Simulated sources (`mock`, `mock_fallback`, `nuvama_live_spot_mock_chain`) are
+  refused in production but **allowed in development** — locally the mock
+  provider *is* the data source, and blocking it would block all local trading.
+- `assert_orderable` raises `RuntimeError` on purpose: the order paths already
+  catch it and re-raise `QuoteUnavailableError` (a clean 400). Narrowing the
+  type would turn stale quotes into 500s.
+
 ### The audit trail (`audit_logs`)
 
 Append-only record of security- and trading-sensitive actions, sharing the

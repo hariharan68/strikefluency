@@ -78,6 +78,20 @@ class Settings(BaseSettings):
     KITE_ORDER_BLOCK_SECONDS: int = 30
     KITE_OPTION_STRIKES_EACH_SIDE: int = 20
 
+    # Provider-agnostic staleness backstop (app/market/freshness.py).
+    #
+    # Deliberately looser than the Kite thresholds above, because it has to
+    # hold for polling providers too. Kite has a live tick feed and can demand
+    # a quote under 30s old; Fyers caches an option chain for 95s
+    # (OPTION_CHAIN_TTL_SECONDS), so a 30s bound there would reject orders
+    # during entirely normal operation.
+    #
+    # A provider's own assert_orderable() still runs first and still wins where
+    # it is stricter — this is the floor for providers that have none, not a
+    # replacement.
+    MARKET_TICK_STALE_SECONDS: int = 60
+    MARKET_ORDER_BLOCK_SECONDS: int = 120
+
     BROKER_TOKEN_ENC_KEY: str = ""
     FRONTEND_URL: str = "http://localhost:5173"
 
