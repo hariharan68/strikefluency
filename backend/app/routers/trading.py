@@ -20,11 +20,15 @@ Virtual trading endpoints:
 import uuid
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.orm import Session
 
 from app.core.constants import ExitReason, OrderStatus, PendingOrderStatus
-from app.core.exceptions import OrderNotFoundError
+from app.core.exceptions import (
+    DisciplineViolationError,
+    InsufficientBalanceError,
+    OrderNotFoundError,
+)
 from app.core.instruments import get_spec
 from app.core.utils import current_trading_day
 from app.database import get_db
@@ -48,6 +52,8 @@ from app.schemas.virtual_order import (
     PlaceOrderRequest,
 )
 from app.schemas.virtual_position import PositionListResponse, PositionResponse
+from app.services import audit_service
+from app.services.audit_service import AuditAction, AuditRef
 from app.services.pending_order_service import (
     cancel_pending_order,
     place_pending_order,
@@ -106,6 +112,7 @@ def get_account(
 def place_new_order(
     data: PlaceOrderRequest,
     current_user: CurrentUser,
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
 ):
@@ -148,8 +155,44 @@ def place_new_order(
         "setup_tag":    data.setup_tag,
     }
 
-    order = place_order(db, current_user, order_dict)
+    try:
+        order = place_order(db, current_user, order_dict)
+    except (DisciplineViolationError, InsufficientBalanceError) as exc:
+        # record_now, not record: the router is about to roll back, and a
+        # blocked trade is worth more in the trail than a successful one.
+        audit_service.record_now(
+            action=AuditAction.ORDER_REJECTED,
+            user_id=current_user.id, tenant_id=current_user.tenant_id,
+            detail={
+                "reason": type(exc).__name__,
+                "message": str(exc)[:300],
+                "rule_code": getattr(exc, "rule_code", None),
+                "instrument": data.instrument,
+                "strike": data.strike_price,
+                "option_type": data.option_type,
+                "action": data.action,
+            },
+            ip_address=audit_service.client_ip(request), user_agent=request.headers.get("user-agent"),
+        )
+        raise
+
     was_replayed = getattr(order, "_idempotent_replay", False)
+    if not was_replayed:
+        audit_service.record(
+            db, action=AuditAction.ORDER_PLACED,
+            user_id=current_user.id, tenant_id=current_user.tenant_id,
+            reference_type=AuditRef.VIRTUAL_ORDER, reference_id=order.id,
+            detail={
+                "instrument": order.instrument,
+                "strike": str(order.strike_price),
+                "option_type": order.option_type,
+                "side": order.action,
+                "quantity": order.quantity,
+                "fill_price": str(order.entry_price),
+                "entry_brokerage": str(order.entry_brokerage),
+            },
+            ip_address=audit_service.client_ip(request), user_agent=request.headers.get("user-agent"),
+        )
     db.commit()
     db.refresh(order)
 
@@ -276,6 +319,16 @@ def close_order(
         order_id=order_id,
         exit_reason=ExitReason.MANUAL,
     )
+    audit_service.record(
+        db, action=AuditAction.ORDER_CLOSED,
+        user_id=current_user.id, tenant_id=current_user.tenant_id,
+        reference_type=AuditRef.VIRTUAL_ORDER, reference_id=order.id,
+        detail={
+            "exit_price": str(order.exit_price),
+            "pnl": str(order.pnl),
+            "exit_reason": order.exit_reason,
+        },
+    )
     db.commit()
     db.refresh(order)
 
@@ -327,6 +380,20 @@ def place_new_pending_order(
 
     pending = place_pending_order(db, current_user, order_dict)
     was_replayed = getattr(pending, "_idempotent_replay", False)
+    if not was_replayed:
+        audit_service.record(
+            db, action=AuditAction.LIMIT_PLACED,
+            user_id=current_user.id, tenant_id=current_user.tenant_id,
+            reference_type=AuditRef.PENDING_ORDER, reference_id=pending.id,
+            detail={
+                "instrument": pending.instrument,
+                "strike": str(pending.strike_price),
+                "option_type": pending.option_type,
+                "side": pending.action,
+                "quantity": pending.quantity,
+                "limit_price": str(pending.limit_price),
+            },
+        )
     db.commit()
     db.refresh(pending)
 
@@ -390,6 +457,12 @@ def cancel_resting_order(
     # The row's reservation is zeroed by the cancel, so read the amount the
     # service carried out-of-band before db.refresh() drops the attribute.
     released = Decimal(str(getattr(pending, "_released_margin", 0) or 0))
+    audit_service.record(
+        db, action=AuditAction.LIMIT_CANCELLED,
+        user_id=current_user.id, tenant_id=current_user.tenant_id,
+        reference_type=AuditRef.PENDING_ORDER, reference_id=pending.id,
+        detail={"margin_released": str(released)},
+    )
     db.commit()
     db.refresh(pending)
 

@@ -23,6 +23,7 @@ from app.models.virtual_account import VirtualAccount
 from app.models.virtual_order import VirtualOrder
 from app.models.virtual_position import VirtualPosition
 from app.models.virtual_fund_ledger import VirtualFundLedger
+from app.models.audit_log import AuditLog
 from app.services import ledger_service
 from tests.conftest import assert_ledger_reconciles
 from app.services.trading_session_service import get_or_create_today
@@ -84,6 +85,7 @@ def committed_user(db_engine):
         # Ledger first: it FKs virtual_accounts, users and tenants. Deleting is
         # allowed (only UPDATE is blocked by trg_vfl_forbid_update).
         db.query(VirtualFundLedger).filter(VirtualFundLedger.user_id == user_id).delete()
+        db.query(AuditLog).filter(AuditLog.user_id == user_id).delete()
         db.query(JournalEntry).filter(JournalEntry.user_id == user_id).delete()
         db.query(VirtualPosition).filter(VirtualPosition.user_id == user_id).delete()
         db.query(VirtualOrder).filter(VirtualOrder.user_id == user_id).delete()

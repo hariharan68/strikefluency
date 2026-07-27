@@ -238,6 +238,32 @@ denominator that `discipline_mode_service` mutates on capital unlock.
   conftest drift patcher *and* to the `committed_user` teardown in
   `tests/integration/test_order_concurrency.py`, or the suite breaks confusingly.
 
+### The audit trail (`audit_logs`)
+
+Append-only record of security- and trading-sensitive actions, sharing the
+ledger's guard (`app/models/append_only.py`: UPDATE blocked, DELETE allowed).
+Distinct from `security_notifications`, which tells a *user* something happened;
+this is the operator-facing trail.
+
+**The two write modes are the design — pick deliberately:**
+
+- `audit_service.record(db, ...)` joins the caller's transaction. Correct for
+  successful state changes: if the transaction rolls back, the action did not
+  happen and must not be audited as though it did.
+- `audit_service.record_now(...)` opens its own session and commits immediately.
+  Required for events whose transaction is about to roll back — **failed logins**
+  (`authenticate_user` raises before the router commits) and **rejected orders**.
+  Those are the rows most worth having, and `record()` would silently discard them.
+
+Both are fire-and-forget and never raise: an audit failure must never fail a
+trade or block a login.
+
+`user_id` and `tenant_id` are nullable on purpose — a failed login against an
+unknown email has no user, and is exactly the row worth keeping. The attempted
+email goes in `detail` so a typo can be told apart from an attack.
+
+There is **no read API yet**. Query it in `psql`; a `/admin` surface is Phase 6.
+
 **Known inconsistency, deliberately not fixed:** single orders charge entry
 brokerage at *entry* (debited from balance), while
 `strategy_execution_service._close_if_all_legs_done` nets the strategy's entry

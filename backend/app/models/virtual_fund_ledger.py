@@ -4,11 +4,12 @@ from datetime import datetime
 from typing import Optional
 from sqlalchemy import (
     String, Numeric, BigInteger, Identity, ForeignKey, CheckConstraint,
-    Index, UniqueConstraint, DDL, event, func,
+    Index, UniqueConstraint, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
+from app.models.append_only import AppendOnlyViolation, attach_append_only_guard
 
 
 class VirtualFundLedger(Base):
@@ -103,43 +104,11 @@ class VirtualFundLedger(Base):
 
 
 # ── Immutability ──────────────────────────────────────────────────
-# UPDATE is blocked at the storage layer, because the whole value of a ledger
-# is that it can be trusted without reading the code that wrote it — a
-# convention is worth nothing the first time someone is in psql at 2am.
-#
-# DELETE is deliberately NOT blocked: test teardown and account deletion both
-# need it, and a delete at least fails loudly as a gap in `seq`, whereas an
-# update corrupts history silently.
-#
-# Attached via after_create so ORM-driven Table.create() (the conftest schema
-# drift patcher) and Alembic produce identical schemas.
-_FORBID_UPDATE_FN = DDL("""
-CREATE OR REPLACE FUNCTION vfl_forbid_update() RETURNS trigger AS $$
-BEGIN
-    RAISE EXCEPTION 'virtual_fund_ledger is append-only (attempted UPDATE on row %)', OLD.id;
-END;
-$$ LANGUAGE plpgsql
-""")
+# See app/models/append_only.py: a Postgres trigger blocks UPDATE (DELETE stays
+# allowed on purpose), plus an ORM listener so a stray write fails at the
+# offending line rather than opaquely at flush time. To correct a row, post a
+# compensating MANUAL_ADJUSTMENT.
+attach_append_only_guard(VirtualFundLedger, name="vfl")
 
-_FORBID_UPDATE_TRIGGER = DDL("""
-CREATE TRIGGER trg_vfl_forbid_update
-    BEFORE UPDATE ON virtual_fund_ledger
-    FOR EACH ROW EXECUTE FUNCTION vfl_forbid_update()
-""")
-
-event.listen(VirtualFundLedger.__table__, "after_create", _FORBID_UPDATE_FN)
-event.listen(VirtualFundLedger.__table__, "after_create", _FORBID_UPDATE_TRIGGER)
-
-
-class LedgerImmutableError(RuntimeError):
-    """Raised in-process when something tries to mutate a persisted ledger row."""
-
-
-@event.listens_for(VirtualFundLedger, "before_update", propagate=True)
-def _block_ledger_update(mapper, connection, target):  # noqa: ARG001
-    # The DB trigger is the real guarantee, but it fires at flush time with an
-    # opaque InternalError. This raises at the offending line instead.
-    raise LedgerImmutableError(
-        f"virtual_fund_ledger is append-only; tried to update row {target.id}. "
-        "Post a compensating MANUAL_ADJUSTMENT instead."
-    )
+# Kept as an alias: tests and callers refer to the ledger-specific name.
+LedgerImmutableError = AppendOnlyViolation

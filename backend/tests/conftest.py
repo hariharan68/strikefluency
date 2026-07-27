@@ -97,6 +97,10 @@ def _ensure_strategy_schema(conn) -> None:
     from app.models.virtual_fund_ledger import VirtualFundLedger as VFLORM
     if not inspect(conn).has_table(VFLORM.__tablename__):
         VFLORM.__table__.create(conn)
+    # Append-only audit trail (migration 20260730) — create if not yet applied.
+    from app.models.audit_log import AuditLog as ALORM
+    if not inspect(conn).has_table(ALORM.__tablename__):
+        ALORM.__table__.create(conn)
 
 
 @pytest.fixture

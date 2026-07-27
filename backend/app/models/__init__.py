@@ -5,6 +5,7 @@ from app.models.virtual_account import VirtualAccount
 from app.models.virtual_order import VirtualOrder
 from app.models.virtual_position import VirtualPosition
 from app.models.virtual_fund_ledger import VirtualFundLedger
+from app.models.audit_log import AuditLog
 from app.models.pending_order import PendingOrder
 from app.models.discipline_rule import DisciplineRule
 from app.models.discipline_violation import DisciplineViolation
@@ -29,6 +30,7 @@ __all__ = [
     "VirtualOrder",
     "VirtualPosition",
     "VirtualFundLedger",
+    "AuditLog",
     "PendingOrder",
     "DisciplineRule",
     "DisciplineViolation",
