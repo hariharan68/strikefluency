@@ -117,8 +117,14 @@ list, so they cannot drift.
 ### Layering conventions
 
 - **Routers are thin.** Business logic lives in `app/services/`.
-- **Services never commit.** The router owns `db.commit()`. (Exception:
-  `brokers/connections.py` token helpers own their own short-lived sessions.)
+- **Services never commit.** The router owns `db.commit()`. Known and accepted
+  exceptions, all deliberate: `brokers/connections.py` token helpers own their
+  own short-lived sessions; `pending_order_service.scan_and_fill()` commits per
+  order (it is a scheduler sweep with no router above it, and one bad order must
+  not roll back the whole sweep — see its docstring); `token_service` and
+  `oauth_service` commit around refresh-token rotation.
+- **`virtual_accounts.balance` is written in exactly one place:**
+  `app/services/ledger_service.py`. See the funds ledger section below.
 - Services are plain module functions taking `(db, user, ...)`, raising domain
   exceptions from `app/core/exceptions.py`. No async in the service layer.
 - `app/strategy/` is **pure maths** — no DB, no network, floats. Everything else
@@ -198,6 +204,223 @@ Notes:
   `leverage_enabled` setting is on, ÷ 1 when off.
 - `client_order_id` makes placement retry-safe; a replay returns the original
   fill (HTTP 200 instead of 201) and never re-prices.
+
+### The funds ledger (`virtual_fund_ledger`)
+
+Every change to `virtual_accounts.balance` posts a matching append-only ledger
+row in the same transaction, so the balance and its explanation can never
+disagree. The invariant is **`balance == SUM(ledger.amount)`** — note *not*
+`initial_balance + SUM(...)`, because `initial_balance` is a discipline-rule
+denominator that `discipline_mode_service` mutates on capital unlock.
+
+- **Never write `account.balance` directly.** Use `ledger_service.post()` or a
+  wrapper (`block_margin`, `release_margin`, `charge`, `settle_pnl`, `adjust`,
+  `open_account`). `tests/unit/test_ledger_boundary.py` AST-scans `app/` and
+  fails the suite on any direct write — including in new code you add.
+- `post()` takes a **signed delta**, never a target balance, and raises
+  `InsufficientBalanceError` *before* mutating if the delta would go negative.
+  That converts what would be an `IntegrityError` 500 at commit into the 400
+  every caller already handles.
+- Accounts are created at **zero** and credited via `open_account()`, so the
+  first row already reconciles. Test fixtures do the same.
+- `UPDATE` is blocked by a Postgres trigger (`trg_vfl_forbid_update`) plus an
+  ORM `before_update` listener. `DELETE` is deliberately allowed — test teardown
+  and account deletion need it, and a delete fails loudly as a gap in `seq`
+  whereas an update corrupts history silently. To correct a row, post a
+  compensating `MANUAL_ADJUSTMENT`.
+- The trigger travels with the table via an `after_create` DDL event, so the
+  conftest schema-drift patcher and Alembic produce identical schemas.
+- The ledger is **observational**: balances live in `virtual_accounts` and are
+  never derived from it, which is what makes the migration safe to drop. Do not
+  turn `balance` into a view over the ledger — that trades the reversibility
+  away.
+- A new table with an FK to `users`/`virtual_accounts` must be added to the
+  conftest drift patcher *and* to the `committed_user` teardown in
+  `tests/integration/test_order_concurrency.py`, or the suite breaks confusingly.
+
+### Subscriptions — a seam, not machinery (`app/core/plans.py`)
+
+The app is free. There are **no** `subscriptions` / `payments` / `plan` tables
+and no payment provider, on purpose — see `Docs/adr/0002-no-billing-machinery.md`.
+
+What exists is only the expensive-to-retrofit part: `users.plan` (default
+`'free'`, `ck_users_plan`), an ordering so "at least pro" is expressible, and
+`require_plan(minimum)`.
+
+`settings.BILLING_ENABLED` is `False`, so the gate admits everyone — an explicit
+kill switch, tested on both sides, not a stub that silently does nothing. That
+means `require_plan` can be attached to a route today and change nothing, and is
+already correct the day billing is switched on. Unknown plan values rank lowest,
+so a bad value fails closed.
+
+`require_plan` does **not** authenticate. Compose it with `CurrentUser`; a route
+depending only on it would fail the Security Kernel and stop the app booting.
+
+`tests/unit/test_plans.py` fails if subscription or payment models appear, so
+adding them is a deliberate decision rather than a drive-by.
+
+### Architecture decisions (`Docs/adr/`)
+
+Where the codebase deliberately diverges from
+`PAPER_TRADING_SAAS_ARCHITECTURE.md`. Read these before "fixing" a missing table:
+
+- `0001-executions-table-deferred.md` — `virtual_orders` **is** the execution
+  record until partial fills exist; under `uq_virtual_positions_order_id` an
+  `executions` table would be a 1:1 duplicate.
+- `0002-no-billing-machinery.md` — why the subscription seam exists but the
+  billing tables do not.
+
+### Admin surface (`app/routers/admin.py`, `/admin`)
+
+Read-only operator view: overview + system health, the **audit trail read
+surface** (previously psql-only), users, funds ledger, and daily snapshots.
+
+**Deliberately read-only.** Every mutation an admin might want already exists
+behind a user-facing endpoint or belongs in psql, and a half-built "adjust this
+balance" button is a bigger liability than its absence. Any write added here
+must post to `virtual_fund_ledger` and `audit_logs` like anything else.
+
+**Scoping is the security-critical part**, and this is the first place
+`tenant_id` is used for read *isolation* rather than only being written:
+
+- `tenant_admin` → own tenant only. `super_admin` → all tenants.
+- The scope comes from the **admin's own row**, never a query parameter, so no
+  request input can widen it. Naming another tenant's `user_id` returns empty
+  (audit) or 404 (ledger) rather than that user's data — both are tested.
+- Unattributable failed logins (unknown email → no `user_id`/`tenant_id`) are
+  visible only to a `super_admin`; a tenant admin could not attribute them.
+
+`GET /admin/ledger?user_id=…` reports **`reconciles`** — whether that account's
+balance still equals the sum of its ledger rows. That is the Phase 1 invariant
+made visible, and it surfaces a balance mutated outside `ledger_service` instead
+of letting it pass unnoticed. It stays `null` when unscoped, where it is
+meaningless.
+
+Frontend: `AdminRoute.jsx` is the **first role guard in the app**
+(`ProtectedRoute` is authentication-only) and exports `isAdminRole` /
+`ADMIN_ROLES`, which `TopBar` now uses instead of its own inline array. The
+sidebar gained `adminOnly` filtering — items without the flag stay visible to
+everyone. The guard is UX only; every endpoint is independently enforced by
+`get_current_active_admin`.
+
+Roles are still assigned only at registration: **no `tenant_code` → tenant_admin,
+with one → trader**. There is no endpoint to change a role after the fact.
+
+### Trading events (`app/events/`)
+
+Deliberately small — publisher and consumer are the same process, so this is a
+naming layer, not decoupling. There is **no `consumer.py` and no dispatcher**;
+add one when a second subscriber exists, not before.
+
+- `TradingEvent` (StrEnum) replaces ten inline magic strings. **The values are a
+  wire contract**: `useMarketWebSocket.js` dispatches on `msg.reason`, so a
+  rename silently stops the frontend refreshing — no error, just a stale desk.
+  `tests/unit/test_events.py::test_wire_values_are_unchanged` pins all ten.
+- `publish(user_id, event)` — call **only after `db.commit()`**. Takes no third
+  argument, so the no-payload contract is enforced by the signature: clients
+  re-run their REST loaders, keeping REST the single source of truth rather
+  than maintaining a second divergent representation of a position.
+- `DeferredPublisher` — collect during work, `flush()` after commit,
+  `discard()` on rollback. Replaces the identical list-then-drain-or-clear
+  dance `market_scheduler` was hand-rolling in both sweeps. `flush()` after
+  `discard()` is a no-op, so the try/except/finally ordering is safe.
+
+`notify_trading_update` still exists in `websocket_manager` and is re-exported;
+`publish` is the preferred entry point.
+
+### Daily snapshots (`portfolio_snapshots`, `pnl_snapshots`)
+
+Captured by the `daily_snapshot` cron at **15:35**, six minutes after the 15:29
+square-off, so intraday positions are already settled and only genuine
+carry-forward is marked. Leader-gated like every other state job.
+
+Most of an equity curve is reconstructible from closed orders. One part is not:
+the **unrealised mark on positions still open at the close**. A carried NRML
+position leaves no record of what it was worth on each intervening day, because
+`virtual_positions.current_ltp` holds only the latest value and the exit price
+eventually overwrites it. That is what these tables preserve.
+
+- `portfolio_snapshots` — one row per user per day: the account total.
+  `equity = balance + margin_blocked + unrealized_pnl`, enforced by a CHECK.
+  Margin has to be added back because it is already excluded from `balance`,
+  and resting-limit reservations count too.
+- `pnl_snapshots` — one row per *open* position per day: the attribution a
+  total cannot give. Closed positions are skipped; their VirtualOrder row is
+  already a permanent record.
+
+**Not append-only**, unlike the ledger and audit log. A snapshot is a derived
+observation, so re-running a day must update rather than duplicate — the cron
+has a 600s misfire grace and a restart near the close can genuinely fire it
+twice. Unique constraints on `(user_id, snapshot_date)` and
+`(position_id, snapshot_date)` enforce it.
+
+One failing account is logged and skipped rather than aborting the batch: the
+caller commits once, so an uncaught error would cost every other user their row.
+
+### Stale market data (`app/market/freshness.py`)
+
+One staleness contract for every provider. Previously only Kite had one, and it
+ran at two of the five places a fill can happen.
+
+**Three answers, deliberately different:**
+
+| Path | Behaviour | Why |
+|---|---|---|
+| `place_order`, `place_limit_order` | **raise** (`assert_orderable`) | Never open a position on stale data. |
+| `scan_and_exit`, `scan_and_fill` | **skip** (`is_tradeable`) | A stale tick fires a stop-loss the market never hit, or fills a limit at a price that never printed. Pause and retry next tick — a stale sweep is not an error. |
+| `close_position` | **not gated** | Serves manual exits, EOD square-off and expiry settlement. Refusing to close traps the user in a position and would leave intraday positions open overnight — strictly worse than exiting at a slightly old price, which the `current_ltp` fallback already bounds. |
+
+Mark-to-market still runs on a stale chain in `scan_and_exit`. Staleness pauses
+*triggering*, not display; freezing the P&L number too would make the desk look
+broken during a brief feed hiccup.
+
+- `age_ms()` derives from `age_ms` → `as_of` → `timestamp`, so providers that
+  never stamped freshness fields (Fyers, Nuvama, mock) needed **no changes**.
+  An unknowable age counts as stale, never as fresh.
+- `MARKET_ORDER_BLOCK_SECONDS` (120s) is a **backstop, not a replacement**. A
+  provider's own `assert_orderable` runs first and still wins where stricter —
+  Kite demands <30s because it has a live tick feed. The generic bound must stay
+  above the slowest provider's cache TTL (Fyers caches chains for 95s), or it
+  rejects orders during entirely normal operation.
+- Simulated sources (`mock`, `mock_fallback`, `nuvama_live_spot_mock_chain`) are
+  refused in production but **allowed in development** — locally the mock
+  provider *is* the data source, and blocking it would block all local trading.
+- `assert_orderable` raises `RuntimeError` on purpose: the order paths already
+  catch it and re-raise `QuoteUnavailableError` (a clean 400). Narrowing the
+  type would turn stale quotes into 500s.
+
+### The audit trail (`audit_logs`)
+
+Append-only record of security- and trading-sensitive actions, sharing the
+ledger's guard (`app/models/append_only.py`: UPDATE blocked, DELETE allowed).
+Distinct from `security_notifications`, which tells a *user* something happened;
+this is the operator-facing trail.
+
+**The two write modes are the design — pick deliberately:**
+
+- `audit_service.record(db, ...)` joins the caller's transaction. Correct for
+  successful state changes: if the transaction rolls back, the action did not
+  happen and must not be audited as though it did.
+- `audit_service.record_now(...)` opens its own session and commits immediately.
+  Required for events whose transaction is about to roll back — **failed logins**
+  (`authenticate_user` raises before the router commits) and **rejected orders**.
+  Those are the rows most worth having, and `record()` would silently discard them.
+
+Both are fire-and-forget and never raise: an audit failure must never fail a
+trade or block a login.
+
+`user_id` and `tenant_id` are nullable on purpose — a failed login against an
+unknown email has no user, and is exactly the row worth keeping. The attempted
+email goes in `detail` so a typo can be told apart from an attack.
+
+There is **no read API yet**. Query it in `psql`; a `/admin` surface is Phase 6.
+
+**Known inconsistency, deliberately not fixed:** single orders charge entry
+brokerage at *entry* (debited from balance), while
+`strategy_execution_service._close_if_all_legs_done` nets the strategy's entry
+brokerage at *close* (`net = realized_pnl - position.brokerage`). Two
+conventions. Unifying them changes strategy P&L semantics, so it is out of
+scope until deliberately scheduled.
 - Lot size is snapshotted onto every order row, so a SEBI revision never
   re-values historical trades.
 

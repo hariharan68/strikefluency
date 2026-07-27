@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.core.constants import ExitReason, OrderStatus
 from app.core.exceptions import OrderAlreadyClosedError
+from app.market import freshness
 from app.market.provider_factory import get_market_provider
 from app.models.user import User
 from app.models.virtual_order import VirtualOrder
@@ -107,6 +108,13 @@ def scan_and_exit(db: Session,
             logger.error("Auto-exit: chain fetch failed for %s: %s", instrument, e)
             continue
 
+        # Mark-to-market on a slightly old price is harmless — it only moves a
+        # displayed number. TRIGGERING on one is not: a stale tick fires a
+        # stop-loss the market never actually reached, and the user is closed
+        # out of a position at a price that never existed. So the chain is
+        # still used for MTM, but exits are held until it is fresh again.
+        may_trigger = freshness.is_tradeable(chain, instrument=instrument)
+
         for order in instr_orders:
             ltp, _ = _get_ltp_from_chain(chain, int(order.strike_price), order.option_type)
             if ltp is None:
@@ -120,6 +128,9 @@ def scan_and_exit(db: Session,
                 update_position_ltp(db, order.id, ltp)
             except Exception as e:
                 logger.error("MTM update failed for order %s: %s", order.id, e)
+
+            if not may_trigger:
+                continue
 
             reason = _decide_exit(order, ltp)
             if reason is None:

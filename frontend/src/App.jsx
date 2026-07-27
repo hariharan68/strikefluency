@@ -3,6 +3,7 @@ import { Component, useEffect, useLayoutEffect } from 'react'
 import { ToastProvider } from './components/common/Toast'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 import AppLayout from './components/layout/AppLayout'
+import AdminRoute from './components/layout/AdminRoute'
 import LandingPage from './pages/LandingPage'
 import ProductPage from './pages/marketing/ProductPage'
 import DisciplineInfoPage from './pages/marketing/DisciplineInfoPage'
@@ -26,6 +27,7 @@ import DisciplineModePage from './pages/discipline/DisciplineModePage'
 import JournalPage from './pages/journal/JournalPage'
 import AnalyticsPage from './pages/analytics/AnalyticsPage'
 import SettingsPage from './pages/settings/SettingsPage'
+import AdminPage from './pages/admin/AdminPage'
 import ApiKeyPage from './pages/account/ApiKeyPage'
 import ReportsPage from './pages/reports/ReportsPage'
 import * as authApi from './api/auth'
@@ -154,6 +156,11 @@ export default function App() {
               <Route path="/journal" element={<JournalPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              {/* Role-guarded: a non-admin is redirected rather than
+                  shown a page that 403s on every request. */}
+              <Route element={<AdminRoute />}>
+                <Route path="/admin" element={<AdminPage />} />
+              </Route>
               <Route path="/api-key" element={<ApiKeyPage />} />
               <Route path="/reports" element={<ReportsPage />} />
             </Route>

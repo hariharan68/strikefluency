@@ -47,6 +47,7 @@ class UserProfile(BaseModel):
     email: str
     full_name: str
     role: str
+    plan: str
     tenant_id: uuid.UUID
     is_active: bool
 

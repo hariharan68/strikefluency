@@ -65,7 +65,8 @@ class OrderResponse(BaseModel):
     entry_time: datetime
     exit_time: Optional[datetime] = None
     pnl: Optional[Decimal] = None
-    brokerage: Decimal
+    brokerage: Decimal          # round trip: entry at placement + exit on close
+    entry_brokerage: Decimal    # the entry leg alone, debited at placement
     slippage_points: Decimal
     setup_tag: str
     exit_reason: Optional[str] = None

@@ -23,6 +23,7 @@ from app.core.exceptions import (
     QuoteUnavailableError,
 )
 from app.core.utils import calculate_pnl, current_trading_day, is_market_open
+from app.market import freshness
 from app.market.provider_factory import get_market_provider
 from app.models.journal_entry import JournalEntry
 from app.models.virtual_account import VirtualAccount
@@ -32,6 +33,7 @@ from app.models.user import User
 from app.models.user_settings import UserSettings
 from app.services.brokerage_calculator import calculate_brokerage
 from app.services.discipline_engine import DisciplineEngine
+from app.services import ledger_service
 from app.services.slippage_engine import calculate_slippage
 from app.services.trading_session_service import (
     activate_cooldown,
@@ -98,9 +100,13 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
 
     try:
         chain = provider.get_option_chain(instrument)
-        assert_orderable = getattr(provider, "assert_orderable", None)
-        if callable(assert_orderable):
-            assert_orderable(chain)
+        # The provider's own check first, where it is stricter (Kite demands a
+        # tick under 30s old because it has a live feed), then the shared
+        # backstop that every provider is held to.
+        provider_check = getattr(provider, "assert_orderable", None)
+        if callable(provider_check):
+            provider_check(chain)
+        freshness.assert_orderable(chain, instrument=instrument)
     except RuntimeError as exc:
         raise QuoteUnavailableError(str(exc)) from exc
     ltp, atm_strike = _get_ltp_from_chain(chain, strike_price, option_type)
@@ -139,14 +145,22 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
     gross_value     = fill_price * Decimal(lot_size) * Decimal(quantity)
     margin_required = (gross_value / Decimal(leverage)).quantize(Decimal("0.01"))
 
-    if account.balance < margin_required:
+    # ── Brokerage on entry ─────────────────────────────────
+    # Computed before the affordability check: entry brokerage is debited from
+    # the balance alongside the margin, so the check must cover both. Checking
+    # margin alone lets an order at the boundary drive the balance negative,
+    # which trips ck_virtual_accounts_balance_non_negative at the router's
+    # commit — an IntegrityError 500 instead of this clean 400.
+    entry_brokerage = calculate_brokerage(fill_price, quantity, lot_size, action)
+
+    total_required = margin_required + entry_brokerage.total
+
+    if account.balance < total_required:
         raise InsufficientBalanceError(
-            f"Insufficient balance. Required: ₹{margin_required}, "
+            f"Insufficient balance. Required: ₹{total_required} "
+            f"(margin ₹{margin_required} + brokerage ₹{entry_brokerage.total}), "
             f"Available: ₹{account.balance}"
         )
-
-    # ── Brokerage on entry ─────────────────────────────────
-    entry_brokerage = calculate_brokerage(fill_price, quantity, lot_size, action)
 
     # ── Create order ───────────────────────────────────────
     # SL / setup tag may be absent in free-play mode (the engine that requires
@@ -173,6 +187,7 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
         product_type=product_type,
         trading_day=current_trading_day(),
         brokerage=entry_brokerage.total,
+        entry_brokerage=entry_brokerage.total,
         slippage_points=slippage_points,
         setup_tag=order_data.get("setup_tag") or "OTHER",
         is_discipline_compliant=True,
@@ -201,14 +216,29 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
     )
     db.add(position)
 
-    # ── Deduct margin + update session ─────────────────────
-    account.balance -= margin_required
+    # ── Deduct margin + charge entry brokerage + update session ──
+    ledger_service.block_margin(
+        db, account, margin_required,
+        reference_type=ledger_service.LedgerRef.VIRTUAL_ORDER,
+        reference_id=order.id,
+        description=f"Margin blocked: {instrument} {strike_price} {option_type} {action}",
+    )
+    # Charged at entry, not netted into `pnl`. `pnl` deducts only the exit leg
+    # (close_position), so adding the entry leg there as well would charge it
+    # twice. Reporting reads `pnl - entry_brokerage` for the round-trip net.
+    ledger_service.charge(
+        db, account, entry_brokerage.total,
+        reference_type=ledger_service.LedgerRef.VIRTUAL_ORDER,
+        reference_id=order.id,
+        description=f"Entry brokerage: {instrument} {strike_price} {option_type} {action}",
+    )
     increment_trade_count(session)
     order._idempotent_replay = False
 
     logger.info(
         f"Order placed: {instrument} {strike_price} {option_type} {action} "
-        f"qty={quantity} fill=₹{fill_price} margin=₹{margin_required}"
+        f"qty={quantity} fill=₹{fill_price} margin=₹{margin_required} "
+        f"brokerage=₹{entry_brokerage.total}"
     )
 
     return order
@@ -306,8 +336,23 @@ def close_position(
         position.current_ltp = exit_fill_price
 
     # ── Release margin + apply P&L to balance ─────────────
+    # Posted as two rows rather than one combined movement: a statement line
+    # reading "+1113.19 margin released" then "-42.60 P&L" is legible, whereas
+    # a single net figure explains nothing.
     margin_to_release = position.margin_blocked if position else Decimal("0")
-    account.balance  += margin_to_release + net_pnl
+    if margin_to_release:
+        ledger_service.release_margin(
+            db, account, margin_to_release,
+            reference_type=ledger_service.LedgerRef.VIRTUAL_ORDER,
+            reference_id=order.id,
+            description=f"Margin released: {order.instrument} {order.strike_price} {order.option_type}",
+        )
+    ledger_service.settle_pnl(
+        db, account, net_pnl,
+        reference_type=ledger_service.LedgerRef.VIRTUAL_ORDER,
+        reference_id=order.id,
+        description=f"Realised P&L ({exit_reason}): {order.instrument} {order.strike_price} {order.option_type}",
+    )
 
     # ── Update session ─────────────────────────────────────
     update_realized_pnl(session, net_pnl)

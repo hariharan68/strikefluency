@@ -13,6 +13,8 @@ from app.core.security import hash_refresh_token
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.models.security_notification import SecurityNotification
+from app.services import audit_service
+from app.services.audit_service import AuditAction, AuditOutcome, AuditRef
 from app.services.email_service import send_security_email
 
 
@@ -91,6 +93,13 @@ def rotate_refresh_token(db: Session, raw_token: str, device_info: str | None = 
                 user = db.query(User).filter(User.id == prior.user_id).first()
                 if user:
                     db.add(SecurityNotification(user_id=user.id, event_type="refresh_token_reuse", message="A previously used session token was presented. All sessions in that session family were revoked."))
+                    audit_service.record(
+                        db, action=AuditAction.REFRESH_REUSE_DETECTED,
+                        outcome=AuditOutcome.FAILURE,
+                        user_id=user.id, tenant_id=user.tenant_id,
+                        reference_type=AuditRef.SESSION, reference_id=prior.family_id,
+                        detail={"revoked_reason": "reuse_detected"},
+                    )
                     db.flush()
                     send_security_email(user.email, "StrikeFluency security alert", "A previously used refresh token was detected. The affected session family has been revoked.")
         db.commit()

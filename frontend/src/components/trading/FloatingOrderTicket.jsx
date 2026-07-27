@@ -56,7 +56,12 @@ export default function FloatingOrderTicket({ ticket, disciplineOff = false, pre
   const marginReq = gross / leverage
   const estCharges = Math.max(20, gross * 0.0006)   // rough estimate
   const isBuy = action === 'BUY'
-  const insufficient = balance != null && marginReq > balance
+  // Entry brokerage is debited from funds alongside the margin on a market
+  // fill, so it has to count towards affordability or the ticket would show
+  // "affordable" for an order the backend rejects. A resting LIMIT blocks
+  // margin only — its brokerage is charged later, when it actually fills.
+  const fundsNeeded = marginReq + (isLimit && !marketable ? 0 : estCharges)
+  const insufficient = balance != null && fundsNeeded > balance
 
   useEffect(() => {
     getAccount().then(r => setBalance(Number(r.data?.account?.balance ?? 0))).catch(() => {})
@@ -332,15 +337,20 @@ export default function FloatingOrderTicket({ ticket, disciplineOff = false, pre
         <div style={{ display: 'flex', gap: 18, fontSize: 11 }}>
           <div>
             <div style={{ color: 'var(--text-muted)' }}>Funds required</div>
-            <div className="num" style={{ fontWeight: 700, color: insufficient ? 'var(--loss)' : 'var(--text)' }}>{money(marginReq)} <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>({leverage}x)</span></div>
+            <div className="num" style={{ fontWeight: 700, color: insufficient ? 'var(--loss)' : 'var(--text)' }}>{money(fundsNeeded)} <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>({leverage}x)</span></div>
           </div>
           <div>
             <div style={{ color: 'var(--text-muted)' }}>Available</div>
             <div className="num" style={{ fontWeight: 700, color: 'var(--text-sub)' }}>{balance != null ? money(balance) : '…'}</div>
           </div>
           <div>
-            <div style={{ color: 'var(--text-muted)' }}>Est. charges</div>
+            <div style={{ color: 'var(--text-muted)' }} title="Brokerage, STT, exchange, SEBI and GST. Charged on entry and again on exit.">
+              Est. charges
+            </div>
             <div className="num" style={{ fontWeight: 700, color: 'var(--text-sub)' }}>{money(estCharges)}</div>
+            <div style={{ fontSize: 9.5, color: 'var(--text-muted)', marginTop: 1 }}>
+              {isLimit && !marketable ? 'charged on fill' : 'charged now + on exit'}
+            </div>
           </div>
         </div>
         <button onClick={submit} disabled={loading}

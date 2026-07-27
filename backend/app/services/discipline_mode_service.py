@@ -28,6 +28,8 @@ from app.models.strategy import StrategyPosition
 from app.models.user import User
 from app.models.virtual_account import VirtualAccount
 from app.models.virtual_position import VirtualPosition
+from app.services import audit_service, ledger_service
+from app.services.audit_service import AuditAction, AuditRef
 
 logger = logging.getLogger(__name__)
 
@@ -75,13 +77,27 @@ def set_mode(db: Session, user: User, enabled: bool) -> dict:
     ON  → re-enable rules only; balance/tier are left untouched.
     """
     account = _account(db, user)
+    was_enabled = account.discipline_mode_enabled
     account.discipline_mode_enabled = enabled
+
+    # The master switch that gates every trading rule — worth a durable record
+    # of who turned it off and when.
+    audit_service.record(
+        db, action=AuditAction.DISCIPLINE_MODE_CHANGED,
+        user_id=user.id, tenant_id=user.tenant_id,
+        reference_type=AuditRef.ACCOUNT, reference_id=account.id,
+        detail={"from": bool(was_enabled), "to": bool(enabled)},
+    )
 
     if not enabled:
         blocked = _blocked_margin(db, user)
         target = Decimal(str(FULL_SANDBOX_CAPITAL)) - blocked
         if target > account.balance:
-            account.balance = target
+            # The ledger records movements, not target balances, so convert.
+            ledger_service.adjust(
+                db, account, target - account.balance,
+                "Discipline Mode OFF — sandbox capital unlocked",
+            )
         account.tier = Tier.TIER_3
         account.capital_unlocked = True
         # MAX_DAILY_LOSS is a percentage of initial_balance. Raising the balance

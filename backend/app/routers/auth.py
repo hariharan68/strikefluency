@@ -16,6 +16,8 @@ from app.models.user import User
 from app.schemas.auth import LoginRequest, ProfileUpdate, RegisterRequest, UserProfile
 from app.schemas.common import SuccessResponse
 from app.schemas.token import AccessTokenResponse, TokenResponse
+from app.services import audit_service
+from app.services.audit_service import AuditAction, AuditRef
 from app.services.auth_service import authenticate_user, register_user
 from app.services.jti_store import deny_jti
 from app.services.token_service import create_refresh_token_record, revoke_all_user_tokens, revoke_family, revoke_refresh_token, rotate_refresh_token
@@ -56,6 +58,11 @@ def register(data: RegisterRequest, request: Request, response: Response, db: Se
     try:
         user = register_user(db, data)
         record, raw_refresh = create_refresh_token_record(db, user, request.headers.get("user-agent"), data.remember_me)
+        audit_service.record(
+            db, action=AuditAction.REGISTER, user_id=user.id, tenant_id=user.tenant_id,
+            reference_type=AuditRef.USER, reference_id=user.id,
+            ip_address=audit_service.client_ip(request), user_agent=request.headers.get("user-agent"),
+        )
         db.commit()
     except (IntegrityError, UserAlreadyExistsError) as exc:
         db.rollback()
@@ -66,8 +73,26 @@ def register(data: RegisterRequest, request: Request, response: Response, db: Se
 @router.post("/login", response_model=TokenResponse)
 def login(data: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     _check_origin(request)
-    user = authenticate_user(db, email=data.email, password=data.password)
+    try:
+        user = authenticate_user(db, email=data.email, password=data.password)
+    except InvalidCredentialsError:
+        # record_now, not record: authenticate_user raises before the router
+        # ever commits, so an in-transaction row would be rolled away — and a
+        # failed login is the single most valuable row in this table.
+        # The email is deliberately recorded: without it the row cannot
+        # distinguish a typo from an attack on a specific account.
+        audit_service.record_now(
+            action=AuditAction.LOGIN_FAILED,
+            detail={"email": (data.email or "")[:200]},
+            ip_address=audit_service.client_ip(request), user_agent=request.headers.get("user-agent"),
+        )
+        raise
     record, raw_refresh = create_refresh_token_record(db, user, request.headers.get("user-agent"), data.remember_me)
+    audit_service.record(
+        db, action=AuditAction.LOGIN, user_id=user.id, tenant_id=user.tenant_id,
+        reference_type=AuditRef.SESSION, reference_id=record.family_id,
+        ip_address=audit_service.client_ip(request), user_agent=request.headers.get("user-agent"),
+    )
     db.commit()
     return _token_response(response, user, record, raw_refresh, data.remember_me)
 
@@ -89,6 +114,10 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     raw_refresh = request.cookies.get(COOKIE_NAME)
     if raw_refresh:
         revoke_refresh_token(db, raw_refresh)
+        audit_service.record(
+            db, action=AuditAction.LOGOUT,
+            ip_address=audit_service.client_ip(request), user_agent=request.headers.get("user-agent"),
+        )
         db.commit()
     response.delete_cookie(COOKIE_NAME, path=COOKIE_PATH, secure=settings.COOKIE_SECURE, httponly=True, samesite="lax")
     return SuccessResponse(message="Logged out successfully")

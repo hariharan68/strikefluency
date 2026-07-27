@@ -51,6 +51,7 @@ from app.models.strategy import StrategyPosition as StrategyPositionORM
 from app.models.user import User
 from app.models.virtual_account import VirtualAccount
 from app.models.virtual_order import VirtualOrder
+from app.services import ledger_service
 from app.services import strategy_service
 from app.services.brokerage_calculator import calculate_brokerage
 from app.services.discipline_engine import DisciplineEngine
@@ -238,8 +239,14 @@ def execute_strategy(db: Session, user: User, strategy_id: uuid.UUID) -> Strateg
         is_open=True,
     )
     db.add(position)
+    db.flush()  # need position.id for the ledger reference
 
-    account.balance -= margin
+    ledger_service.block_margin(
+        db, account, margin,
+        reference_type=ledger_service.LedgerRef.STRATEGY_POSITION,
+        reference_id=position.id,
+        description=f"Margin blocked for strategy: {orm.name or orm.id}"[:200],
+    )
     increment_trade_count(session)   # ONE trade for the whole strategy
     db.flush()
     logger.info("Strategy %s executed: %d legs, margin ₹%s", orm.id, len(plan.fills), margin)
@@ -395,8 +402,24 @@ def _close_if_all_legs_done(db, user, orm, position: Optional[StrategyPositionOR
     orm.status = StrategyStatus.CLOSED
     if position and position.is_open:
         account = db.query(VirtualAccount).filter(VirtualAccount.user_id == user.id).first()
+        # NOTE: `net` nets the strategy's ENTRY brokerage here, at close.
+        # Single orders charge entry brokerage at entry instead (Phase 1b), so
+        # the two paths use different conventions. Deliberately left alone —
+        # changing it would alter strategy P&L semantics. See AGENTS.md.
         net = position.realized_pnl - position.brokerage
-        account.balance += position.margin_blocked + net
+        if position.margin_blocked:
+            ledger_service.release_margin(
+                db, account, position.margin_blocked,
+                reference_type=ledger_service.LedgerRef.STRATEGY_POSITION,
+                reference_id=position.id,
+                description=f"Margin released on strategy close: {orm.name or orm.id}"[:200],
+            )
+        ledger_service.settle_pnl(
+            db, account, net,
+            reference_type=ledger_service.LedgerRef.STRATEGY_POSITION,
+            reference_id=position.id,
+            description=f"Strategy realised P&L (net of brokerage): {orm.name or orm.id}"[:200],
+        )
         session = get_or_create_today(db, user)
         update_realized_pnl(session, net)
         position.is_open = False
