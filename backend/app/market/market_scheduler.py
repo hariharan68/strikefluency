@@ -353,6 +353,31 @@ async def _kite_instrument_sync_tick():
         db.close()
 
 
+async def _daily_snapshot_tick():
+    """
+    Capture each account's closing portfolio and per-position marks.
+
+    Scheduled after the 15:29 square-off so intraday positions are already
+    settled and what remains is genuine carry-forward. Leader-gated like every
+    other state job — two workers writing this would race on the unique
+    constraint rather than duplicating, but only one should be doing the work.
+    """
+    from app.database import SessionLocal
+    from app.services.snapshot_service import capture_daily_snapshots
+
+    db = SessionLocal()
+    try:
+        n = capture_daily_snapshots(db)
+        db.commit()
+        if n:
+            logger.info("Daily snapshot captured for %d account(s)", n)
+    except Exception as e:
+        db.rollback()
+        logger.error("Daily snapshot failed: %s", e)
+    finally:
+        db.close()
+
+
 async def _run_state_job(job, name: str):
     """Run a database-mutating job only in the elected API process."""
     if not state_job_leadership.is_leader():
@@ -379,6 +404,10 @@ async def _leader_expiry_squareoff_tick():
 
 async def _leader_intraday_squareoff_tick():
     await _run_state_job(_intraday_squareoff_tick, "intraday_squareoff")
+
+
+async def _leader_daily_snapshot_tick():
+    await _run_state_job(_daily_snapshot_tick, "daily_snapshot")
 
 
 async def _leader_premarket_reset_tick():
@@ -469,6 +498,17 @@ def start_market_scheduler():
         id="intraday_squareoff",
         replace_existing=True,
         misfire_grace_time=60,
+    )
+    # Six minutes after the 15:29 square-off, so intraday positions are settled
+    # and only genuine carry-forward is marked.
+    scheduler.add_job(
+        _leader_daily_snapshot_tick,
+        trigger="cron",
+        hour=EOD_SQUAREOFF_HOUR,
+        minute=EOD_SQUAREOFF_MINUTE + 6,
+        id="daily_snapshot",
+        replace_existing=True,
+        misfire_grace_time=600,
     )
     scheduler.add_job(
         _leader_premarket_reset_tick,

@@ -238,6 +238,35 @@ denominator that `discipline_mode_service` mutates on capital unlock.
   conftest drift patcher *and* to the `committed_user` teardown in
   `tests/integration/test_order_concurrency.py`, or the suite breaks confusingly.
 
+### Daily snapshots (`portfolio_snapshots`, `pnl_snapshots`)
+
+Captured by the `daily_snapshot` cron at **15:35**, six minutes after the 15:29
+square-off, so intraday positions are already settled and only genuine
+carry-forward is marked. Leader-gated like every other state job.
+
+Most of an equity curve is reconstructible from closed orders. One part is not:
+the **unrealised mark on positions still open at the close**. A carried NRML
+position leaves no record of what it was worth on each intervening day, because
+`virtual_positions.current_ltp` holds only the latest value and the exit price
+eventually overwrites it. That is what these tables preserve.
+
+- `portfolio_snapshots` — one row per user per day: the account total.
+  `equity = balance + margin_blocked + unrealized_pnl`, enforced by a CHECK.
+  Margin has to be added back because it is already excluded from `balance`,
+  and resting-limit reservations count too.
+- `pnl_snapshots` — one row per *open* position per day: the attribution a
+  total cannot give. Closed positions are skipped; their VirtualOrder row is
+  already a permanent record.
+
+**Not append-only**, unlike the ledger and audit log. A snapshot is a derived
+observation, so re-running a day must update rather than duplicate — the cron
+has a 600s misfire grace and a restart near the close can genuinely fire it
+twice. Unique constraints on `(user_id, snapshot_date)` and
+`(position_id, snapshot_date)` enforce it.
+
+One failing account is logged and skipped rather than aborting the batch: the
+caller commits once, so an uncaught error would cost every other user their row.
+
 ### Stale market data (`app/market/freshness.py`)
 
 One staleness contract for every provider. Previously only Kite had one, and it

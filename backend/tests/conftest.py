@@ -101,6 +101,12 @@ def _ensure_strategy_schema(conn) -> None:
     from app.models.audit_log import AuditLog as ALORM
     if not inspect(conn).has_table(ALORM.__tablename__):
         ALORM.__table__.create(conn)
+    # Daily snapshots (migration 20260731) — create if not yet applied.
+    from app.models.portfolio_snapshot import PortfolioSnapshot as PSORM
+    from app.models.pnl_snapshot import PnlSnapshot as PLORM
+    for model in (PSORM, PLORM):
+        if not inspect(conn).has_table(model.__tablename__):
+            model.__table__.create(conn)
 
 
 @pytest.fixture
