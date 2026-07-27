@@ -238,6 +238,28 @@ denominator that `discipline_mode_service` mutates on capital unlock.
   conftest drift patcher *and* to the `committed_user` teardown in
   `tests/integration/test_order_concurrency.py`, or the suite breaks confusingly.
 
+### Trading events (`app/events/`)
+
+Deliberately small — publisher and consumer are the same process, so this is a
+naming layer, not decoupling. There is **no `consumer.py` and no dispatcher**;
+add one when a second subscriber exists, not before.
+
+- `TradingEvent` (StrEnum) replaces ten inline magic strings. **The values are a
+  wire contract**: `useMarketWebSocket.js` dispatches on `msg.reason`, so a
+  rename silently stops the frontend refreshing — no error, just a stale desk.
+  `tests/unit/test_events.py::test_wire_values_are_unchanged` pins all ten.
+- `publish(user_id, event)` — call **only after `db.commit()`**. Takes no third
+  argument, so the no-payload contract is enforced by the signature: clients
+  re-run their REST loaders, keeping REST the single source of truth rather
+  than maintaining a second divergent representation of a position.
+- `DeferredPublisher` — collect during work, `flush()` after commit,
+  `discard()` on rollback. Replaces the identical list-then-drain-or-clear
+  dance `market_scheduler` was hand-rolling in both sweeps. `flush()` after
+  `discard()` is a no-op, so the try/except/finally ordering is safe.
+
+`notify_trading_update` still exists in `websocket_manager` and is re-exported;
+`publish` is the preferred entry point.
+
 ### Daily snapshots (`portfolio_snapshots`, `pnl_snapshots`)
 
 Captured by the `daily_snapshot` cron at **15:35**, six minutes after the 15:29

@@ -33,7 +33,7 @@ from app.core.instruments import get_spec
 from app.core.utils import current_trading_day
 from app.database import get_db
 from app.dependencies import CurrentUser
-from app.market.websocket_manager import notify_trading_update
+from app.events import TradingEvent, publish
 from app.models.pending_order import PendingOrder
 from app.models.virtual_account import VirtualAccount
 from app.models.virtual_order import VirtualOrder
@@ -199,7 +199,7 @@ def place_new_order(
     if was_replayed:
         response.status_code = 200
     else:
-        notify_trading_update(current_user.id, "order_placed")
+        publish(current_user.id, TradingEvent.ORDER_PLACED)
     return OrderResponse.model_validate(order)
 
 
@@ -332,7 +332,7 @@ def close_order(
     db.commit()
     db.refresh(order)
 
-    notify_trading_update(current_user.id, "order_closed")
+    publish(current_user.id, TradingEvent.ORDER_CLOSED)
     return CloseOrderResponse(
         order=OrderResponse.model_validate(order),
         net_pnl=order.pnl or Decimal("0"),
@@ -400,7 +400,7 @@ def place_new_pending_order(
     if was_replayed:
         response.status_code = 200
     else:
-        notify_trading_update(current_user.id, "limit_placed")
+        publish(current_user.id, TradingEvent.LIMIT_PLACED)
     return PendingOrderResponse.model_validate(pending)
 
 
@@ -466,7 +466,7 @@ def cancel_resting_order(
     db.commit()
     db.refresh(pending)
 
-    notify_trading_update(current_user.id, "limit_cancelled")
+    publish(current_user.id, TradingEvent.LIMIT_CANCELLED)
     return CancelPendingOrderResponse(
         pending_order=PendingOrderResponse.model_validate(pending),
         margin_released=released,

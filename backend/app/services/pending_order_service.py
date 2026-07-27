@@ -48,6 +48,7 @@ from app.core.exceptions import (
     QuoteUnavailableError,
 )
 from app.core.instruments import get_spec
+from app.events import TradingEvent
 from app.core.utils import current_trading_day, is_market_open
 from app.market import freshness
 from app.market.provider_factory import get_market_provider
@@ -307,7 +308,7 @@ def scan_and_fill(db: Session,
                 _fill_one(db, pending_id, ltp)
                 db.commit()
                 filled += 1
-                _notify(on_fill, user_id, "limit_filled")
+                _notify(on_fill, user_id, str(TradingEvent.LIMIT_FILLED))
             except (DisciplineViolationError, InsufficientBalanceError,
                     QuoteUnavailableError, MarketClosedError) as e:
                 # A legitimate refusal: record why, release the funds, move on.
@@ -316,7 +317,7 @@ def scan_and_fill(db: Session,
                 try:
                     _reject_one(db, pending_id, message)
                     db.commit()
-                    _notify(on_fill, user_id, "limit_rejected")
+                    _notify(on_fill, user_id, str(TradingEvent.LIMIT_REJECTED))
                 except Exception as inner:
                     db.rollback()
                     logger.error(

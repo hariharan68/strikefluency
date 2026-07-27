@@ -30,7 +30,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import CurrentUser
 from app.market.provider_factory import get_market_provider
-from app.market.websocket_manager import notify_trading_update
+from app.events import TradingEvent, publish
 from app.schemas.strategy import (
     AddLegRequest,
     AnalyticsResponse,
@@ -245,7 +245,7 @@ def execute_preview(
         position = ex.execute_strategy(db, current_user, orm.id)
         db.commit()
         db.refresh(position)
-        notify_trading_update(current_user.id, "strategy_executed")
+        publish(current_user.id, TradingEvent.STRATEGY_EXECUTED)
         strategy = svc.get_strategy(db, current_user, orm.id)
         return ExecuteResponse(
             strategy=StrategyResponse.model_validate(strategy),
@@ -394,7 +394,7 @@ def execute(
     position = ex.execute_strategy(db, current_user, strategy_id)
     db.commit()
     db.refresh(position)
-    notify_trading_update(current_user.id, "strategy_executed")
+    publish(current_user.id, TradingEvent.STRATEGY_EXECUTED)
     orm = svc.get_strategy(db, current_user, strategy_id)
     return ExecuteResponse(
         strategy=StrategyResponse.model_validate(orm),
@@ -414,7 +414,7 @@ def close_leg(
     row = ex.close_leg(db, current_user, strategy_id, leg_id, exit_ltp=body.exit_ltp)
     db.commit()
     db.refresh(row)
-    notify_trading_update(current_user.id, "leg_closed")
+    publish(current_user.id, TradingEvent.LEG_CLOSED)
     return LegResponse.model_validate(row)
 
 
@@ -428,7 +428,7 @@ def square_off(
     position = ex.square_off(db, current_user, strategy_id, reason=body.reason)
     db.commit()
     db.refresh(position)
-    notify_trading_update(current_user.id, "strategy_squareoff")
+    publish(current_user.id, TradingEvent.STRATEGY_SQUAREOFF)
     return PositionResponse.model_validate(position)
 
 

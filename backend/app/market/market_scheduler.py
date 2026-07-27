@@ -18,6 +18,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.config import settings
 from app.core.utils import get_ist_now, is_market_open
+from app.events import DeferredPublisher, TradingEvent
 from app.market.provider_factory import get_market_provider
 from app.market.websocket_manager import manager
 from app.services.scheduler_leadership import SchedulerLeadership
@@ -175,8 +176,6 @@ async def _auto_exit_tick():
     Runs independently of connected WebSocket clients for exactly that reason.
     Owns its own short-lived DB session.
     """
-    from datetime import datetime, timezone
-
     from app.config import settings
     from app.database import SessionLocal
     from app.services.auto_exit_service import scan_and_exit
@@ -184,27 +183,25 @@ async def _auto_exit_tick():
     if not is_market_open() and not settings.is_development:
         return
 
-    closed_events: list[tuple] = []
+    closed_events = DeferredPublisher()
     db = SessionLocal()
     try:
-        n = scan_and_exit(db, on_close=lambda uid, reason: closed_events.append((uid, reason)))
+        n = scan_and_exit(
+            db, on_close=lambda uid, _reason: closed_events.collect(
+                uid, TradingEvent.AUTO_EXIT),
+        )
         db.commit()
         if n:
             logger.info("Auto-exit closed %d order(s) on SL/target", n)
     except Exception as e:
         db.rollback()
-        closed_events.clear()   # nothing committed — don't announce phantom exits
+        closed_events.discard()   # nothing committed — don't announce phantom exits
         logger.error("Auto-exit tick failed: %s", e)
     finally:
         db.close()
 
     # Notify affected users only AFTER the commit — fire-and-forget.
-    for uid, _reason in closed_events:
-        manager.push_user_event(uid, {
-            "type": "trading_update",
-            "reason": "auto_exit",
-            "ts": datetime.now(timezone.utc).isoformat(),
-        })
+    closed_events.flush()
 
 
 async def _limit_fill_tick():
@@ -219,8 +216,6 @@ async def _limit_fill_tick():
     commits per order, so a rejection at trigger persists without discarding the
     fills that already succeeded in the same sweep.
     """
-    from datetime import datetime, timezone
-
     from app.config import settings
     from app.database import SessionLocal
     from app.services.pending_order_service import scan_and_fill
@@ -228,26 +223,24 @@ async def _limit_fill_tick():
     if not is_market_open() and not settings.is_development:
         return
 
-    fill_events: list[tuple] = []
+    fill_events = DeferredPublisher()
     db = SessionLocal()
     try:
-        n = scan_and_fill(db, on_fill=lambda uid, reason: fill_events.append((uid, reason)))
+        n = scan_and_fill(
+            db, on_fill=lambda uid, reason: fill_events.collect(
+                uid, TradingEvent(reason)),
+        )
         if n:
             logger.info("Limit scanner filled %d resting order(s)", n)
     except Exception as e:
         db.rollback()
-        fill_events.clear()   # nothing committed — don't announce phantom fills
+        fill_events.discard()   # nothing committed — don't announce phantom fills
         logger.error("Limit fill tick failed: %s", e)
     finally:
         db.close()
 
     # scan_and_fill commits as it goes, so these are already durable.
-    for uid, reason in fill_events:
-        manager.push_user_event(uid, {
-            "type": "trading_update",
-            "reason": reason,
-            "ts": datetime.now(timezone.utc).isoformat(),
-        })
+    fill_events.flush()
 
 
 async def _expiry_squareoff_tick():
