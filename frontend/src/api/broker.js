@@ -14,19 +14,6 @@ export const getFyersAuthUrl = getFyersLogin
 export const disconnectFyers = clearFyersToken
 export const getFyersProfile = () => client.get('/broker/fyers/profile')
 
-// ── Nuvama (API Connect) — mirror of the Fyers surface ──────────────────────
-// Connecting Nuvama auto-disconnects Fyers on the server (single active broker).
-export const getNuvamaStatus = () => client.get('/auth/nuvama/status')
-export const getNuvamaCredentials = () => client.get('/auth/nuvama/credentials')
-export const saveNuvamaCredentials = (apiKey, apiSecret, clientId) =>
-  client.post('/auth/nuvama/credentials', { api_key: apiKey, api_secret: apiSecret, client_id: clientId })
-export const getNuvamaLogin = () => client.get('/auth/nuvama/login')
-export const exchangeNuvamaRequestId = (requestId) => client.post('/auth/nuvama/exchange', { request_id: requestId })
-export const setNuvamaToken = (accessToken) => client.post('/auth/nuvama/token', { access_token: accessToken })
-export const clearNuvamaToken = () => client.delete('/auth/nuvama/token')            // Disconnect: drop token, keep creds
-export const revokeNuvamaCredentials = () => client.delete('/auth/nuvama/credentials') // Revoke: wipe creds from .env
-export const getNuvamaProfile = () => client.get('/broker/nuvama/profile')
-
 // Zerodha Kite Connect (admin-managed shared read-only market-data account).
 export const getKiteStatus = () => client.get('/auth/kite/status')
 export const getKiteCredentials = () => client.get('/auth/kite/credentials')

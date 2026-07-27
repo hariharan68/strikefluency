@@ -5,11 +5,9 @@ import usePreferencesStore from '../../store/preferencesStore'
 import { useToast } from '../../components/common/Toast'
 import {
   clearFyersToken, getFyersProfile, getFyersStatus, revokeFyersCredentials,
-  clearNuvamaToken, getNuvamaProfile, getNuvamaStatus, revokeNuvamaCredentials,
   clearKiteToken, getKiteStatus, revokeKiteCredentials,
 } from '../../api/broker'
 import FyersSetupWizard from '../../components/broker/FyersSetupWizard'
-import NuvamaSetupWizard from '../../components/broker/NuvamaSetupWizard'
 import KiteSetupWizard from '../../components/broker/KiteSetupWizard'
 import DisciplineModeToggle from '../../components/discipline/DisciplineModeToggle'
 import { getSessions, logout, logoutAll, revokeSession, updateProfile } from '../../api/auth'
@@ -379,22 +377,18 @@ function BrokerIntegrationSection() {
   const user = useAuthStore(s => s.user)
   const canManage = ['tenant_admin', 'super_admin'].includes(user?.role)
   const [fyers, setFyers] = useState(null)
-  const [nuvama, setNuvama] = useState(null)
   const [kite, setKite] = useState(null)
   const [loading, setLoading] = useState(false)
   const [fyersWizard, setFyersWizard] = useState(false)
-  const [nuvamaWizard, setNuvamaWizard] = useState(false)
   const [kiteWizard, setKiteWizard] = useState(false)
   const { success, error } = useToast()
 
-  // The two brokers are mutually exclusive on the server — connecting one
-  // auto-disconnects the other — so we always reload BOTH after any change so
+  // The brokers are mutually exclusive on the server — connecting one
+  // auto-disconnects the other — so we always reload ALL after any change so
   // the "Not connected" flip is reflected immediately.
   const loadAll = async () => {
     try { setFyers((await getFyersStatus()).data) }
     catch (err) { setFyers({ configured: false, connected: false, has_token: false, message: getApiErrorMessage(err, 'Unable to load Fyers status') }) }
-    try { setNuvama((await getNuvamaStatus()).data) }
-    catch (err) { setNuvama({ configured: false, connected: false, has_token: false, message: getApiErrorMessage(err, 'Unable to load Nuvama status') }) }
     try { setKite((await getKiteStatus()).data) }
     catch (err) { setKite({ configured: false, connected: false, has_token: false, state: 'unavailable', message: getApiErrorMessage(err, 'Unable to load Zerodha status') }) }
   }
@@ -432,10 +426,6 @@ function BrokerIntegrationSection() {
     if (!window.confirm('Revoke Fyers credentials? Your App ID and Secret ID will be removed from the server and you will need to re-enter them to reconnect.')) return
     run(revokeFyersCredentials, 'Fyers credentials revoked', 'Unable to revoke Fyers credentials')
   }
-  const revokeNuvama = () => {
-    if (!window.confirm('Revoke Nuvama credentials? Your API Key and Secret will be removed from the server and you will need to re-enter them to reconnect.')) return
-    run(revokeNuvamaCredentials, 'Nuvama credentials revoked', 'Unable to revoke Nuvama credentials')
-  }
   const revokeKite = () => {
     if (!window.confirm('Revoke Zerodha credentials? The API key and secret will be removed from the server.')) return
     run(revokeKiteCredentials, 'Zerodha credentials revoked', 'Unable to revoke Zerodha credentials')
@@ -443,7 +433,7 @@ function BrokerIntegrationSection() {
 
   return (
     <Card>
-      <SectionHeader icon={LinkIcon} title="Broker Integration" subtitle="Connect one provider for live market data — Fyers, Nuvama, or Zerodha" />
+      <SectionHeader icon={LinkIcon} title="Broker Integration" subtitle="Connect one provider for live market data — Fyers or Zerodha" />
 
       <BrokerRow
         label="Fyers"
@@ -455,21 +445,6 @@ function BrokerIntegrationSection() {
         onRefresh={() => refreshProfile(getFyersProfile, setFyers, 'Fyers')}
         onDisconnect={() => run(clearFyersToken, 'Fyers disconnected — credentials kept, reconnect anytime', 'Unable to disconnect Fyers')}
         onRevoke={revokeFyers}
-        canManage={canManage}
-      />
-
-      <div style={{ height: 1, background: 'var(--border)' }} />
-
-      <BrokerRow
-        label="Nuvama"
-        subtitle="Connect your Nuvama account in a guided 3-step setup."
-        status={nuvama}
-        loading={loading}
-        onAdd={() => setNuvamaWizard(true)}
-        onConnect={() => setNuvamaWizard(true)}
-        onRefresh={() => refreshProfile(getNuvamaProfile, setNuvama, 'Nuvama')}
-        onDisconnect={() => run(clearNuvamaToken, 'Nuvama disconnected — credentials kept, reconnect anytime', 'Unable to disconnect Nuvama')}
-        onRevoke={revokeNuvama}
         canManage={canManage}
       />
 
@@ -489,7 +464,6 @@ function BrokerIntegrationSection() {
       />
 
       <FyersSetupWizard isOpen={fyersWizard} onClose={() => setFyersWizard(false)} onConnected={loadAll} />
-      <NuvamaSetupWizard isOpen={nuvamaWizard} onClose={() => setNuvamaWizard(false)} onConnected={loadAll} />
       <KiteSetupWizard isOpen={kiteWizard} onClose={() => setKiteWizard(false)} onConnected={loadAll} />
     </Card>
   )
@@ -898,7 +872,7 @@ const SECTION_META = {
   discipline: 'Rules that gate your orders',
   notifications: 'In-app alerts & toasts',
   customization: 'Personalize your workspace',
-  broker: 'Live market data via Fyers or Nuvama',
+  broker: 'Live market data via Fyers or Zerodha',
   account: 'Sessions & sign-out',
 }
 

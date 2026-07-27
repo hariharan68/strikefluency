@@ -35,11 +35,6 @@ async def lifespan(app: FastAPI):
     if settings.MARKET_DATA_PROVIDER == "kite":
         from app.brokers.connections import load_kite_token_into_store
         load_kite_token_into_store()
-    elif settings.MARKET_DATA_PROVIDER == "nuvama":
-        from app.brokers.connections import load_nuvama_token_into_store
-        if not load_nuvama_token_into_store():
-            from app.services.nuvama_auth_service import get_saved_access_token
-            get_saved_access_token()
     else:
         from app.brokers.connections import load_fyers_token_into_store
         if not load_fyers_token_into_store():
@@ -89,7 +84,7 @@ app.add_middleware(AuthRateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 # ── All routers ───────────────────────────────────────────────
-from app.routers import admin, auth, market, trading, discipline, journal, analytics, broker, nuvama, kite, oauth, strategy, options, settings as settings_router
+from app.routers import admin, auth, market, trading, discipline, journal, analytics, broker, kite, oauth, strategy, options, settings as settings_router
 
 app.include_router(auth.router,        prefix="/api/v1")
 app.include_router(market.router,      prefix="/api/v1")
@@ -98,7 +93,6 @@ app.include_router(discipline.router,  prefix="/api/v1")
 app.include_router(journal.router,     prefix="/api/v1")
 app.include_router(analytics.router,   prefix="/api/v1")
 app.include_router(broker.router,      prefix="/api/v1")
-app.include_router(nuvama.router,      prefix="/api/v1")
 app.include_router(kite.router,        prefix="/api/v1")
 app.include_router(strategy.router,    prefix="/api/v1")
 app.include_router(options.router,     prefix="/api/v1")
