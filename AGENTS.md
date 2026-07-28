@@ -707,6 +707,11 @@ and is only covered indirectly through order-placement tests.
 ## Safety rules
 
 - Never commit secrets or local tokens.
+- **No agent attribution in commit messages.** Do not add `Co-Authored-By:`
+  trailers naming Claude or any other assistant, and do not sign commits as one.
+  Hariharan is the sole author of record. The 20 commits that carried such a
+  trailer were rewritten out of history on 2026-07-28 precisely to clear the
+  GitHub contributors list — do not reintroduce them.
 - Never start a second market WebSocket — one lives in `AppLayout`.
 - Do not revert user changes unless asked.
 - **Do not leave a fix on a branch that is never merged.** A post-merge fix once
