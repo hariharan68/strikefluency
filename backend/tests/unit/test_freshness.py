@@ -85,11 +85,22 @@ def test_simulated_sources_are_refused_in_production(production, source):
         freshness.assert_orderable(chain(source=source), instrument="NIFTY")
 
 
-def test_simulated_sources_are_allowed_in_development(monkeypatch):
-    """The mock provider IS the data source locally; blocking it blocks dev."""
-    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+@pytest.mark.parametrize("environment", ["development", "testing", "staging", ""])
+def test_simulated_sources_are_allowed_outside_production(monkeypatch, environment):
+    """
+    The mock provider IS the data source locally and in CI; blocking it blocks
+    both.
+
+    Regression: this originally gated on `not is_development`. ENVIRONMENT is a
+    free string, and CI sets it to "testing" — neither development nor
+    production — so the mock chain was refused and 44 tests failed with a 400
+    that never reproduced locally. The gate must be `is_production`, so every
+    non-production value behaves the same.
+    """
+    monkeypatch.setattr(settings, "ENVIRONMENT", environment)
     freshness.assert_orderable(chain(source="mock"))
     freshness.assert_orderable({"source": "mock"})   # no timestamp either
+    assert freshness.is_tradeable(chain(source="mock")) is True
 
 
 def test_raises_runtimeerror_so_existing_handlers_still_convert_it(production):

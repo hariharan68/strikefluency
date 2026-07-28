@@ -127,8 +127,14 @@ def assert_orderable(chain: dict, *, instrument: str = "") -> None:
     QuoteUnavailableError (a clean 400). Kept as RuntimeError deliberately so
     the existing catch sites keep working.
 
-    In development the mock provider IS the data source, so non-live sources
-    are tolerated there — otherwise nothing could be traded locally.
+    Outside production the mock provider IS the data source, so simulated
+    sources are tolerated — otherwise nothing could be traded locally or in CI.
+
+    The gate is `is_production`, deliberately NOT `not is_development`.
+    ENVIRONMENT is a free string and `testing` is neither "development" nor
+    "production", so gating on is_development refused the mock chain in CI and
+    broke every order-placing test. Only production should be strict; everything
+    else is a place where simulated data is the point.
     """
     # A provider may still implement its own stricter check (Kite does).
     if (chain or {}).get("source") == "unavailable":
@@ -136,7 +142,7 @@ def assert_orderable(chain: dict, *, instrument: str = "") -> None:
             f"Live market data is unavailable{f' for {instrument}' if instrument else ''}"
         )
 
-    if not is_live_source(chain) and not settings.is_development:
+    if not is_live_source(chain) and settings.is_production:
         raise RuntimeError(
             f"Market data for {instrument or 'this instrument'} is simulated, "
             "not live — refusing to open a position against it"
@@ -144,7 +150,7 @@ def assert_orderable(chain: dict, *, instrument: str = "") -> None:
 
     age = age_ms(chain)
     if age is None:
-        if settings.is_development:
+        if not settings.is_production:
             return
         raise RuntimeError(
             f"Market data for {instrument or 'this instrument'} has no timestamp; "
