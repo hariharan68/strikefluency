@@ -1,6 +1,9 @@
 # StrikeFluency — Agent Notes
 
-Durable project context for AI/agent work. **Verified against source on 2026-07-25.**
+Durable project context for AI/agent work. **Verified against source on 2026-07-28.**
+
+> Works with any coding agent — Claude Code, Codex and others all read
+> `AGENTS.md` by convention. Nothing here is tool-specific.
 
 > Previous versions of this file described the pre-`feature/modules-connection`
 > codebase and were badly out of date — an agent following them made changes
@@ -83,7 +86,7 @@ npm run build
 
 # Tests
 cd backend
-pytest              # 276 tests; integration tests self-skip without Postgres
+pytest              # 383 tests; integration tests self-skip without Postgres
 ```
 
 **Never commit** `.env`, `fyers_token.json`, `access_token.txt`, or `fyers_logs/`.
@@ -98,7 +101,7 @@ token, starts the market scheduler and auth maintenance; shutdown reverses it.
 CORS and the cookie `Origin` check both read `settings.trusted_origins` — one
 list, so they cannot drift.
 
-### Routers (13, all under `/api/v1`, 88 routes)
+### Routers (13, all under `/api/v1`, 109 routes)
 
 | Prefix | Purpose |
 |---|---|
@@ -113,6 +116,7 @@ list, so they cannot drift.
 | `/options` | chain intelligence — PCR, max pain, OI walls, GEX, greeks |
 | `/settings` | per-user preferences (JSONB) |
 | `/broker`, `/kite` | per-broker credential + connection lifecycle |
+| `/admin` | read-only operator view — overview, audit trail, users, ledger, health |
 
 ### Layering conventions
 
@@ -582,12 +586,79 @@ something threw inside render — check the console before assuming a data probl
 
 ## Testing
 
-276 tests. `backend/tests/unit/` is mostly pure and needs no database;
+383 tests. `backend/tests/unit/` is mostly pure and needs no database;
 `backend/tests/integration/` self-skips when Postgres is unreachable and wraps
 each test in a rolled-back outer transaction, so nothing persists.
 
 CI (`.github/workflows/ci.yml`) runs backend tests against Postgres 16 + Redis 7,
 then builds the frontend.
+
+### Verifying your work — read this before claiming something passes
+
+A green `pytest` on your machine does **not** mean CI is green. Two differences
+have already caused real failures.
+
+**1. CI runs `ENVIRONMENT=testing`, not `development`.**
+
+`ENVIRONMENT` is a free string. `is_development` is `ENVIRONMENT == "development"`
+and `is_production` is `ENVIRONMENT == "production"` — so under CI's `testing`
+**both are False**. Any code branching on `not is_development` silently takes the
+strict path in CI and nowhere else.
+
+This exact mistake shipped in `app/market/freshness.py` and turned 44 tests red
+while every local run stayed green. **Gate on `is_production` when you mean
+"only be strict in production."**
+
+Reproduce CI's environment before pushing:
+
+```powershell
+cd backend
+$env:ENVIRONMENT="testing"; $env:MARKET_DATA_PROVIDER="mock"
+$env:REDIS_URL="redis://127.0.0.1:6379/0"
+pytest -q
+```
+
+**2. CI migrates an EMPTY database.**
+
+CI runs `alembic upgrade head` from nothing. Your dev database is already
+migrated, so a migration that only works against existing data passes locally
+and fails in CI. Test the real path:
+
+```powershell
+# create a throwaway DB, then:
+$env:DATABASE_URL="postgresql://…/sf_probe"; alembic upgrade head
+```
+
+Note `tests/conftest.py::_ensure_strategy_schema` papers over schema drift for
+local runs — it creates missing tables directly from the ORM. That safety net
+does **not** exist in CI, which is another reason local green ≠ CI green. A new
+table needs its Alembic migration *and* an entry in that patcher.
+
+### The checklist
+
+| Check | Command |
+|---|---|
+| Boot / Security Kernel | `pytest tests/unit/test_security_kernel.py -q` |
+| Structural gates | `pytest tests/unit/test_ledger_boundary.py tests/unit/test_paper_trading_boundary.py -q` |
+| Full suite, CI env | see above |
+| Migration round-trip | `alembic downgrade -1 && alembic upgrade head` |
+| Migration from scratch | `alembic upgrade head` on an empty DB |
+| Frontend | `npm run build` |
+| Live smoke | run on **port 8001** — 8000 is the developer's own server |
+
+For anything touching money, assert the ledger still reconciles:
+
+```sql
+SELECT a.user_id FROM virtual_accounts a
+WHERE a.balance <> COALESCE(
+  (SELECT SUM(l.amount) FROM virtual_fund_ledger l WHERE l.account_id = a.id), 0);
+-- must return zero rows
+```
+
+Two live-smoke traps, both of which have wasted time: `run_tests.py` is **stale**
+(it predates `client_order_id`, posts form-encoded login to a JSON endpoint, and
+omits the `Origin` header — ~10 of its 38 checks fail on a healthy server), and
+`/auth/login` takes a **JSON body with `email`**, not an OAuth2 form.
 
 **Gap worth closing:** `tests/unit/test_discipline_engine.py`,
 `test_slippage_engine.py`, `test_brokerage_calculator.py`, `test_utils.py`,
