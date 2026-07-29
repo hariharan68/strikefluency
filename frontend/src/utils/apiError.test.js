@@ -22,3 +22,14 @@ test('extracts nested API messages and falls back for unknown objects', () => {
   )
   assert.equal(toDisplayMessage({ unexpected: true }, 'Fallback'), 'Fallback')
 })
+
+test('turns timeout and network failures into actionable messages', () => {
+  assert.equal(
+    getApiErrorMessage({ code: 'ECONNABORTED', message: 'timeout of 15000ms exceeded' }, 'Fallback'),
+    'The server took too long to respond. Please try again.',
+  )
+  assert.equal(
+    getApiErrorMessage({ message: 'Network Error' }, 'Fallback'),
+    'The application could not reach the server. Check that the backend is running and try again.',
+  )
+})

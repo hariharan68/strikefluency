@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowDownRight,
@@ -161,16 +161,63 @@ function InstrumentCell({ item }) {
 }
 
 function StrategyCell({ strategy }) {
-  const openLegs = (strategy.legs || []).filter(leg => leg.status === 'OPEN')
+  const legs = strategy.legs || []
+  const openLegs = legs.filter(leg => leg.status === 'OPEN')
+  const detail = strategy.status === 'CLOSED'
+    ? `${legs.length} leg${legs.length === 1 ? '' : 's'} · Closed`
+    : `${openLegs.length} open legs · ${productLabel(strategy.product_type)}`
   return (
     <div className="positions-instrument">
       <span className="positions-type-badge strategy"><Layers size={14} /></span>
       <div>
         <strong>{strategy.name || strategy.template_id?.replaceAll('_', ' ') || `${strategy.underlying} strategy`}</strong>
-        <span>{openLegs.length} open legs · {productLabel(strategy.product_type)}</span>
+        <span>{detail}</span>
       </div>
     </div>
   )
+}
+
+function StrategyChildInstrument({ item }) {
+  return (
+    <div className="positions-strategy-leg-cell">
+      <span className="positions-strategy-leg-connector" aria-hidden="true" />
+      <InstrumentCell item={item} />
+    </div>
+  )
+}
+
+function StrategyBookHeader({ strategy, colSpan }) {
+  return (
+    <tr className="positions-strategy-summary-row positions-strategy-book-header">
+      <td colSpan={colSpan}><StrategyCell strategy={strategy} /></td>
+    </tr>
+  )
+}
+
+const groupByStrategy = (items, strategyById) => {
+  const grouped = new Map()
+  const sections = []
+
+  items.forEach((item, index) => {
+    const strategyId = item.strategy_id ? String(item.strategy_id) : null
+    const strategy = strategyId ? strategyById.get(strategyId) : null
+    if (!strategy) {
+      sections.push({ key: `item-${item.id}`, index, strategy: null, items: [item] })
+      return
+    }
+
+    if (!grouped.has(strategyId)) {
+      grouped.set(strategyId, {
+        key: `strategy-${strategyId}`,
+        index,
+        strategy,
+        items: [],
+      })
+    }
+    grouped.get(strategyId).items.push(item)
+  })
+
+  return [...sections, ...grouped.values()].sort((left, right) => left.index - right.index)
 }
 
 const csvCell = value => `"${String(value ?? '').replaceAll('"', '""')}"`
@@ -202,6 +249,7 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
   const [productFilter, setProductFilter] = useState('ALL')
   const [positions, setPositions] = useState([])
   const [strategies, setStrategies] = useState([])
+  const [strategyHistory, setStrategyHistory] = useState([])
   const [orders, setOrders] = useState([])
   const [pendingOrders, setPendingOrders] = useState([])
   const [pendingCounts, setPendingCounts] = useState({ open: 0, executed: 0 })
@@ -226,7 +274,7 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
     const [positionsResult, strategiesResult, ordersResult, tradesResult, violationsResult, accountResult, rulesResult, pendingResult] =
       await Promise.all([
         safe(getPositions()),
-        safe(listStrategies('EXECUTED')),
+        safe(listStrategies(null, 1, 100)),
         safe(getOrders(1, null, 'today')),
         safe(getTradebook(1, 'today')),
         safe(getTodayViolations()),
@@ -239,7 +287,11 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
       setPositions(positionsResult.data?.positions || [])
       setPositionMargin(asNumber(positionsResult.data?.total_margin_blocked))
     }
-    if (strategiesResult.ok) setStrategies(strategiesResult.data?.strategies || [])
+    if (strategiesResult.ok) {
+      const rows = strategiesResult.data?.strategies || []
+      setStrategyHistory(rows.filter(strategy => strategy.status !== 'DRAFT'))
+      setStrategies(rows.filter(strategy => strategy.status === 'EXECUTED'))
+    }
     if (ordersResult.ok) setOrders(ordersResult.data?.orders || [])
     if (tradesResult.ok) setTrades(tradesResult.data?.orders || [])
     if (violationsResult.ok) setViolations(Array.isArray(violationsResult.data) ? violationsResult.data : [])
@@ -323,6 +375,31 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
     return unrealized + asNumber(strategy.position?.realized_pnl)
   }
 
+  const liveForStrategyLeg = (strategy, leg) => {
+    if (leg.status !== 'OPEN') {
+      return {
+        ltp: leg.exit_price == null ? null : asNumber(leg.exit_price),
+        pnl: asNumber(leg.realized_pnl),
+      }
+    }
+
+    const chain = chains[strategy.underlying]
+    const ltp = leg.instrument_type === 'FUT'
+      ? (chain?.spot_price != null ? asNumber(chain.spot_price) : null)
+      : ltpFromChain(chain, leg.strike_price, leg.instrument_type)
+
+    return {
+      ltp,
+      pnl: livePnl({
+        action: leg.action,
+        entry: leg.entry_price,
+        ltp,
+        lots: leg.lots,
+        lotSize: leg.lot_size,
+      }),
+    }
+  }
+
   const filteredPositions = useMemo(() => positions.filter(position => (
     (instrumentFilter === 'ALL' || position.instrument === instrumentFilter)
     && (productFilter === 'ALL' || position.product_type === productFilter)
@@ -333,6 +410,11 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
     && (productFilter === 'ALL' || strategy.product_type === productFilter)
   )), [instrumentFilter, productFilter, strategies])
 
+  const strategyById = useMemo(
+    () => new Map(strategyHistory.map(strategy => [String(strategy.id), strategy])),
+    [strategyHistory],
+  )
+
   const filterBook = useCallback(items => items.filter(item => (
     (instrumentFilter === 'ALL' || item.instrument === instrumentFilter)
     && (productFilter === 'ALL' || item.product_type === productFilter)
@@ -340,6 +422,14 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
 
   const visibleOrders = useMemo(() => filterBook(orders), [filterBook, orders])
   const visibleTrades = useMemo(() => filterBook(trades), [filterBook, trades])
+  const orderSections = useMemo(
+    () => groupByStrategy(visibleOrders, strategyById),
+    [strategyById, visibleOrders],
+  )
+  const tradeSections = useMemo(
+    () => groupByStrategy(visibleTrades, strategyById),
+    [strategyById, visibleTrades],
+  )
 
   const restingOrders = useMemo(
     () => filterBook(pendingOrders.filter(item => item.status === 'PENDING')),
@@ -350,6 +440,10 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
     [filterBook, pendingOrders],
   )
   const visiblePending = pendingView === 'open' ? restingOrders : settledPending
+  const pendingSections = useMemo(
+    () => groupByStrategy(visiblePending, strategyById),
+    [strategyById, visiblePending],
+  )
 
   // Funds a resting order is holding — capital that is committed but not yet
   // deployed, so it belongs nowhere near Open P&L.
@@ -375,6 +469,7 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
         kind: 'ENTRY',
         instrument: order.instrument,
         product: order.product_type,
+        strategy_id: order.strategy_id,
         text: `${order.action} ${order.instrument} ${Math.round(asNumber(order.strike_price))} ${order.option_type} × ${order.quantity} lot${order.quantity === 1 ? '' : 's'} @ ${money(order.entry_price)}`,
       })
       if (order.status !== 'OPEN') {
@@ -384,6 +479,7 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
           kind: order.status,
           instrument: order.instrument,
           product: order.product_type,
+          strategy_id: order.strategy_id,
           text: `${(order.exit_reason || order.status).replaceAll('_', ' ')} · ${order.instrument} ${Math.round(asNumber(order.strike_price))} ${order.option_type}`,
           pnl: order.pnl,
         })
@@ -406,6 +502,11 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
       ))
       .sort((a, b) => new Date(b.at) - new Date(a.at))
   }, [instrumentFilter, orders, productFilter, violations])
+
+  const logSections = useMemo(
+    () => groupByStrategy(logs, strategyById),
+    [logs, strategyById],
+  )
 
   const openPnl = positions.reduce((sum, position) => sum + liveForPosition(position).pnl, 0)
     + strategies.reduce((sum, strategy) => sum + liveForStrategy(strategy), 0)
@@ -457,11 +558,11 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
 
   const counts = {
     positions: positions.length + strategies.length,
-    orderbook: orders.length,
-    tradebook: trades.length,
+    orderbook: orderSections.length,
+    tradebook: tradeSections.length,
     // The actionable number is what is still waiting, not the day's total.
     pending: pendingCounts.open,
-    logs: orders.length + orders.filter(order => order.status !== 'OPEN').length + violations.length,
+    logs: logSections.length,
   }
 
   const handleClose = async orderId => {
@@ -633,29 +734,63 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
             <tbody>
               {filteredStrategies.map(strategy => {
                 const pnl = liveForStrategy(strategy)
+                const legs = strategy.legs || []
                 return (
-                  <tr key={`strategy-${strategy.id}`}>
-                    <td><StrategyCell strategy={strategy} /></td>
-                    <td><span className="positions-side-badge multi">MULTI</span></td>
-                    <td className="align-right num">{(strategy.legs || []).filter(leg => leg.status === 'OPEN').length}</td>
-                    <td className="align-right num">{strategy.net_premium == null ? '—' : money(strategy.net_premium)}</td>
-                    <td className="align-right num">—</td>
-                    <td className="align-right num">{money(strategy.position?.margin_blocked, 0)}</td>
-                    <td className={`align-right num pnl ${pnl >= 0 ? 'gain' : 'loss'}`}>{signedMoney(pnl)}</td>
-                    <td className="positions-protection num">
-                      <strong>{strategy.max_loss == null ? 'Uncapped' : money(strategy.max_loss, 0)}</strong>
-                      <span>{strategy.max_profit == null ? 'Unlimited target' : `${money(strategy.max_profit, 0)} target`}</span>
-                    </td>
-                    <td><StatusPill /></td>
-                    <td>
-                      <div className="positions-row-actions">
-                        <button type="button" onClick={() => navigate(`/strategy-builder?strategy=${strategy.id}`)}>Modify</button>
-                        <button type="button" className="exit" disabled={closingId === strategy.id} onClick={() => handleSquareOff(strategy.id)}>
-                          {closingId === strategy.id ? '…' : 'Exit'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                  <Fragment key={`strategy-${strategy.id}`}>
+                    <tr className="positions-strategy-summary-row">
+                      <td><StrategyCell strategy={strategy} /></td>
+                      <td><span className="positions-side-badge multi">MULTI</span></td>
+                      <td className="align-right num">{legs.filter(leg => leg.status === 'OPEN').length}</td>
+                      <td className="align-right num">{strategy.net_premium == null ? '—' : money(strategy.net_premium)}</td>
+                      <td className="align-right num">—</td>
+                      <td className="align-right num">{money(strategy.position?.margin_blocked, 0)}</td>
+                      <td className={`align-right num pnl ${pnl >= 0 ? 'gain' : 'loss'}`}>{signedMoney(pnl)}</td>
+                      <td className="positions-protection num">
+                        <strong>{strategy.max_loss == null ? 'Uncapped' : money(strategy.max_loss, 0)}</strong>
+                        <span>{strategy.max_profit == null ? 'Unlimited target' : `${money(strategy.max_profit, 0)} target`}</span>
+                      </td>
+                      <td><StatusPill /></td>
+                      <td>
+                        <div className="positions-row-actions">
+                          <button type="button" onClick={() => navigate(`/strategy-builder?strategy=${strategy.id}`)}>Modify</button>
+                          <button type="button" className="exit" disabled={closingId === strategy.id} onClick={() => handleSquareOff(strategy.id)}>
+                            {closingId === strategy.id ? '…' : 'Exit'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {legs.map(leg => {
+                      const live = liveForStrategyLeg(strategy, leg)
+                      const contracts = asNumber(leg.lots) * asNumber(leg.lot_size)
+                      const invested = asNumber(leg.entry_price) * contracts
+                      const instrument = {
+                        instrument: leg.instrument || strategy.underlying,
+                        strike_price: leg.strike_price,
+                        option_type: leg.instrument_type,
+                        expiry_date: leg.expiry_date,
+                        product_type: strategy.product_type,
+                      }
+                      return (
+                        <tr className="positions-strategy-leg-row" key={`strategy-leg-${leg.id}`}>
+                          <td><StrategyChildInstrument item={instrument} /></td>
+                          <td><SideBadge side={leg.action} /></td>
+                          <td className="align-right num" title={`${leg.lots} lot${leg.lots === 1 ? '' : 's'} × ${leg.lot_size}`}>{contracts}</td>
+                          <td className="align-right num">{leg.entry_price == null ? '—' : money(leg.entry_price)}</td>
+                          <td className="align-right num">{live.ltp == null ? '—' : money(live.ltp)}</td>
+                          <td className="align-right num">{money(invested)}</td>
+                          <td className={`align-right num pnl ${live.pnl == null ? '' : live.pnl >= 0 ? 'gain' : 'loss'}`}>
+                            {live.pnl == null ? '—' : signedMoney(live.pnl)}
+                          </td>
+                          <td className="positions-protection num">
+                            <strong>Strategy level</strong>
+                            <span>No per-leg SL</span>
+                          </td>
+                          <td><StatusPill status={leg.status} /></td>
+                          <td className="positions-leg-label">LEG</td>
+                        </tr>
+                      )
+                    })}
+                  </Fragment>
                 )
               })}
               {filteredPositions.map(position => {
@@ -698,6 +833,19 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
       if (!visibleOrders.length) {
         return <EmptyState icon={Table2} title="No matching orders today" description="The orderbook resets at 08:30 IST each trading day." />
       }
+      const renderOrder = (order, grouped = false) => (
+        <tr className={grouped ? 'positions-strategy-leg-row' : undefined} key={order.id}>
+          <td className="num muted">{formatTime(order.entry_time)}</td>
+          <td>{grouped ? <StrategyChildInstrument item={order} /> : <InstrumentCell item={order} />}</td>
+          <td><SideBadge side={order.action} /></td>
+          <td>{productLabel(order.product_type)}</td>
+          <td className="align-right num">{order.quantity}</td>
+          <td className="align-right num">{money(order.entry_price)}</td>
+          <td className="align-right num">{order.sl_price == null ? '—' : money(order.sl_price)}</td>
+          <td className="align-right num">{order.target_price == null ? '—' : money(order.target_price)}</td>
+          <td><StatusPill status={order.status} /></td>
+        </tr>
+      )
       return (
         <div className="positions-table-scroll">
           <table className="positions-table book-table">
@@ -706,19 +854,18 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
               <th className="align-right">Lots</th><th className="align-right">Entry</th>
               <th className="align-right">Stop Loss</th><th className="align-right">Target</th><th>Status</th>
             </tr></thead>
-            <tbody>{visibleOrders.map(order => (
-              <tr key={order.id}>
-                <td className="num muted">{formatTime(order.entry_time)}</td>
-                <td><InstrumentCell item={order} /></td>
-                <td><SideBadge side={order.action} /></td>
-                <td>{productLabel(order.product_type)}</td>
-                <td className="align-right num">{order.quantity}</td>
-                <td className="align-right num">{money(order.entry_price)}</td>
-                <td className="align-right num">{order.sl_price == null ? '—' : money(order.sl_price)}</td>
-                <td className="align-right num">{order.target_price == null ? '—' : money(order.target_price)}</td>
-                <td><StatusPill status={order.status} /></td>
-              </tr>
-            ))}</tbody>
+            <tbody>
+              {orderSections.map(section => (
+                section.strategy
+                  ? (
+                    <Fragment key={section.key}>
+                      <StrategyBookHeader strategy={section.strategy} colSpan={9} />
+                      {section.items.map(order => renderOrder(order, true))}
+                    </Fragment>
+                  )
+                  : renderOrder(section.items[0])
+              ))}
+            </tbody>
           </table>
         </div>
       )
@@ -744,6 +891,37 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
       }
 
       if (pendingView === 'open') {
+        const renderPending = (item, grouped = false) => {
+          const { ltp, gap, reached } = distanceFor(item)
+          return (
+            <tr className={grouped ? 'positions-strategy-leg-row' : undefined} key={item.id}>
+              <td className="num muted">{formatTime(item.created_at)}</td>
+              <td>{grouped ? <StrategyChildInstrument item={item} /> : <InstrumentCell item={item} />}</td>
+              <td><SideBadge side={item.action} /></td>
+              <td>{productLabel(item.product_type)}</td>
+              <td className="align-right num">{item.quantity}</td>
+              <td className="align-right num"><strong>{money(item.limit_price)}</strong></td>
+              <td className="align-right num">{ltp == null ? '—' : money(ltp)}</td>
+              <td className={`align-right num${reached ? ' pnl gain' : ''}`}>
+                {gap == null ? '—' : reached ? 'Triggering' : money(Math.abs(gap))}
+              </td>
+              <td className="align-right num">{money(item.margin_blocked, 0)}</td>
+              <td><StatusPill status="PENDING" /></td>
+              <td>
+                <div className="positions-row-actions">
+                  <button
+                    type="button"
+                    className="exit"
+                    disabled={cancellingId === item.id}
+                    onClick={() => handleCancelPending(item.id)}
+                  >
+                    {cancellingId === item.id ? '…' : 'Cancel'}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          )
+        }
         return (
           <div className="positions-table-scroll">
             <table className="positions-table book-table">
@@ -753,42 +931,41 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
                 <th className="align-right">LTP</th><th className="align-right">To go</th>
                 <th className="align-right">Funds Held</th><th>Status</th><th>Actions</th>
               </tr></thead>
-              <tbody>{restingOrders.map(item => {
-                const { ltp, gap, reached } = distanceFor(item)
-                return (
-                  <tr key={item.id}>
-                    <td className="num muted">{formatTime(item.created_at)}</td>
-                    <td><InstrumentCell item={item} /></td>
-                    <td><SideBadge side={item.action} /></td>
-                    <td>{productLabel(item.product_type)}</td>
-                    <td className="align-right num">{item.quantity}</td>
-                    <td className="align-right num"><strong>{money(item.limit_price)}</strong></td>
-                    <td className="align-right num">{ltp == null ? '—' : money(ltp)}</td>
-                    <td className={`align-right num${reached ? ' pnl gain' : ''}`}>
-                      {gap == null ? '—' : reached ? 'Triggering' : money(Math.abs(gap))}
-                    </td>
-                    <td className="align-right num">{money(item.margin_blocked, 0)}</td>
-                    <td><StatusPill status="PENDING" /></td>
-                    <td>
-                      <div className="positions-row-actions">
-                        <button
-                          type="button"
-                          className="exit"
-                          disabled={cancellingId === item.id}
-                          onClick={() => handleCancelPending(item.id)}
-                        >
-                          {cancellingId === item.id ? '…' : 'Cancel'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}</tbody>
+              <tbody>
+                {pendingSections.map(section => (
+                  section.strategy
+                    ? (
+                      <Fragment key={section.key}>
+                        <StrategyBookHeader strategy={section.strategy} colSpan={11} />
+                        {section.items.map(item => renderPending(item, true))}
+                      </Fragment>
+                    )
+                    : renderPending(section.items[0])
+                ))}
+              </tbody>
             </table>
           </div>
         )
       }
 
+      const renderSettledPending = (item, grouped = false) => (
+        <tr className={grouped ? 'positions-strategy-leg-row' : undefined} key={item.id}>
+          <td className="num muted">{formatTime(item.closed_at || item.filled_at || item.created_at)}</td>
+          <td>{grouped ? <StrategyChildInstrument item={item} /> : <InstrumentCell item={item} />}</td>
+          <td><SideBadge side={item.action} /></td>
+          <td className="align-right num">{item.quantity}</td>
+          <td className="align-right num">{money(item.limit_price)}</td>
+          <td className="align-right num">{item.fill_price == null ? '—' : <strong>{money(item.fill_price)}</strong>}</td>
+          <td><StatusPill status={item.status} tone={PENDING_STATUS_TONE[item.status]} /></td>
+          <td className="positions-pending-outcome">
+            {item.status === 'FILLED'
+              ? 'Limit reached — position opened'
+              : item.reject_reason || (item.status === 'EXPIRED'
+                ? 'Unfilled at close'
+                : item.status === 'CANCELLED' ? 'Cancelled by you' : '—')}
+          </td>
+        </tr>
+      )
       return (
         <div className="positions-table-scroll">
           <table className="positions-table book-table">
@@ -797,24 +974,18 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
               <th className="align-right">Lots</th><th className="align-right">Limit</th>
               <th className="align-right">Filled At</th><th>Status</th><th>Outcome</th>
             </tr></thead>
-            <tbody>{settledPending.map(item => (
-              <tr key={item.id}>
-                <td className="num muted">{formatTime(item.closed_at || item.filled_at || item.created_at)}</td>
-                <td><InstrumentCell item={item} /></td>
-                <td><SideBadge side={item.action} /></td>
-                <td className="align-right num">{item.quantity}</td>
-                <td className="align-right num">{money(item.limit_price)}</td>
-                <td className="align-right num">{item.fill_price == null ? '—' : <strong>{money(item.fill_price)}</strong>}</td>
-                <td><StatusPill status={item.status} tone={PENDING_STATUS_TONE[item.status]} /></td>
-                <td className="positions-pending-outcome">
-                  {item.status === 'FILLED'
-                    ? 'Limit reached — position opened'
-                    : item.reject_reason || (item.status === 'EXPIRED'
-                      ? 'Unfilled at close'
-                      : item.status === 'CANCELLED' ? 'Cancelled by you' : '—')}
-                </td>
-              </tr>
-            ))}</tbody>
+            <tbody>
+              {pendingSections.map(section => (
+                section.strategy
+                  ? (
+                    <Fragment key={section.key}>
+                      <StrategyBookHeader strategy={section.strategy} colSpan={8} />
+                      {section.items.map(item => renderSettledPending(item, true))}
+                    </Fragment>
+                  )
+                  : renderSettledPending(section.items[0])
+              ))}
+            </tbody>
           </table>
         </div>
       )
@@ -824,6 +995,21 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
       if (!visibleTrades.length) {
         return <EmptyState icon={Wallet} title="No closed positions today" description="Completed trades will appear here with their realized result." />
       }
+      const renderTrade = (trade, grouped = false) => {
+        const pnl = asNumber(trade.pnl)
+        return (
+          <tr className={grouped ? 'positions-strategy-leg-row' : undefined} key={trade.id}>
+            <td className="num muted">{formatTime(trade.exit_time || trade.entry_time)}</td>
+            <td>{grouped ? <StrategyChildInstrument item={trade} /> : <InstrumentCell item={trade} />}</td>
+            <td><SideBadge side={trade.action} /></td>
+            <td className="align-right num">{trade.quantity}</td>
+            <td className="align-right num">{money(trade.entry_price)}</td>
+            <td className="align-right num">{trade.exit_price == null ? '—' : money(trade.exit_price)}</td>
+            <td className={`align-right num pnl ${pnl >= 0 ? 'gain' : 'loss'}`}>{signedMoney(pnl)}</td>
+            <td><StatusPill status={trade.status} /></td>
+          </tr>
+        )
+      }
       return (
         <div className="positions-table-scroll">
           <table className="positions-table book-table">
@@ -832,21 +1018,18 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
               <th className="align-right">Entry</th><th className="align-right">Exit</th>
               <th className="align-right">Booked P&amp;L</th><th>Reason</th>
             </tr></thead>
-            <tbody>{visibleTrades.map(trade => {
-              const pnl = asNumber(trade.pnl)
-              return (
-                <tr key={trade.id}>
-                  <td className="num muted">{formatTime(trade.exit_time || trade.entry_time)}</td>
-                  <td><InstrumentCell item={trade} /></td>
-                  <td><SideBadge side={trade.action} /></td>
-                  <td className="align-right num">{trade.quantity}</td>
-                  <td className="align-right num">{money(trade.entry_price)}</td>
-                  <td className="align-right num">{trade.exit_price == null ? '—' : money(trade.exit_price)}</td>
-                  <td className={`align-right num pnl ${pnl >= 0 ? 'gain' : 'loss'}`}>{signedMoney(pnl)}</td>
-                  <td><StatusPill status={trade.status} /></td>
-                </tr>
-              )
-            })}</tbody>
+            <tbody>
+              {tradeSections.map(section => (
+                section.strategy
+                  ? (
+                    <Fragment key={section.key}>
+                      <StrategyBookHeader strategy={section.strategy} colSpan={8} />
+                      {section.items.map(trade => renderTrade(trade, true))}
+                    </Fragment>
+                  )
+                  : renderTrade(section.items[0])
+              ))}
+            </tbody>
           </table>
         </div>
       )
@@ -855,36 +1038,42 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
     if (!logs.length) {
       return <EmptyState icon={ScrollText} title="No activity logged today" description="Orders, exits, and blocked discipline events will appear here." />
     }
+    const renderLog = (log, grouped = false) => {
+      const meta = LOG_META[log.kind] || LOG_META.ENTRY
+      const Icon = meta.icon
+      return (
+        <div className={`positions-log-row${grouped ? ' strategy-leg' : ''}`} key={log.id}>
+          <span className="positions-log-icon" style={{ color: meta.color }}><Icon size={15} /></span>
+          <time className="num">{formatTime(log.at)}</time>
+          <div>
+            <strong>{log.kind.replaceAll('_', ' ')}</strong>
+            <p>{log.text}</p>
+          </div>
+          {log.pnl != null && <span className={`num pnl ${asNumber(log.pnl) >= 0 ? 'gain' : 'loss'}`}>{signedMoney(log.pnl)}</span>}
+        </div>
+      )
+    }
     return (
       <div className="positions-log-list">
-        {logs.map(log => {
-          const meta = LOG_META[log.kind] || LOG_META.ENTRY
-          const Icon = meta.icon
-          return (
-            <div className="positions-log-row" key={log.id}>
-              <span className="positions-log-icon" style={{ color: meta.color }}><Icon size={15} /></span>
-              <time className="num">{formatTime(log.at)}</time>
-              <div>
-                <strong>{log.kind.replaceAll('_', ' ')}</strong>
-                <p>{log.text}</p>
-              </div>
-              {log.pnl != null && <span className={`num pnl ${asNumber(log.pnl) >= 0 ? 'gain' : 'loss'}`}>{signedMoney(log.pnl)}</span>}
-            </div>
-          )
-        })}
+        {logSections.map(section => (
+          section.strategy
+            ? (
+              <section className="positions-log-strategy-group" key={section.key}>
+                <div className="positions-log-strategy-header">
+                  <StrategyCell strategy={section.strategy} />
+                </div>
+                {section.items.map(log => renderLog(log, true))}
+              </section>
+            )
+            : renderLog(section.items[0])
+        ))}
       </div>
     )
   }
 
   return (
     <div className={`positions-page${embedded ? ' embedded' : ''}`}>
-      <section className="positions-page-heading">
-        <div>
-          {embedded
-            ? <h2>Positions &amp; Position Book</h2>
-            : <h1>Positions &amp; Position Book</h1>}
-          <p>Track live exposure, review executed trades, and manage every position from one clean workspace.</p>
-        </div>
+      <section className="positions-page-toolbar">
         <div className="positions-page-actions">
           <button type="button" className="positions-secondary-button" onClick={handleExport}>
             <Download size={14} /> Export CSV

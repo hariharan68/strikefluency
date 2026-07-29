@@ -147,6 +147,75 @@ export const isRuleEnabled = rule => {
   return rule?.is_active !== false && value.enabled !== false
 }
 
+export const buildRuleTogglePayload = (rule, enabled) => {
+  const meta = RULE_META[rule?.rule_code]
+  if (meta?.valueKey === 'enabled') {
+    return {
+      is_active: enabled,
+      rule_value: {
+        ...readRuleValue(rule),
+        enabled,
+      },
+    }
+  }
+  return { is_active: enabled }
+}
+
+const safeNumber = (value, fallback = 0) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+export const deriveTodayGuardrails = ({ accountSummary, rules = [], mode } = {}) => {
+  const account = accountSummary?.account || accountSummary || {}
+  const byCode = Object.fromEntries(rules.map(rule => [rule.rule_code, rule]))
+  const maxTrades = Math.max(
+    0,
+    safeNumber(readRuleValue(byCode.MAX_TRADES_PER_DAY).max_trades),
+  )
+  const tradesUsed = Math.max(0, safeNumber(accountSummary?.today_trades))
+  const tradesRemaining = Math.max(0, maxTrades - tradesUsed)
+
+  const initialBalance = Math.max(0, safeNumber(account.initial_balance))
+  const lossPct = Math.max(
+    0,
+    safeNumber(readRuleValue(byCode.MAX_DAILY_LOSS).loss_pct),
+  )
+  const lossLimit = initialBalance * (lossPct / 100)
+  const realizedPnl = safeNumber(accountSummary?.today_realized_pnl)
+  const lossUsed = Math.max(0, -realizedPnl)
+  const lossRemaining = Math.max(0, lossLimit - lossUsed)
+  const lossUsedPct = lossLimit > 0 ? (lossUsed / lossLimit) * 100 : 0
+
+  const cooldownSeconds = Math.max(
+    0,
+    Math.round(safeNumber(accountSummary?.cooldown_remaining_seconds)),
+  )
+
+  return {
+    protected: mode?.enabled !== false,
+    trades: {
+      used: tradesUsed,
+      maximum: maxTrades,
+      remaining: tradesRemaining,
+      usedPct: maxTrades > 0 ? Math.min(100, (tradesUsed / maxTrades) * 100) : 0,
+    },
+    loss: {
+      realizedPnl,
+      limit: lossLimit,
+      used: lossUsed,
+      remaining: lossRemaining,
+      usedPct: Math.min(100, lossUsedPct),
+      rawUsedPct: lossUsedPct,
+      lossPct,
+    },
+    cooldown: {
+      active: cooldownSeconds > 0,
+      seconds: cooldownSeconds,
+    },
+  }
+}
+
 export const formatRuleValue = rule => {
   const meta = RULE_META[rule?.rule_code]
   const value = readRuleValue(rule)

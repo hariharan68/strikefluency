@@ -5,44 +5,16 @@
   color: var(--text);
 }
 
-.positions-page-heading {
+.positions-page-toolbar {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
+  justify-content: flex-end;
   margin: 4px 0 18px;
 }
 
-.positions-page-heading h1 {
-  font-size: clamp(26px, 2.3vw, 34px);
-  line-height: 1.12;
-  font-weight: 750;
-  letter-spacing: -0.045em;
-}
-
-/* Embedded inside the Trading Desk: the desk owns the page title, so the
-   heading collapses to a compact section label. Everything below it renders
-   exactly as it does on the standalone /positions route. */
 .positions-page.embedded { max-width: none; }
 
-.positions-page.embedded .positions-page-heading {
-  align-items: center;
+.positions-page.embedded .positions-page-toolbar {
   margin: 0 0 14px;
-}
-
-.positions-page-heading h2 {
-  font-size: 16px;
-  line-height: 1.2;
-  font-weight: 750;
-  letter-spacing: -0.02em;
-}
-
-.positions-page.embedded .positions-page-heading p { margin-top: 4px; font-size: 12px; }
-
-.positions-page-heading p {
-  margin-top: 7px;
-  color: var(--text-sub);
-  font-size: 12.5px;
 }
 
 .positions-page-actions {
@@ -396,6 +368,62 @@
 .positions-table .pnl { font-weight: 700; }
 .book-table { min-width: 820px; }
 
+.positions-strategy-summary-row {
+  background: color-mix(in srgb, var(--primary-bg) 22%, transparent);
+}
+
+.positions-strategy-summary-row td {
+  border-bottom-color: var(--primary-border);
+}
+
+.positions-strategy-book-header td {
+  height: 48px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
+.positions-strategy-leg-row {
+  background: color-mix(in srgb, var(--color-surface2) 70%, transparent);
+}
+
+.positions-strategy-leg-row td {
+  height: 50px;
+  color: var(--text-muted);
+}
+
+.positions-strategy-leg-cell {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding-left: 8px;
+}
+
+.positions-strategy-leg-connector {
+  width: 14px;
+  min-height: 24px;
+  flex: 0 0 auto;
+  margin-bottom: 14px;
+  border-left: 1px solid var(--primary-border);
+  border-bottom: 1px solid var(--primary-border);
+  border-bottom-left-radius: 7px;
+}
+
+.positions-strategy-leg-row .positions-instrument strong {
+  font-size: 12px;
+}
+
+.positions-strategy-leg-row .positions-instrument span:not(.positions-type-badge) {
+  font-size: 10px;
+}
+
+.positions-leg-label {
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px !important;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
 .positions-instrument {
   display: flex;
   align-items: center;
@@ -594,6 +622,24 @@
 }
 
 .positions-log-list { padding: 4px 0; }
+
+.positions-log-strategy-group {
+  border-bottom: 1px solid var(--primary-border);
+  background: color-mix(in srgb, var(--color-surface2) 70%, transparent);
+}
+
+.positions-log-strategy-header {
+  min-height: 50px;
+  padding: 9px 14px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--primary-border);
+  background: color-mix(in srgb, var(--primary-bg) 22%, transparent);
+}
+
+.positions-log-row.strategy-leg {
+  padding-left: 32px;
+}
 
 .positions-log-row {
   min-height: 58px;
@@ -796,7 +842,6 @@
 }
 
 @media (max-width: 760px) {
-  .positions-page-heading { align-items: flex-start; flex-direction: column; }
   .positions-page-actions { width: 100%; }
   .positions-primary-button,
   .positions-secondary-button { flex: 1; }
@@ -808,8 +853,6 @@
 }
 
 @media (max-width: 480px) {
-  .positions-page-heading h1 { font-size: 25px; }
-  .positions-page-heading p { font-size: 11.5px; line-height: 1.55; }
   .positions-page-actions { flex-direction: column-reverse; }
   .positions-primary-button,
   .positions-secondary-button { width: 100%; }

@@ -1,14 +1,25 @@
 import axios from 'axios'
-import { beginLogout, getAccessToken, getAuthEpoch, setAccessToken } from '../store/authStore'
+import useAuthStore, { getAccessToken, getAuthEpoch, setAccessToken } from '../store/authStore'
 
 const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '')
-const client = axios.create({ baseURL: configuredBaseUrl || '/api/v1', withCredentials: true })
+const configuredTimeout = Number(import.meta.env.VITE_API_TIMEOUT_MS)
+const requestTimeout = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+  ? configuredTimeout
+  : 15000
+const client = axios.create({
+  baseURL: configuredBaseUrl || '/api/v1',
+  withCredentials: true,
+  timeout: requestTimeout,
+})
 let refreshPromise = null
 
 const refreshAccessToken = async () => {
   if (!refreshPromise) {
     const epochAtStart = getAuthEpoch()
-    refreshPromise = axios.post(`${configuredBaseUrl || '/api/v1'}/auth/refresh`, null, { withCredentials: true })
+    refreshPromise = axios.post(`${configuredBaseUrl || '/api/v1'}/auth/refresh`, null, {
+      withCredentials: true,
+      timeout: requestTimeout,
+    })
       .then(({ data }) => {
         setAccessToken(data.access_token, epochAtStart)
         return data.access_token
@@ -37,9 +48,10 @@ client.interceptors.response.use(
         original.headers.Authorization = `Bearer ${getAccessToken()}`
         return client(original)
       } catch (_) {
-        beginLogout()
-        localStorage.removeItem('sf_user')
-        window.location.href = '/login'
+        // Update the store instead of forcing a hard reload. A reload starts
+        // AuthBootstrap again with the same failed cookie and previously left
+        // protected routes rendering a completely empty page.
+        useAuthStore.getState().clearAuth()
       }
     }
     return Promise.reject(err)

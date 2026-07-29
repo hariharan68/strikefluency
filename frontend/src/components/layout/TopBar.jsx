@@ -3,8 +3,8 @@ import { useLocation, Link } from 'react-router-dom'
 import useMarketStore from '../../store/marketStore'
 import { getMode } from '../../api/discipline'
 import {
-  AlertTriangle, ChevronDown, FileBarChart, KeyRound, Moon,
-  Settings, Sun, ShieldOff,
+  AlertTriangle, ChevronDown, FileBarChart, Moon,
+  Settings, Shield, ShieldOff, Sun,
 } from 'lucide-react'
 import useTheme from '../../hooks/useTheme'
 import useAuthStore from '../../store/authStore'
@@ -160,10 +160,12 @@ export default function TopBar() {
                 <strong>{user?.full_name || 'Trader'}</strong>
                 <span>{user?.email || 'StrikeFluency account'}</span>
               </div>
-              <Link to="/api-key" className="sf-profile-menu-item" role="menuitem">
-                <KeyRound size={16} />
-                <span>API Key</span>
-              </Link>
+              {isAdmin && (
+                <Link to="/admin" className="sf-profile-menu-item" role="menuitem">
+                  <Shield size={16} />
+                  <span>Admin Page</span>
+                </Link>
+              )}
               <Link to="/settings" className="sf-profile-menu-item" role="menuitem">
                 <Settings size={16} />
                 <span>Settings</span>

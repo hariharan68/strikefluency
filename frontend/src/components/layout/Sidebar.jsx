@@ -1,11 +1,10 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Activity, ShieldCheck, BookOpen, BarChart2, LogOut,
-  TrendingUp, Settings, Radio, Layers, Table2, Wallet, Wrench, Shield
+  TrendingUp, Settings, Radio, Layers, Table2, Wallet, Wrench
 } from 'lucide-react'
 import useAuthStore from '../../store/authStore'
 import * as authApi from '../../api/auth'
-import { isAdminRole } from './AdminRoute'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -19,17 +18,10 @@ const navItems = [
   { to: '/journal', icon: BookOpen, label: 'Journal' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },
   { to: '/settings', icon: Settings, label: 'Settings' },
-  // adminOnly is the first role gate in the sidebar; items without
-  // the flag stay visible to everyone, as before.
-  { to: '/admin', icon: Shield, label: 'Admin', adminOnly: true },
 ]
 
 export default function Sidebar() {
   const clearAuth = useAuthStore(s => s.clearAuth)
-  const user = useAuthStore(s => s.user)
-  const visibleItems = navItems.filter(
-    item => !item.adminOnly || isAdminRole(user?.role)
-  )
 
   const handleSignOut = async () => {
     // Revoke the server-side refresh-token family and clear the HttpOnly
@@ -57,7 +49,7 @@ export default function Sidebar() {
       <nav className="sf-side-nav" aria-label="Primary navigation">
         {/* data-label feeds the hover tooltip when the icon-rail layout hides
             the text (Settings → Customization → Layout). */}
-        {visibleItems.map(({ to, icon: Icon, label }) => (
+        {navItems.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}

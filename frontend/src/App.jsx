@@ -1,37 +1,38 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
-import { Component, useEffect, useLayoutEffect } from 'react'
+import { Component, lazy, Suspense, useEffect, useLayoutEffect } from 'react'
 import { ToastProvider } from './components/common/Toast'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 import AppLayout from './components/layout/AppLayout'
 import AdminRoute from './components/layout/AdminRoute'
-import LandingPage from './pages/LandingPage'
-import ProductPage from './pages/marketing/ProductPage'
-import DisciplineInfoPage from './pages/marketing/DisciplineInfoPage'
-import ScopePage from './pages/marketing/ScopePage'
-import DocsPage from './pages/marketing/DocsPage'
-import BlogPage from './pages/marketing/BlogPage'
-import VarsityPage from './pages/marketing/VarsityPage'
-import PricingPage from './pages/marketing/PricingPage'
-import LoginPage from './pages/auth/LoginPage'
-import RegisterPage from './pages/auth/RegisterPage'
-import OAuthCallbackPage from './pages/auth/OAuthCallbackPage'
-import DashboardPage from './pages/dashboard/DashboardPage'
-import Terminal1Page from './pages/terminal/Terminal1Page'
-import PositionsPage from './pages/positions/PositionsPage'
-import StrategyBuilderPage from './pages/strategy/StrategyBuilderPage'
-import OptionChainPage from './pages/optionchain/OptionChainPage'
-import ToolsPage from './pages/tools/ToolsPage'
-import TradingDeskPage from './pages/trading/TradingDeskPage'
-import DisciplinePage from './pages/discipline/DisciplinePage'
-import DisciplineModePage from './pages/discipline/DisciplineModePage'
-import JournalPage from './pages/journal/JournalPage'
-import AnalyticsPage from './pages/analytics/AnalyticsPage'
-import SettingsPage from './pages/settings/SettingsPage'
-import AdminPage from './pages/admin/AdminPage'
-import ApiKeyPage from './pages/account/ApiKeyPage'
-import ReportsPage from './pages/reports/ReportsPage'
 import * as authApi from './api/auth'
 import useAuthStore, { getAccessToken } from './store/authStore'
+
+const LandingPage = lazy(() => import('./pages/LandingPage'))
+const ProductPage = lazy(() => import('./pages/marketing/ProductPage'))
+const DisciplineInfoPage = lazy(() => import('./pages/marketing/DisciplineInfoPage'))
+const ScopePage = lazy(() => import('./pages/marketing/ScopePage'))
+const DocsPage = lazy(() => import('./pages/marketing/DocsPage'))
+const BlogPage = lazy(() => import('./pages/marketing/BlogPage'))
+const VarsityPage = lazy(() => import('./pages/marketing/VarsityPage'))
+const PricingPage = lazy(() => import('./pages/marketing/PricingPage'))
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'))
+const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'))
+const OAuthCallbackPage = lazy(() => import('./pages/auth/OAuthCallbackPage'))
+const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'))
+const Terminal1Page = lazy(() => import('./pages/terminal/Terminal1Page'))
+const PositionsPage = lazy(() => import('./pages/positions/PositionsPage'))
+const StrategyBuilderPage = lazy(() => import('./pages/strategy/StrategyBuilderPage'))
+const OptionChainPage = lazy(() => import('./pages/optionchain/OptionChainPage'))
+const ToolsPage = lazy(() => import('./pages/tools/ToolsPage'))
+const TradingDeskPage = lazy(() => import('./pages/trading/TradingDeskPage'))
+const DisciplinePage = lazy(() => import('./pages/discipline/DisciplinePage'))
+const DisciplineModePage = lazy(() => import('./pages/discipline/DisciplineModePage'))
+const JournalPage = lazy(() => import('./pages/journal/JournalPage'))
+const AnalyticsPage = lazy(() => import('./pages/analytics/AnalyticsPage'))
+const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'))
+const AdminPage = lazy(() => import('./pages/admin/AdminPage'))
+const ApiKeyPage = lazy(() => import('./pages/account/ApiKeyPage'))
+const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'))
 
 // Deduped so a single page load restores the session with exactly ONE
 // /auth/refresh call. React.StrictMode double-invokes effects in dev, and our
@@ -56,7 +57,12 @@ function AuthBootstrap() {
     let active = true
     sessionRestore
       .then(({ user, token }) => { if (active) setAuth(user, token) })
-      .catch(() => { if (active) clearAuth() })
+      .catch(() => {
+        // A user may complete a manual login while the initial cookie refresh
+        // is still in flight. Never let that older request clear the fresh
+        // authenticated session when it eventually fails or times out.
+        if (active && !getAccessToken()) clearAuth()
+      })
       .finally(() => { if (active) setInitialized(true) })
     return () => { active = false }
   }, [setAuth, clearAuth, setInitialized])
@@ -121,52 +127,74 @@ function PublicTransitionLayout() {
   )
 }
 
+function RouteLoadingFallback() {
+  return (
+    <main
+      aria-busy="true"
+      aria-live="polite"
+      style={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        padding: 24,
+        background: 'var(--color-bg)',
+        color: 'var(--text-muted)',
+        fontSize: 12,
+      }}
+    >
+      Loading StrikeFluency…
+    </main>
+  )
+}
+
 export default function App() {
   return (
     <ToastProvider>
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AppErrorBoundary>
         <AuthBootstrap />
         <ScrollToTop />
-        <Routes>
-          <Route element={<PublicTransitionLayout />}>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/product" element={<ProductPage />} />
-            <Route path="/discipline-engine" element={<DisciplineInfoPage />} />
-            <Route path="/scope" element={<ScopePage />} />
-            <Route path="/docs" element={<DocsPage />} />
-            <Route path="/blog" element={<BlogPage />} />
-            <Route path="/varsity" element={<VarsityPage />} />
-            <Route path="/pricing" element={<PricingPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/auth/oauth-callback" element={<OAuthCallbackPage />} />
-          </Route>
-          <Route element={<ProtectedRoute />}>
-            <Route element={<AppLayout />}>
-              <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/terminal-1" element={<Terminal1Page />} />
-              <Route path="/positions" element={<PositionsPage />} />
-              <Route path="/option-chain" element={<OptionChainPage />} />
-              <Route path="/tools" element={<ToolsPage />} />
-              <Route path="/trading" element={<TradingDeskPage />} />
-              <Route path="/strategy-builder" element={<StrategyBuilderPage />} />
-              <Route path="/discipline" element={<DisciplinePage />} />
-              <Route path="/discipline-mode" element={<DisciplineModePage />} />
-              <Route path="/journal" element={<JournalPage />} />
-              <Route path="/analytics" element={<AnalyticsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              {/* Role-guarded: a non-admin is redirected rather than
-                  shown a page that 403s on every request. */}
-              <Route element={<AdminRoute />}>
-                <Route path="/admin" element={<AdminPage />} />
-              </Route>
-              <Route path="/api-key" element={<ApiKeyPage />} />
-              <Route path="/reports" element={<ReportsPage />} />
+        <Suspense fallback={<RouteLoadingFallback />}>
+          <Routes>
+            <Route element={<PublicTransitionLayout />}>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/product" element={<ProductPage />} />
+              <Route path="/discipline-engine" element={<DisciplineInfoPage />} />
+              <Route path="/scope" element={<ScopePage />} />
+              <Route path="/docs" element={<DocsPage />} />
+              <Route path="/blog" element={<BlogPage />} />
+              <Route path="/varsity" element={<VarsityPage />} />
+              <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/auth/oauth-callback" element={<OAuthCallbackPage />} />
             </Route>
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppLayout />}>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/terminal-1" element={<Terminal1Page />} />
+                <Route path="/positions" element={<PositionsPage />} />
+                <Route path="/option-chain" element={<OptionChainPage />} />
+                <Route path="/tools" element={<ToolsPage />} />
+                <Route path="/trading" element={<TradingDeskPage />} />
+                <Route path="/strategy-builder" element={<StrategyBuilderPage />} />
+                <Route path="/discipline" element={<DisciplinePage />} />
+                <Route path="/discipline-mode" element={<DisciplineModePage />} />
+                <Route path="/journal" element={<JournalPage />} />
+                <Route path="/analytics" element={<AnalyticsPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                {/* Role-guarded: a non-admin is redirected rather than
+                    shown a page that 403s on every request. */}
+                <Route element={<AdminRoute />}>
+                  <Route path="/admin" element={<AdminPage />} />
+                </Route>
+                <Route path="/api-key" element={<ApiKeyPage />} />
+                <Route path="/reports" element={<ReportsPage />} />
+              </Route>
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
         </AppErrorBoundary>
       </BrowserRouter>
     </ToastProvider>

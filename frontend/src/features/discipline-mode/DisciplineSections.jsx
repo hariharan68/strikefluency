@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowRight,
@@ -12,7 +12,6 @@ import {
   Flame,
   Info,
   Layers3,
-  LockKeyhole,
   Search,
   Shield,
   ShieldAlert,
@@ -27,6 +26,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -38,7 +38,8 @@ import {
   DEFAULT_NOTIFICATIONS,
   PRESETS,
   RULE_META,
-  TIER_CAPITAL,
+  buildRuleTogglePayload,
+  deriveTodayGuardrails,
   formatRuleValue,
   isRuleEnabled,
   readRuleValue,
@@ -80,6 +81,13 @@ const mostViolated = violations => {
   return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
 }
 
+const duration = seconds => {
+  const total = Math.max(0, Number(seconds || 0))
+  if (!total) return 'Clear'
+  const minutes = Math.floor(total / 60)
+  return `${minutes}m ${total % 60}s`
+}
+
 function CardHeader({ icon: Icon, title, description, action }) {
   return (
     <header className="discipline-card-header">
@@ -102,17 +110,37 @@ function ProgressBar({ value, tone = '' }) {
   )
 }
 
-export function OverviewTab({
+function GuardrailCard({ icon: Icon, label, value, detail, progress, tone, bypassed }) {
+  const status = bypassed
+    ? 'Not enforced'
+    : tone === 'loss' ? 'Limit reached' : tone === 'warn' ? 'Watch' : 'Healthy'
+  return (
+    <article className={`discipline-guardrail-card ${tone || ''} ${bypassed ? 'bypassed' : ''}`}>
+      <div className="discipline-guardrail-heading">
+        <span><Icon size={17} /></span>
+        <small>{label}</small>
+        <em>{status}</em>
+      </div>
+      <strong className="num">{value}</strong>
+      <p>{detail}</p>
+      {progress != null && <ProgressBar value={progress} tone={tone} />}
+    </article>
+  )
+}
+
+export function TodayTab({
   mode,
   score,
   rules,
   violations,
   progress,
+  accountSummary,
   onTabChange,
   onSelectRule,
 }) {
   const scoreValue = Number(score?.score || 0)
   const tier = progress?.tier_progress
+  const guardrails = deriveTodayGuardrails({ accountSummary, rules, mode })
   const activeRules = rules.filter(isRuleEnabled)
   const categories = Object.keys(CATEGORY_META).map(key => ({
     key,
@@ -120,48 +148,61 @@ export function OverviewTab({
     active: activeRules.filter(rule => RULE_META[rule.rule_code]?.category === key).length,
     total: rules.filter(rule => RULE_META[rule.rule_code]?.category === key).length,
   }))
-  const frequent = mostViolated(violations)
+  const todayKey = new Date().toDateString()
+  const recentToday = violations.filter(item => safeDate(item.created_at)?.toDateString() === todayKey)
+  const blockedToday = recentToday.filter(item => item.was_blocked).length
+  const frequent = mostViolated(recentToday)
+  const tradesTone = !guardrails.protected
+    ? 'muted'
+    : guardrails.trades.remaining === 0 ? 'loss' : guardrails.trades.remaining === 1 ? 'warn' : 'gain'
+  const lossTone = !guardrails.protected
+    ? 'muted'
+    : guardrails.loss.rawUsedPct >= 100 ? 'loss' : guardrails.loss.rawUsedPct >= 60 ? 'warn' : 'gain'
+  const cooldownTone = !guardrails.protected
+    ? 'muted'
+    : guardrails.cooldown.active ? 'loss' : 'gain'
 
   return (
-    <div className="discipline-overview-layout">
-      <section className="discipline-overview-main">
-        <article className="discipline-panel discipline-capital-card">
-          <CardHeader
-            icon={CircleDollarSign}
-            title="Sandbox capital"
-            description="Capital access grows through consistent disciplined trading."
-            action={<span className="discipline-status-badge info">{tierLabel(mode?.tier)}</span>}
-          />
-          <div className="discipline-capital-primary">
-            <div>
-              <small>Current balance</small>
-              <strong className="num">{money(mode?.balance)}</strong>
-              <span>{mode?.capital_unlocked ? 'Full sandbox capital unlocked' : 'Protected by your current tier'}</span>
-            </div>
-            <div className="discipline-capital-lock">
-              {mode?.capital_unlocked ? <ShieldCheck size={28} /> : <LockKeyhole size={28} />}
-              <b>{mode?.capital_unlocked ? 'Unlocked' : 'Tier protected'}</b>
-            </div>
-          </div>
-          <div className="discipline-capital-grid">
-            <div><span>Tier allocation</span><strong className="num">{money(tier?.current_capital_limit || TIER_CAPITAL[mode?.tier])}</strong></div>
-            <div><span>Next allocation</span><strong className="num">{tier?.next_capital_limit ? money(tier.next_capital_limit) : 'Maximum tier'}</strong></div>
-            <div><span>Trades remaining</span><strong className="num">{tier?.streak_remaining ?? score?.trades_to_next_tier ?? 0}</strong></div>
-          </div>
-          <div className="discipline-tier-progress">
-            <div><span>{tier?.next_tier ? `${tierLabel(tier.current_tier)} → ${tierLabel(tier.next_tier)}` : 'Maximum tier reached'}</span><b>{Math.round(tier?.progress_pct || 0)}%</b></div>
-            <ProgressBar value={tier?.progress_pct || 0} />
-            <p>{tier?.next_tier
-              ? `Complete ${tier.streak_remaining} more consecutive disciplined trades to reach ${tierLabel(tier.next_tier)}.`
-              : 'Your account currently has the maximum configured sandbox allocation.'}</p>
-          </div>
-        </article>
+    <div className="discipline-today">
+      <section className="discipline-guardrail-grid" aria-label="Today’s live guardrails">
+        <GuardrailCard
+          icon={Target}
+          label="Trades remaining"
+          value={`${guardrails.trades.remaining} of ${guardrails.trades.maximum}`}
+          detail={`${guardrails.trades.used} paper trade${guardrails.trades.used === 1 ? '' : 's'} used today`}
+          progress={guardrails.trades.usedPct}
+          tone={tradesTone}
+          bypassed={!guardrails.protected}
+        />
+        <GuardrailCard
+          icon={CircleDollarSign}
+          label={`Daily loss budget · ${guardrails.loss.lossPct}%`}
+          value={money(guardrails.loss.remaining)}
+          detail={guardrails.loss.used
+            ? `${money(guardrails.loss.used)} of ${money(guardrails.loss.limit)} used`
+            : `${money(guardrails.loss.limit)} available for today`}
+          progress={guardrails.loss.usedPct}
+          tone={lossTone}
+          bypassed={!guardrails.protected}
+        />
+        <GuardrailCard
+          icon={Clock3}
+          label="Revenge cooldown"
+          value={duration(guardrails.cooldown.seconds)}
+          detail={guardrails.cooldown.active
+            ? 'New entries remain paused after a stop-loss exit'
+            : 'No behavioural lock is active'}
+          tone={cooldownTone}
+          bypassed={!guardrails.protected}
+        />
+      </section>
 
-        <article className="discipline-panel">
+      <div className="discipline-today-layout">
+        <article className="discipline-panel discipline-coverage-card">
           <CardHeader
             icon={Layers3}
-            title="Active rule coverage"
-            description={`${activeRules.length} of ${rules.length} configured guardrails are currently enforced.`}
+            title="Protection coverage"
+            description={`${activeRules.length} of ${rules.length || 7} guardrails are effective for the next order.`}
             action={<button className="discipline-text-button" onClick={() => onTabChange('rules')}>Manage rules <ArrowRight size={13} /></button>}
           />
           <div className="discipline-category-summary">
@@ -174,52 +215,68 @@ export function OverviewTab({
               </button>
             ))}
           </div>
-          {activeRules.length > 0 && (
-            <div className="discipline-rule-chips">
-              {activeRules.map(rule => (
+          <div className="discipline-protection-list-compact">
+            {rules.map(rule => {
+              const effective = isRuleEnabled(rule)
+              return (
                 <button key={rule.rule_code} onClick={() => onSelectRule(rule)}>
-                  <Check size={12} /> {RULE_LABELS[rule.rule_code] || rule.rule_code}
+                  <span className={effective ? 'active' : 'inactive'}>
+                    {effective ? <Check size={12} /> : <X size={12} />}
+                  </span>
+                  <span>
+                    <b>{RULE_LABELS[rule.rule_code] || rule.rule_code}</b>
+                    <small>{formatRuleValue(rule)}</small>
+                  </span>
+                  <em>{effective ? (guardrails.protected ? 'Enforced' : 'Bypassed') : 'Disabled'}</em>
+                  <ChevronRight size={14} />
                 </button>
-              ))}
+              )
+            })}
+          </div>
+        </article>
+
+        <aside className="discipline-today-side">
+          <article className="discipline-panel discipline-progress-snapshot">
+            <CardHeader icon={Target} title="Progress snapshot" description="Latest disciplined-trade results." />
+            <div className="discipline-progress-score">
+              <div className="discipline-score-orbit compact" style={{ '--score': scoreValue }}>
+                <div><strong className="num">{Math.round(scoreValue)}</strong><small>/100</small></div>
+              </div>
+              <div>
+                <span>Current streak<strong className="num">{score?.consecutive_disciplined_trades || 0} trades</strong></span>
+                <span>Current tier<strong>{tierLabel(mode?.tier)}</strong></span>
+                <span>Available capital<strong className="num">{money(mode?.balance)}</strong></span>
+              </div>
             </div>
-          )}
-        </article>
-      </section>
+            <div className="discipline-tier-progress compact">
+              <div>
+                <span>{tier?.next_tier ? `Next: ${tierLabel(tier.next_tier)}` : 'Maximum tier reached'}</span>
+                <b>{Math.round(tier?.progress_pct || 0)}%</b>
+              </div>
+              <ProgressBar value={tier?.progress_pct || 0} />
+              <p>{tier?.next_tier
+                ? `${tier.streak_remaining} consecutive disciplined trades remaining.`
+                : 'The maximum configured sandbox allocation is available.'}</p>
+            </div>
+            <button className="discipline-secondary-button full" onClick={() => onTabChange('progress')}>Open progress analytics</button>
+          </article>
 
-      <aside className="discipline-overview-side">
-        <article className="discipline-panel discipline-score-card">
-          <CardHeader icon={Target} title="Discipline score" description="Rolling compliance across the latest 20 closed disciplined trades." />
-          <div className="discipline-score-orbit" style={{ '--score': scoreValue }}>
-            <div><strong className="num">{Math.round(scoreValue)}</strong><small>/100</small></div>
-          </div>
-          <div className="discipline-score-facts">
-            <div><span>Risk controls</span><b>{rules.filter(rule => RULE_META[rule.rule_code]?.category === 'risk' && isRuleEnabled(rule)).length} active</b></div>
-            <div><span>Execution controls</span><b>{rules.filter(rule => RULE_META[rule.rule_code]?.category === 'execution' && isRuleEnabled(rule)).length} active</b></div>
-            <div><span>Behaviour controls</span><b>{rules.filter(rule => RULE_META[rule.rule_code]?.category === 'behaviour' && isRuleEnabled(rule)).length} active</b></div>
-            <div><span>Free-play trades</span><b>Excluded</b></div>
-          </div>
-          <button className="discipline-secondary-button full" onClick={() => onTabChange('progress')}>View score progress</button>
-        </article>
-
-        <article className="discipline-panel discipline-streak-card">
-          <CardHeader icon={Flame} title="Consistency streak" description="Consecutive compliant closed trades—not calendar days." />
-          <div className="discipline-streak-value"><strong className="num">{score?.consecutive_disciplined_trades || 0}</strong><span>trades</span></div>
-          <div className="discipline-streak-row"><span>Best recorded streak</span><b className="num">{progress?.best_streak || score?.consecutive_disciplined_trades || 0}</b></div>
-          <div className="discipline-streak-row"><span>Violations this week</span><b className="num">{progress?.violations_this_week || 0}</b></div>
-        </article>
-
-        <article className="discipline-panel discipline-insight-card">
-          <CardHeader icon={Sparkles} title="Behaviour insight" />
-          {frequent ? (
-            <>
-              <p>Your most frequently triggered guardrail is <strong>{RULE_LABELS[frequent[0]] || frequent[0]}</strong>, recorded {frequent[1]} time{frequent[1] === 1 ? '' : 's'} in the current history.</p>
-              <button className="discipline-text-button" onClick={() => onTabChange('violations')}>Review violation pattern <ArrowRight size={13} /></button>
-            </>
-          ) : (
-            <p>No violations are recorded. Keep using the same deliberate entry process.</p>
-          )}
-        </article>
-      </aside>
+          <article className="discipline-panel discipline-activity-snapshot">
+            <CardHeader icon={ShieldAlert} title="Today’s rule activity" />
+            <div className="discipline-activity-counts">
+              <span><small>Events</small><strong className="num">{recentToday.length}</strong></span>
+              <span><small>Orders blocked</small><strong className="num">{blockedToday}</strong></span>
+              <span><small>Clean status</small><strong>{recentToday.length ? 'Review' : 'Clear'}</strong></span>
+            </div>
+            {frequent ? (
+              <p><strong>{RULE_LABELS[frequent[0]] || frequent[0]}</strong> is today’s most frequently triggered protection.</p>
+            ) : (
+              <p>No rule violations have been recorded today. Keep the same deliberate entry process.</p>
+            )}
+            <button className="discipline-text-button" onClick={() => onTabChange('violations')}>Review activity <ArrowRight size={13} /></button>
+          </article>
+        </aside>
+      </div>
     </div>
   )
 }
@@ -236,7 +293,7 @@ function RuleCard({ rule, selected, modeOff, onSelect, onToggle }) {
           <small>{meta.purpose || 'Configured discipline guardrail.'}</small>
         </span>
         <span className={`discipline-status-badge ${enabled ? 'active' : 'disabled'}`}>
-          {modeOff ? 'Bypassed' : enabled ? 'Enforced' : 'Disabled'}
+          {modeOff && enabled ? 'Bypassed' : enabled ? 'Enforced' : 'Disabled'}
         </span>
         <ChevronRight size={16} />
       </button>
@@ -245,12 +302,14 @@ function RuleCard({ rule, selected, modeOff, onSelect, onToggle }) {
         <span><small>System action</small><b>{meta.effect?.split('.')[0] || 'Order validation'}</b></span>
         <button
           type="button"
-          className={`discipline-mini-switch ${rule.is_active !== false ? 'on' : ''}`}
+          className={`discipline-mini-switch ${enabled ? 'on' : ''}`}
           role="switch"
-          aria-checked={rule.is_active !== false}
-          aria-label={`${rule.is_active !== false ? 'Disable' : 'Enable'} ${RULE_LABELS[rule.rule_code]}`}
-          onClick={() => onToggle(rule, rule.is_active === false)}
-        ><span /></button>
+          aria-checked={enabled}
+          aria-label={`${enabled ? 'Disable' : 'Enable'} ${RULE_LABELS[rule.rule_code]}`}
+          onClick={() => onToggle(rule, !enabled)}
+        >
+          <span />
+        </button>
       </div>
     </article>
   )
@@ -265,15 +324,24 @@ export function RulesTab({ rules, modeOff, selectedRule, onSelectRule, onSaveRul
     return matchesSearch && matchesFilter
   }), [rules, query, filter])
 
-  const toggleRule = async (rule, isActive) => {
-    await onSaveRule(rule.rule_code, { is_active: isActive })
+  const toggleRule = async (rule, enabled) => {
+    await onSaveRule(rule.rule_code, buildRuleTogglePayload(rule, enabled))
   }
 
   return (
     <div className="discipline-rules-layout">
       <section className="discipline-rules-main">
+        {modeOff && (
+          <div className="discipline-context-note">
+            <ShieldAlert size={16} />
+            <span><b>Rules are configured but bypassed.</b> Turn protection on before expecting these checks to block orders.</span>
+          </div>
+        )}
         <div className="discipline-toolbar">
-          <label className="discipline-search-field"><Search size={15} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search rules…" /></label>
+          <label className="discipline-search-field">
+            <Search size={15} />
+            <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search rules…" />
+          </label>
           <div className="discipline-filter-pills" role="group" aria-label="Rule category">
             {['all', ...Object.keys(CATEGORY_META)].map(key => (
               <button key={key} className={filter === key ? 'active' : ''} onClick={() => setFilter(key)}>
@@ -287,7 +355,10 @@ export function RulesTab({ rules, modeOff, selectedRule, onSelectRule, onSaveRul
           if (!categoryRules.length) return null
           return (
             <section className="discipline-rule-category" key={key}>
-              <header><div><h3>{category.label}</h3><p>{category.description}</p></div><span>{categoryRules.length} rules</span></header>
+              <header>
+                <div><h3>{category.label}</h3><p>{category.description}</p></div>
+                <span>{categoryRules.length} rules</span>
+              </header>
               <div className="discipline-rule-list">
                 {categoryRules.map(rule => (
                   <RuleCard
@@ -304,7 +375,11 @@ export function RulesTab({ rules, modeOff, selectedRule, onSelectRule, onSaveRul
           )
         })}
         {!visible.length && (
-          <div className="discipline-empty-state"><Search size={24} /><h3>No matching rules</h3><p>Change the search or category filter.</p></div>
+          <div className="discipline-empty-state">
+            <Search size={24} />
+            <h3>No matching rules</h3>
+            <p>Change the search or category filter.</p>
+          </div>
         )}
       </section>
       <RuleDetailPanel rule={selectedRule} modeOff={modeOff} onClose={() => onSelectRule(null)} onSave={onSaveRule} />
@@ -316,13 +391,15 @@ function RuleDetailPanel({ rule, modeOff, onClose, onSave }) {
   const [draft, setDraft] = useState('')
   const [active, setActive] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [validationError, setValidationError] = useState('')
   const meta = RULE_META[rule?.rule_code]
   const value = readRuleValue(rule)
 
   useEffect(() => {
     if (!rule || !meta) return
-    setDraft(String(value[meta.valueKey] ?? (meta.valueKey === 'enabled' ? true : '')))
-    setActive(rule.is_active !== false)
+    setDraft(String(value[meta.valueKey] ?? ''))
+    setActive(isRuleEnabled(rule))
+    setValidationError('')
   }, [rule?.rule_code, rule?.updated_at])
 
   if (!rule || !meta) {
@@ -335,17 +412,27 @@ function RuleDetailPanel({ rule, modeOff, onClose, onSave }) {
     )
   }
 
+  const isBooleanRule = meta.valueKey === 'enabled'
+
   const save = async () => {
-    const nextValue = meta.valueKey === 'enabled'
-      ? draft === 'true'
-      : Number(draft)
-    if (meta.valueKey !== 'enabled' && (!Number.isFinite(nextValue) || nextValue < 0)) return
-    setSaving(true)
-    try {
-      await onSave(rule.rule_code, {
+    setValidationError('')
+    let payload
+    if (isBooleanRule) {
+      payload = buildRuleTogglePayload(rule, active)
+    } else {
+      const nextValue = Number(draft)
+      if (!Number.isFinite(nextValue) || nextValue < 0) {
+        setValidationError('Enter a valid value of zero or more.')
+        return
+      }
+      payload = {
         rule_value: { ...value, [meta.valueKey]: nextValue },
         is_active: active,
-      })
+      }
+    }
+    setSaving(true)
+    try {
+      await onSave(rule.rule_code, payload)
     } finally {
       setSaving(false)
     }
@@ -360,33 +447,78 @@ function RuleDetailPanel({ rule, modeOff, onClose, onSave }) {
       <div className="discipline-context-scroll">
         <div className={`discipline-context-state ${active ? 'active' : 'disabled'}`}>
           {active ? <ShieldCheck size={18} /> : <ShieldAlert size={18} />}
-          <span><b>{modeOff ? 'Configured but bypassed' : active ? 'Rule enforced' : 'Rule disabled'}</b><small>{modeOff ? 'Discipline Mode is currently OFF.' : 'Changes apply to the next order check.'}</small></span>
+          <span>
+            <b>{modeOff && active ? 'Configured but bypassed' : active ? 'Rule enforced' : 'Rule disabled'}</b>
+            <small>{modeOff && active ? 'Discipline Mode is currently OFF.' : 'Changes apply to the next order check.'}</small>
+          </span>
         </div>
         <section><h4>Purpose</h4><p>{meta.purpose}</p></section>
         <section><h4>Trigger</h4><p>{meta.trigger}</p></section>
         <section><h4>System action</h4><p>{meta.effect}</p></section>
         <section className="discipline-rule-editor">
           <h4>Rule configuration</h4>
-          <label>
-            <span>Current value</span>
-            {meta.valueKey === 'enabled' ? (
-              <select value={draft} onChange={event => setDraft(event.target.value)}>
-                <option value="true">Required</option>
-                <option value="false">Optional</option>
-              </select>
-            ) : (
-              <div className="discipline-number-input"><input type="number" min="0" step={meta.valueKey === 'loss_pct' ? '0.5' : '1'} value={draft} onChange={event => setDraft(event.target.value)} /><span>{meta.unit}</span></div>
-            )}
-          </label>
-          <label className="discipline-setting-row compact">
-            <span><b>Rule active</b><small>Exclude this rule from pre-trade validation when disabled.</small></span>
-            <button className={`discipline-mini-switch ${active ? 'on' : ''}`} role="switch" aria-checked={active} onClick={() => setActive(current => !current)}><span /></button>
-          </label>
+          {!isBooleanRule && (
+            <label>
+              <span>Current value</span>
+              <div className="discipline-number-input">
+                <input
+                  type="number"
+                  min="0"
+                  step={meta.valueKey === 'loss_pct' ? '0.5' : '1'}
+                  value={draft}
+                  onChange={event => setDraft(event.target.value)}
+                />
+                <span>{meta.unit}</span>
+              </div>
+            </label>
+          )}
+          <div className="discipline-setting-row compact">
+            <span>
+              <b>{isBooleanRule ? 'Protection required' : 'Rule active'}</b>
+              <small>{isBooleanRule ? 'Require this condition before an order can continue.' : 'Include this rule in pre-trade validation.'}</small>
+            </span>
+            <button
+              className={`discipline-mini-switch ${active ? 'on' : ''}`}
+              role="switch"
+              aria-checked={active}
+              aria-label={`${active ? 'Disable' : 'Enable'} ${RULE_LABELS[rule.rule_code]}`}
+              onClick={() => setActive(current => !current)}
+            >
+              <span />
+            </button>
+          </div>
+          {validationError && <p className="discipline-field-error">{validationError}</p>}
         </section>
         <section><h4>Last updated</h4><p>{dateTime(rule.updated_at)}</p></section>
       </div>
-      <footer><button className="discipline-primary-button full" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save rule'}</button></footer>
+      <footer>
+        <button className="discipline-primary-button full" onClick={save} disabled={saving}>
+          {saving ? 'Saving…' : 'Save rule'}
+        </button>
+      </footer>
     </aside>
+  )
+}
+
+const periodCutoff = period => {
+  const cutoff = new Date()
+  cutoff.setHours(0, 0, 0, 0)
+  if (period === 'week') cutoff.setDate(cutoff.getDate() - 6)
+  if (period === 'month') cutoff.setDate(cutoff.getDate() - 30)
+  return cutoff
+}
+
+function ViolationSummary({ filtered }) {
+  const blocked = filtered.filter(item => item.was_blocked).length
+  const warning = filtered.length - blocked
+  const frequent = mostViolated(filtered)
+  return (
+    <div className="discipline-violation-summary">
+      <span><small>Events</small><strong className="num">{filtered.length}</strong></span>
+      <span><small>Orders blocked</small><strong className="num">{blocked}</strong></span>
+      <span><small>Warnings</small><strong className="num">{warning}</strong></span>
+      <span><small>Most triggered</small><strong>{frequent ? RULE_LABELS[frequent[0]] || frequent[0] : 'None'}</strong></span>
+    </div>
   )
 }
 
@@ -396,9 +528,7 @@ export function ViolationsTab({ violations, selectedViolation, onSelectViolation
   const [outcome, setOutcome] = useState('all')
 
   const filtered = useMemo(() => {
-    const now = new Date()
-    const days = period === 'today' ? 1 : period === 'week' ? 7 : 31
-    const cutoff = new Date(now.getTime() - days * 86400000)
+    const cutoff = periodCutoff(period)
     return violations.filter(violation => {
       const occurred = safeDate(violation.created_at)
       const periodMatch = occurred ? occurred >= cutoff : true
@@ -411,8 +541,9 @@ export function ViolationsTab({ violations, selectedViolation, onSelectViolation
   return (
     <div className="discipline-violations-layout">
       <section className="discipline-panel discipline-violations-main">
+        <ViolationSummary filtered={filtered} />
         <div className="discipline-toolbar">
-          <div className="discipline-filter-pills">
+          <div className="discipline-filter-pills" role="group" aria-label="Violation period">
             {[['today', 'Today'], ['week', 'This week'], ['month', 'This month']].map(([key, label]) => (
               <button key={key} className={period === key ? 'active' : ''} onClick={() => setPeriod(key)}>{label}</button>
             ))}
@@ -434,23 +565,51 @@ export function ViolationsTab({ violations, selectedViolation, onSelectViolation
         </div>
         <div className="discipline-table-wrap">
           <table className="discipline-violation-table">
-            <thead><tr><th>Time</th><th>Rule</th><th>Severity</th><th>System action</th><th>Score impact</th><th aria-label="Open details" /></tr></thead>
+            <thead>
+              <tr><th>Time</th><th>Rule</th><th>Severity</th><th>System action</th><th>Score treatment</th><th aria-label="Open details" /></tr>
+            </thead>
             <tbody>
               {filtered.map(violation => (
-                <tr key={violation.id} className={selectedViolation?.id === violation.id ? 'selected' : ''} onClick={() => onSelectViolation(violation)}>
+                <tr key={violation.id} className={selectedViolation?.id === violation.id ? 'selected' : ''}>
                   <td className="num">{dateTime(violation.created_at)}</td>
                   <td><b>{RULE_LABELS[violation.rule_code] || violation.rule_code}</b><small>{violation.rule_code}</small></td>
                   <td><span className={`discipline-severity ${severityFor(violation)}`}>{severityFor(violation)}</span></td>
                   <td><span className={`discipline-status-badge ${violation.was_blocked ? 'blocked' : 'warning'}`}>{violation.was_blocked ? 'Order blocked' : 'Warning recorded'}</span></td>
                   <td><span className="discipline-score-impact">Tracked</span></td>
-                  <td><ChevronRight size={15} /></td>
+                  <td>
+                    <button
+                      className="discipline-row-action"
+                      onClick={() => onSelectViolation(violation)}
+                      aria-label={`Open ${RULE_LABELS[violation.rule_code] || violation.rule_code} details`}
+                    >
+                      <ChevronRight size={15} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <div className="discipline-violation-cards">
+          {filtered.map(violation => (
+            <button key={violation.id} onClick={() => onSelectViolation(violation)}>
+              <span>
+                <b>{RULE_LABELS[violation.rule_code] || violation.rule_code}</b>
+                <small>{dateTime(violation.created_at)}</small>
+              </span>
+              <span className={`discipline-status-badge ${violation.was_blocked ? 'blocked' : 'warning'}`}>
+                {violation.was_blocked ? 'Blocked' : 'Warning'}
+              </span>
+              <ChevronRight size={15} />
+            </button>
+          ))}
+        </div>
         {!filtered.length && (
-          <div className="discipline-empty-state"><ShieldCheck size={27} /><h3>No rule violations found</h3><p>You followed all active rules during the selected period.</p></div>
+          <div className="discipline-empty-state">
+            <ShieldCheck size={27} />
+            <h3>No rule violations found</h3>
+            <p>You followed all active rules during the selected period.</p>
+          </div>
         )}
       </section>
       <ViolationDetailPanel violation={selectedViolation} onClose={() => onSelectViolation(null)} />
@@ -470,15 +629,18 @@ function ViolationDetailPanel({ violation, onClose }) {
   }
   const action = violation.attempted_action || {}
   return (
-    <aside className="discipline-context-panel open">
-      <header><div><small>Violation details</small><h3>{RULE_LABELS[violation.rule_code] || violation.rule_code}</h3></div><button onClick={onClose} aria-label="Close violation details"><X size={16} /></button></header>
+    <aside className="discipline-context-panel open" aria-label="Violation details">
+      <header>
+        <div><small>Violation details</small><h3>{RULE_LABELS[violation.rule_code] || violation.rule_code}</h3></div>
+        <button onClick={onClose} aria-label="Close violation details"><X size={16} /></button>
+      </header>
       <div className="discipline-context-scroll">
         <div className={`discipline-context-state ${violation.was_blocked ? 'blocked' : 'warning'}`}>
           {violation.was_blocked ? <ShieldAlert size={18} /> : <AlertTriangle size={18} />}
           <span><b>{violation.was_blocked ? 'Trade was blocked' : 'Warning was recorded'}</b><small>{dateTime(violation.created_at)}</small></span>
         </div>
         <section><h4>Why it triggered</h4><p>{RULE_META[violation.rule_code]?.purpose || 'The attempted order did not satisfy the configured rule.'}</p></section>
-        <section><h4>System action</h4><p>{violation.was_blocked ? 'The order was rejected before any sandbox capital was committed.' : 'The event was recorded and the order flow continued.'}</p></section>
+        <section><h4>System action</h4><p>{violation.was_blocked ? 'The order was rejected before sandbox capital was committed.' : 'The event was recorded and the order flow continued.'}</p></section>
         <section>
           <h4>Attempted order</h4>
           <div className="discipline-detail-grid">
@@ -490,7 +652,7 @@ function ViolationDetailPanel({ violation, onClose }) {
             <span>Setup<b>{action.setup_tag || 'Not provided'}</b></span>
           </div>
         </section>
-        <section><h4>Score treatment</h4><p>Violation attempts are retained in history. The current score is calculated from the rolling compliance of closed disciplined trades, so no fixed point deduction is invented here.</p></section>
+        <section><h4>Score treatment</h4><p>Violation attempts remain in history. The score uses rolling compliance from closed disciplined trades, so no artificial fixed-point deduction is shown.</p></section>
       </div>
     </aside>
   )
@@ -521,77 +683,109 @@ export function ProgressTab({ score, progress }) {
     score: Number(point.score),
   }))
   const tier = progress?.tier_progress
+  const currentScore = Math.round(Number(score?.score || 0))
+  const scoreChange = chartData.length > 1
+    ? Math.round(chartData.at(-1).score - chartData[0].score)
+    : 0
+
   return (
-    <div className="discipline-progress-layout">
-      <section className="discipline-progress-main">
-        <article className="discipline-panel discipline-chart-card">
-          <CardHeader icon={TrendingUp} title="Discipline score trend" description="Daily score snapshots are recorded after disciplined trades close." />
-          {chartData.length ? (
-            <div className="discipline-chart">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 10, right: 12, left: -22, bottom: 0 }}>
-                  <CartesianGrid stroke="var(--border-light)" vertical={false} />
-                  <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis domain={[0, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 9, fontSize: 11 }} />
-                  <Line type="monotone" dataKey="score" stroke="var(--primary)" strokeWidth={2.5} dot={{ r: 3, fill: 'var(--primary)' }} activeDot={{ r: 5 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="discipline-empty-state compact"><BarChart3 size={25} /><h3>Progress data will appear after your next disciplined session</h3><p>Your current score is {Math.round(Number(score?.score || 0))}/100.</p></div>
-          )}
-        </article>
-        <article className="discipline-panel">
-          <CardHeader icon={BarChart3} title="Discipline ON versus OFF" description="Calculated only from your real closed virtual orders." />
-          <ModeComparison progress={progress} />
-        </article>
+    <div className="discipline-progress-workspace">
+      <section className="discipline-progress-kpis" aria-label="Discipline progress summary">
+        <span><small>Current score</small><strong className="num">{currentScore}/100</strong></span>
+        <span><small>30-day change</small><strong className="num">{scoreChange > 0 ? '+' : ''}{scoreChange}</strong></span>
+        <span><small>Current streak</small><strong className="num">{score?.consecutive_disciplined_trades || 0}</strong></span>
+        <span><small>Best streak</small><strong className="num">{progress?.best_streak || 0}</strong></span>
+        <span><small>Clean sessions</small><strong className="num">{progress?.disciplined_sessions || 0}/{progress?.sessions_tracked || 0}</strong></span>
       </section>
-      <aside className="discipline-progress-side">
-        <article className="discipline-panel">
-          <CardHeader icon={Flame} title="Streak health" />
-          <div className="discipline-progress-stat-grid">
-            <div><span>Current streak</span><strong className="num">{score?.consecutive_disciplined_trades || 0}</strong><small>closed trades</small></div>
-            <div><span>Best streak</span><strong className="num">{progress?.best_streak || 0}</strong><small>closed trades</small></div>
-            <div><span>Sessions tracked</span><strong className="num">{progress?.sessions_tracked || 0}</strong><small>score snapshots</small></div>
-            <div><span>Clean sessions</span><strong className="num">{progress?.disciplined_sessions || 0}</strong><small>no violations</small></div>
-          </div>
-        </article>
-        <article className="discipline-panel">
-          <CardHeader icon={CircleDollarSign} title="Capital unlock progress" />
-          <div className="discipline-tier-large"><span>{tierLabel(tier?.current_tier)}</span><ArrowRight size={16} /><b>{tier?.next_tier ? tierLabel(tier.next_tier) : 'Maximum'}</b></div>
-          <ProgressBar value={tier?.progress_pct || 0} />
-          <p className="discipline-muted-copy">{tier?.next_tier ? `${tier.streak_remaining} consecutive disciplined trades remain.` : 'Maximum configured tier reached.'}</p>
-        </article>
-        <article className="discipline-panel discipline-insight-card">
-          <CardHeader icon={Sparkles} title="Progress insight" />
-          <p>{Number(progress?.discipline_on?.total_trades || 0) > 0
-            ? `Your disciplined sample contains ${progress.discipline_on.total_trades} closed trades with a ${progress.discipline_on.win_rate}% win rate.`
-            : 'Close disciplined trades to build a meaningful comparison with free-play performance.'}</p>
-        </article>
-      </aside>
+
+      <div className="discipline-progress-layout">
+        <section className="discipline-progress-main">
+          <article className="discipline-panel discipline-chart-card">
+            <CardHeader icon={TrendingUp} title="Discipline score trend" description="Daily score snapshots after disciplined trades close." />
+            {chartData.length ? (
+              <div className="discipline-chart">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData} margin={{ top: 12, right: 14, left: -22, bottom: 0 }}>
+                    <CartesianGrid stroke="var(--border-light)" vertical={false} />
+                    <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 100]} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ background: 'var(--color-surface)', border: '1px solid var(--border)', borderRadius: 9, fontSize: 11 }} />
+                    <ReferenceLine y={80} stroke="var(--gain)" strokeDasharray="4 4" label={{ value: '80 target', fill: 'var(--text-muted)', fontSize: 10, position: 'insideTopRight' }} />
+                    <Line type="monotone" dataKey="score" stroke="var(--primary)" strokeWidth={2.5} dot={{ r: 3, fill: 'var(--primary)' }} activeDot={{ r: 5 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="discipline-empty-state compact">
+                <BarChart3 size={25} />
+                <h3>Progress data will appear after your next disciplined session</h3>
+                <p>Your current score is {currentScore}/100.</p>
+              </div>
+            )}
+          </article>
+          <article className="discipline-panel">
+            <CardHeader icon={BarChart3} title="Discipline ON versus Free Play" description="Calculated only from closed virtual orders." />
+            <ModeComparison progress={progress} />
+          </article>
+        </section>
+
+        <aside className="discipline-progress-side">
+          <article className="discipline-panel">
+            <CardHeader icon={CircleDollarSign} title="Capital unlock progress" />
+            <div className="discipline-tier-large">
+              <span>{tierLabel(tier?.current_tier)}</span>
+              <ArrowRight size={16} />
+              <b>{tier?.next_tier ? tierLabel(tier.next_tier) : 'Maximum'}</b>
+            </div>
+            <ProgressBar value={tier?.progress_pct || 0} />
+            <div className="discipline-tier-facts">
+              <span><small>Current allocation</small><b className="num">{money(tier?.current_capital_limit)}</b></span>
+              <span><small>Next allocation</small><b className="num">{tier?.next_capital_limit ? money(tier.next_capital_limit) : 'Maximum'}</b></span>
+              <span><small>Trades remaining</small><b className="num">{tier?.streak_remaining || 0}</b></span>
+            </div>
+          </article>
+          <article className="discipline-panel discipline-insight-card">
+            <CardHeader icon={Sparkles} title="Progress insight" />
+            <p>{Number(progress?.discipline_on?.total_trades || 0) > 0
+              ? `Your disciplined sample contains ${progress.discipline_on.total_trades} closed trades with a ${progress.discipline_on.win_rate}% win rate.`
+              : 'Close disciplined trades to build a meaningful comparison with free-play performance.'}</p>
+          </article>
+        </aside>
+      </div>
     </div>
   )
 }
+
+const matchesPreset = (rules, preset) => Object.entries(preset.rules).every(([code, expected]) => {
+  const rule = rules.find(item => item.rule_code === code)
+  if (!rule || !isRuleEnabled(rule)) return false
+  const current = readRuleValue(rule)
+  return Object.entries(expected).every(([key, value]) => current[key] === value)
+})
 
 export function SettingsTab({ rules, notifications, onNotificationsChange, onRequestPreset }) {
   return (
     <div className="discipline-settings-layout">
       <section className="discipline-settings-main">
         <article className="discipline-panel">
-          <CardHeader icon={SlidersHorizontal} title="Discipline presets" description="Apply a complete rule template, then fine-tune individual rules." />
+          <CardHeader icon={SlidersHorizontal} title="Discipline presets" description="Preview a complete rule template before applying it." />
           <div className="discipline-preset-grid">
-            {Object.entries(PRESETS).map(([key, preset]) => (
-              <button key={key} onClick={() => onRequestPreset(key)} className="discipline-preset-card">
-                <span className="discipline-preset-icon">{key === 'beginner' ? <Shield size={20} /> : key === 'intermediate' ? <Target size={20} /> : <TrendingUp size={20} />}</span>
-                <span><b>{preset.name}</b><small>{preset.description}</small></span>
-                <span>Review preset <ArrowRight size={13} /></span>
-              </button>
-            ))}
+            {Object.entries(PRESETS).map(([key, preset]) => {
+              const current = matchesPreset(rules, preset)
+              return (
+                <button key={key} onClick={() => onRequestPreset(key)} className="discipline-preset-card">
+                  <span className="discipline-preset-icon">
+                    {key === 'beginner' ? <Shield size={20} /> : key === 'intermediate' ? <Target size={20} /> : <TrendingUp size={20} />}
+                  </span>
+                  <span><b>{preset.name}</b><small>{preset.description}</small></span>
+                  <span>{current ? 'Current preset' : 'Review preset'} <ArrowRight size={13} /></span>
+                </button>
+              )
+            })}
           </div>
         </article>
         <article className="discipline-panel">
-          <CardHeader icon={Bell} title="Notifications and warnings" description="Stored on this device until server-side notification preferences are available." />
+          <CardHeader icon={Bell} title="Notifications and warnings" description="Saved on this device." />
           <div className="discipline-settings-list">
             {[
               ['remainingTrade', 'Trade limit warning', 'Notify when only one trade remains in the session.'],
@@ -602,29 +796,41 @@ export function SettingsTab({ rules, notifications, onNotificationsChange, onReq
               ['streakMilestone', 'Streak milestone', 'Celebrate meaningful disciplined-trade streaks.'],
               ['tierProgress', 'Tier progress', 'Notify when the next capital tier is close.'],
             ].map(([key, title, description]) => (
-              <label className="discipline-setting-row" key={key}>
+              <div className="discipline-setting-row" key={key}>
                 <span><b>{title}</b><small>{description}</small></span>
-                <button className={`discipline-mini-switch ${notifications[key] ? 'on' : ''}`} role="switch" aria-checked={notifications[key]} onClick={() => onNotificationsChange({ ...notifications, [key]: !notifications[key] })}><span /></button>
-              </label>
+                <button
+                  className={`discipline-mini-switch ${notifications[key] ? 'on' : ''}`}
+                  role="switch"
+                  aria-checked={notifications[key]}
+                  aria-label={`${notifications[key] ? 'Disable' : 'Enable'} ${title}`}
+                  onClick={() => onNotificationsChange({ ...notifications, [key]: !notifications[key] })}
+                >
+                  <span />
+                </button>
+              </div>
             ))}
           </div>
         </article>
       </section>
+
       <aside className="discipline-settings-side">
         <article className="discipline-panel discipline-freeplay-card">
-          <CardHeader icon={ShieldAlert} title="Free-play behaviour" />
+          <CardHeader icon={ShieldAlert} title="What Free Play changes" />
           <ul>
-            <li><CheckCircle2 size={15} /> All active rules are bypassed.</li>
+            <li><CheckCircle2 size={15} /> Active rules are bypassed.</li>
             <li><CheckCircle2 size={15} /> Full sandbox capital may be unlocked.</li>
             <li><CheckCircle2 size={15} /> Trades are marked as free-play.</li>
-            <li><CheckCircle2 size={15} /> Score and streak are not improved.</li>
-            <li><CheckCircle2 size={15} /> Existing progress is not reset.</li>
+            <li><CheckCircle2 size={15} /> Score and streak do not improve.</li>
+            <li><CheckCircle2 size={15} /> Existing progress is preserved.</li>
           </ul>
         </article>
         <article className="discipline-panel">
           <CardHeader icon={Info} title="Current configuration" />
-          <div className="discipline-config-count"><strong className="num">{rules.filter(isRuleEnabled).length}</strong><span>of {rules.length} rules enforced</span></div>
-          <button className="discipline-secondary-button full" onClick={() => onRequestPreset('beginner')}>Reset to safe defaults</button>
+          <div className="discipline-config-count">
+            <strong className="num">{rules.filter(isRuleEnabled).length}</strong>
+            <span>of {rules.length || 7} rules effective</span>
+          </div>
+          <button className="discipline-secondary-button full" onClick={() => onRequestPreset('beginner')}>Review safe defaults</button>
         </article>
       </aside>
     </div>
@@ -633,34 +839,66 @@ export function SettingsTab({ rules, notifications, onNotificationsChange, onReq
 
 export function ModeOffDialog({ open, busy, onCancel, onConfirm }) {
   const [phrase, setPhrase] = useState('')
-  const [reason, setReason] = useState('')
+  const confirmRef = useRef(null)
+
   useEffect(() => {
-    if (open) {
-      setPhrase('')
-      setReason('')
+    if (!open) return undefined
+    setPhrase('')
+    const focusTimer = setTimeout(() => confirmRef.current?.focus(), 0)
+    const onKeyDown = event => {
+      if (event.key === 'Escape' && !busy) onCancel()
     }
-  }, [open])
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      clearTimeout(focusTimer)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open, busy])
+
   if (!open) return null
   return (
     <div className="discipline-modal-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && onCancel()}>
       <section className="discipline-modal" role="dialog" aria-modal="true" aria-labelledby="discipline-off-title">
-        <header><span className="danger"><ShieldAlert size={20} /></span><div><h2 id="discipline-off-title">Turn Discipline Mode OFF?</h2><p>This starts free-play and disables every trading guardrail.</p></div><button onClick={onCancel} aria-label="Close"><X size={17} /></button></header>
+        <header>
+          <span className="danger"><ShieldAlert size={20} /></span>
+          <div><h2 id="discipline-off-title">Turn Discipline Mode OFF?</h2><p>This starts free play and disables every trading guardrail.</p></div>
+          <button onClick={onCancel} aria-label="Close"><X size={17} /></button>
+        </header>
         <div className="discipline-modal-body">
-          <div className="discipline-modal-warning"><AlertTriangle size={17} /><span><b>Your full sandbox capital can be unlocked.</b><small>Free-play trades do not improve score, streak, or tier progress.</small></span></div>
+          <div className="discipline-modal-warning">
+            <AlertTriangle size={17} />
+            <span><b>Your full sandbox capital can be unlocked.</b><small>Free-play trades do not improve score, streak, or tier progress.</small></span>
+          </div>
           <h3>The following protections will be disabled</h3>
           <div className="discipline-protection-list">
             {['Daily loss limits', 'Maximum trade limits', 'Mandatory stop loss', 'Setup requirements', 'Revenge-trade cooldown', 'Direction-flip protection', 'No-averaging-down protection'].map(item => <span key={item}><X size={12} />{item}</span>)}
           </div>
-          <label><span>Reason for free play <small>(optional)</small></span><textarea value={reason} onChange={event => setReason(event.target.value)} placeholder="Why are you disabling protection?" rows={2} /></label>
-          <label><span>Type <b>FREE PLAY</b> to confirm</span><input autoFocus value={phrase} onChange={event => setPhrase(event.target.value)} placeholder="FREE PLAY" /></label>
+          <label>
+            <span>Type <b>FREE PLAY</b> to confirm</span>
+            <input ref={confirmRef} value={phrase} onChange={event => setPhrase(event.target.value)} placeholder="FREE PLAY" />
+          </label>
         </div>
-        <footer><button className="discipline-secondary-button" onClick={onCancel}>Cancel</button><button className="discipline-danger-button" disabled={phrase.trim().toUpperCase() !== 'FREE PLAY' || busy} onClick={() => onConfirm(reason)}>{busy ? 'Turning off…' : 'Turn off Discipline Mode'}</button></footer>
+        <footer>
+          <button className="discipline-secondary-button" onClick={onCancel}>Cancel</button>
+          <button className="discipline-danger-button" disabled={phrase.trim().toUpperCase() !== 'FREE PLAY' || busy} onClick={onConfirm}>
+            {busy ? 'Turning off…' : 'Turn off Discipline Mode'}
+          </button>
+        </footer>
       </section>
     </div>
   )
 }
 
 export function PresetDialog({ presetKey, rules, busy, onCancel, onApply }) {
+  useEffect(() => {
+    if (!presetKey) return undefined
+    const onKeyDown = event => {
+      if (event.key === 'Escape' && !busy) onCancel()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [presetKey, busy])
+
   if (!presetKey || !PRESETS[presetKey]) return null
   const preset = PRESETS[presetKey]
   const changes = Object.entries(preset.rules).map(([code, next]) => {
@@ -675,16 +913,29 @@ export function PresetDialog({ presetKey, rules, busy, onCancel, onApply }) {
     }
   })
   return (
-    <div className="discipline-modal-backdrop">
+    <div className="discipline-modal-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && onCancel()}>
       <section className="discipline-modal preset" role="dialog" aria-modal="true" aria-labelledby="preset-title">
-        <header><span><SlidersHorizontal size={20} /></span><div><h2 id="preset-title">Apply {preset.name} preset?</h2><p>{preset.description}</p></div><button onClick={onCancel} aria-label="Close"><X size={17} /></button></header>
+        <header>
+          <span><SlidersHorizontal size={20} /></span>
+          <div><h2 id="preset-title">Apply {preset.name} preset?</h2><p>{preset.description}</p></div>
+          <button onClick={onCancel} aria-label="Close"><X size={17} /></button>
+        </header>
         <div className="discipline-modal-body">
           <div className="discipline-preset-changes">
-            {changes.map(change => <div key={change.code}><span>{change.label}</span><small>{change.previous}</small><ArrowRight size={13} /><b>{change.next}</b></div>)}
+            {changes.map(change => (
+              <div key={change.code}>
+                <span>{change.label}</span><small>{change.previous}</small><ArrowRight size={13} /><b>{change.next}</b>
+              </div>
+            ))}
           </div>
-          <p className="discipline-modal-note"><Info size={14} /> All seven values are saved to your discipline profile and apply to the next order validation.</p>
+          <p className="discipline-modal-note"><Info size={14} /> All seven values apply to the next order validation.</p>
         </div>
-        <footer><button className="discipline-secondary-button" onClick={onCancel}>Cancel</button><button className="discipline-primary-button" onClick={() => onApply(presetKey)} disabled={busy}>{busy ? 'Applying…' : 'Apply preset'}</button></footer>
+        <footer>
+          <button className="discipline-secondary-button" onClick={onCancel}>Cancel</button>
+          <button className="discipline-primary-button" onClick={() => onApply(presetKey)} disabled={busy}>
+            {busy ? 'Applying…' : 'Apply preset'}
+          </button>
+        </footer>
       </section>
     </div>
   )

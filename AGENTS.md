@@ -39,7 +39,7 @@ is registered. Every HTTP and WebSocket route must be either:
 - **declared public** — an entry in `PUBLIC_ROUTES` with a written reason.
 
 Anything else raises `RuntimeError` and **the process never binds a port**.
-Current audit: **97 authenticated, 12 declared public**.
+Current audit: **98 authenticated, 12 declared public**.
 
 To add an endpoint, just take `CurrentUser`:
 
@@ -101,7 +101,7 @@ token, starts the market scheduler and auth maintenance; shutdown reverses it.
 CORS and the cookie `Origin` check both read `settings.trusted_origins` — one
 list, so they cannot drift.
 
-### Routers (13, all under `/api/v1`, 109 routes)
+### Routers (13, all under `/api/v1`, 110 routes)
 
 | Prefix | Purpose |
 |---|---|
@@ -111,7 +111,7 @@ list, so they cannot drift.
 | `/trading` | account, orders, tradebook, positions, session |
 | `/discipline` | mode switch, rules, score, violations, progress |
 | `/journal` | list / get / update entries |
-| `/analytics` | summary, discipline trend, P&L curve, mistakes |
+| `/analytics` | summary, advanced performance, discipline trend, P&L curve, mistakes |
 | `/strategy` | templates, analyze/simulate, drafts, execution, builder configurations |
 | `/options` | chain intelligence — PCR, max pain, OI walls, GEX, greeks |
 | `/settings` | per-user preferences (JSONB) |

@@ -49,6 +49,9 @@ def test_full_lifecycle(api_client, market_open):
     assert e.status_code == 200, e.text
     assert e.json()["strategy"]["status"] == "EXECUTED"
     assert float(e.json()["position"]["margin_blocked"]) > 0
+    mirrored_orders = api_client.get("/api/v1/trading/orders").json()["orders"]
+    assert len(mirrored_orders) == 2
+    assert {row["strategy_id"] for row in mirrored_orders} == {sid}
 
     # mark to market
     m = api_client.post(f"{P}/{sid}/mark-to-market")

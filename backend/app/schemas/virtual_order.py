@@ -72,6 +72,7 @@ class OrderResponse(BaseModel):
     exit_reason: Optional[str] = None
     is_discipline_compliant: bool
     was_free_play: bool
+    strategy_id: Optional[uuid.UUID] = None
     created_at: datetime
 
 

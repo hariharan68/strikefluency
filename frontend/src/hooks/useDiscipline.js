@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import * as disciplineApi from '../api/discipline'
+import { getAccount } from '../api/trading'
 
 export default function useDiscipline() {
   const [rules, setRules] = useState([])
@@ -7,8 +8,11 @@ export default function useDiscipline() {
   const [violations, setViolations] = useState([])
   const [mode, setMode] = useState(null)   // { enabled, capital_unlocked, tier, balance }
   const [progress, setProgress] = useState(null)
+  const [accountSummary, setAccountSummary] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
+  const [lastUpdated, setLastUpdated] = useState(null)
 
   const loadRules = async () => {
     try {
@@ -35,6 +39,13 @@ export default function useDiscipline() {
     try {
       const r = await disciplineApi.getProgress()
       setProgress(r.data)
+    } catch {}
+  }
+
+  const loadAccountSummary = async () => {
+    try {
+      const r = await getAccount()
+      setAccountSummary(r.data)
     } catch {}
   }
 
@@ -70,7 +81,9 @@ export default function useDiscipline() {
   }
 
   const loadAll = async () => {
-    setLoading(true)
+    const hasData = Boolean(mode || rules.length || score || progress || accountSummary)
+    setLoading(!hasData)
+    setRefreshing(hasData)
     setError('')
     const requests = await Promise.allSettled([
       disciplineApi.getRules(),
@@ -78,22 +91,37 @@ export default function useDiscipline() {
       disciplineApi.getViolations(100),
       disciplineApi.getMode(),
       disciplineApi.getProgress(),
+      getAccount(),
     ])
-    const [rulesResult, scoreResult, violationResult, modeResult, progressResult] = requests
+    const [
+      rulesResult,
+      scoreResult,
+      violationResult,
+      modeResult,
+      progressResult,
+      accountResult,
+    ] = requests
     if (rulesResult.status === 'fulfilled') setRules(rulesResult.value.data.rules || rulesResult.value.data || [])
     if (scoreResult.status === 'fulfilled') setScore(scoreResult.value.data)
     if (violationResult.status === 'fulfilled') setViolations(violationResult.value.data.violations || violationResult.value.data || [])
     if (modeResult.status === 'fulfilled') setMode(modeResult.value.data)
     if (progressResult.status === 'fulfilled') setProgress(progressResult.value.data)
+    if (accountResult.status === 'fulfilled') setAccountSummary(accountResult.value.data)
     if (requests.some(result => result.status === 'rejected')) {
       setError('Some discipline data could not be loaded. Showing the latest available information.')
     }
+    if (requests.some(result => result.status === 'fulfilled')) {
+      setLastUpdated(new Date())
+    }
     setLoading(false)
+    setRefreshing(false)
   }
 
   return {
-    rules, score, violations, mode, progress, loading, error,
-    loadRules, loadScore, loadViolations, loadMode, loadProgress, loadAll,
+    rules, score, violations, mode, progress, accountSummary,
+    loading, refreshing, error, lastUpdated,
+    loadRules, loadScore, loadViolations, loadMode, loadProgress,
+    loadAccountSummary, loadAll,
     updateRule, applyRuleChanges, toggleMode,
   }
 }

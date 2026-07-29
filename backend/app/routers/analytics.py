@@ -11,7 +11,7 @@ Analytics endpoints:
 from collections import Counter
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -22,13 +22,27 @@ from app.models.discipline_violation import DisciplineViolation
 from app.models.journal_entry import JournalEntry
 from app.models.virtual_order import VirtualOrder
 from app.schemas.analytics import (
+    AdvancedAnalyticsResponse,
     DisciplineTrendPoint,
     MistakeBreakdownItem,
     PnLCurvePoint,
     TradeSummaryResponse,
 )
+from app.services import analytics_service
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
+
+
+@router.get("/advanced", response_model=AdvancedAnalyticsResponse)
+def get_advanced_analytics(
+    current_user: CurrentUser,
+    days: int = Query(default=30, ge=7, le=90),
+    db: Session = Depends(get_db),
+):
+    """Advanced performance and discipline analytics for the selected period."""
+    if days not in {7, 30, 90}:
+        raise HTTPException(status_code=422, detail="days must be one of: 7, 30, 90")
+    return analytics_service.get_advanced_analytics(db, current_user, days=days)
 
 
 @router.get("/summary", response_model=TradeSummaryResponse)

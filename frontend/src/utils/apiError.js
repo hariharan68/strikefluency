@@ -33,6 +33,12 @@ export function toDisplayMessage(value, fallback = 'Something went wrong. Please
 }
 
 export function getApiErrorMessage(error, fallback) {
+  if (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT') {
+    return 'The server took too long to respond. Please try again.'
+  }
+  if (!error?.response && error?.message === 'Network Error') {
+    return 'The application could not reach the server. Check that the backend is running and try again.'
+  }
   const payload = error?.response?.data
   return toDisplayMessage(
     payload?.detail ?? payload?.message ?? error?.message,
