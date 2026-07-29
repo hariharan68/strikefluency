@@ -26,9 +26,7 @@ ATM_FALLBACK = 22000
 
 @pytest.fixture(autouse=True)
 def market_is_open(monkeypatch):
-    for module in ("app.services.virtual_order_service",
-                   "app.services.pending_order_service"):
-        monkeypatch.setattr(f"{module}.is_market_open", lambda: True)
+    monkeypatch.setattr("app.core.utils.is_market_open", lambda: True)
 
 
 def _atm():

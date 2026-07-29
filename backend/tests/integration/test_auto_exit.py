@@ -95,7 +95,7 @@ def wire_provider(monkeypatch):
     monkeypatch.setattr(
         "app.services.auto_exit_service.get_market_provider", lambda: provider)
     monkeypatch.setattr(
-        "app.services.virtual_order_service.is_market_open", lambda: True)
+        "app.core.utils.is_market_open", lambda: True)
     return provider
 
 

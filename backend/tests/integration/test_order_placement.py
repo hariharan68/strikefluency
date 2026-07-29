@@ -21,7 +21,7 @@ P = "/api/v1"
 def market_is_open(monkeypatch):
     """Keep the HTTP contract deterministic in CI, regardless of wall clock."""
     monkeypatch.setattr(
-        "app.services.virtual_order_service.is_market_open",
+        "app.core.utils.is_market_open",
         lambda: True,
     )
 

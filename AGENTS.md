@@ -86,7 +86,7 @@ npm run build
 
 # Tests
 cd backend
-pytest              # 383 tests; integration tests self-skip without Postgres
+pytest              # 399 tests; integration tests self-skip without Postgres
 ```
 
 **Never commit** `.env`, `fyers_token.json`, `access_token.txt`, or `fyers_logs/`.
@@ -151,8 +151,8 @@ duplicated in six places and drifted; do not reintroduce a literal anywhere else
 `get_spec()` **raises** on an unknown symbol rather than defaulting — a silent
 default meant filling orders at the wrong lot size.
 
-Times (IST): open 09:15, close 15:30, EOD square-off 15:29, pre-market reset /
-trading-day boundary 08:30.
+Times (IST): open 09:15, close 15:30, EOD square-off 15:29, pre-market stale
+DAY-limit cleanup / trading-day boundary 08:30.
 
 Capital tiers: TIER_1 ₹1,00,000 · TIER_2 ₹5,00,000 · TIER_3 ₹10,00,000.
 15 consecutive disciplined trades unlocks the next tier.
@@ -162,8 +162,11 @@ Capital tiers: TIER_1 ₹1,00,000 · TIER_2 ₹5,00,000 · TIER_3 ₹10,00,000.
 `MAX_TRADES_PER_DAY`, `MANDATORY_SL`, `NO_AVERAGING_DOWN`, `NO_DIRECTION_FLIP`,
 `REVENGE_COOLDOWN`, `MAX_DAILY_LOSS`, `MANDATORY_SETUP_TAG`.
 
-There is **no** `MARKET_HOURS` discipline rule — market-hour blocking lives in
-`virtual_order_service.place_order()` and is bypassed in development.
+There is **no** `MARKET_HOURS` discipline rule. The environment-independent
+execution boundary is `core.utils.require_market_open()`: MARKET entries,
+LIMIT placement/fills, strategy execution, manual exits, SL/target exits and
+EOD/expiry exits all fail closed outside 09:15–15:30 IST. Development/mock mode
+may show off-hours quotes but never bypasses this execution boundary.
 
 A **strategy counts as one trade**. Only the three strategy-level rules apply
 (`STRATEGY_DISCIPLINE_RULES`): setup tag, max trades/day, max daily loss. Per-leg
@@ -186,7 +189,7 @@ either, keep them in step.
 
 `app/services/virtual_order_service.py`
 
-**Place** — market-hours check (skipped in dev) → lock `VirtualAccount`
+**Place** — strict market-hours check → lock `VirtualAccount`
 `FOR UPDATE` → idempotency check on `client_order_id` → session + open positions
 → fetch LTP from the chain → discipline engine (skipped in free-play) → slippage
 → margin → balance check → brokerage → create `VirtualOrder` + `VirtualPosition`
@@ -372,7 +375,7 @@ ran at two of the five places a fill can happen.
 |---|---|---|
 | `place_order`, `place_limit_order` | **raise** (`assert_orderable`) | Never open a position on stale data. |
 | `scan_and_exit`, `scan_and_fill` | **skip** (`is_tradeable`) | A stale tick fires a stop-loss the market never hit, or fills a limit at a price that never printed. Pause and retry next tick — a stale sweep is not an error. |
-| `close_position` | **not gated** | Serves manual exits, EOD square-off and expiry settlement. Refusing to close traps the user in a position and would leave intraday positions open overnight — strictly worse than exiting at a slightly old price, which the `current_ltp` fallback already bounds. |
+| `close_position` | **not freshness-gated** | During market hours, manual/EOD/expiry exits may use the bounded `current_ltp` fallback rather than trap the user because one quote is stale. The independent market-hours execution boundary still blocks off-hours exits. |
 
 Mark-to-market still runs on a stale chain in `scan_and_exit`. Staleness pauses
 *triggering*, not display; freezing the P&L number too would make the desk look
@@ -453,6 +456,9 @@ Notes:
 - **Discipline runs twice** — at placement and again at the fill. A trigger that
   would breach a cooldown or trade cap set in the meantime becomes `REJECTED`
   with the rule's message in `reject_reason`, never filled quietly.
+- Outside market hours the fill scanner returns without touching the order.
+  A session-closing race during a scan rolls the attempt back and leaves the
+  order `PENDING` for the next open-market tick; it is not rejected.
 - **Margin is blocked at placement** (priced off the limit) and released the
   moment the order leaves `PENDING` — fill, cancel, expiry or rejection. The
   fill releases before `place_order()` re-blocks, so it is never charged twice.
@@ -493,7 +499,7 @@ APScheduler `AsyncIOScheduler`, timezone `Asia/Kolkata`.
 | SL/target auto-exit | 5s | yes |
 | resting LIMIT order fills | 5s | yes |
 | expiry + intraday square-off | 15:29 cron | yes |
-| pre-market reset | 08:30 cron | yes |
+| pre-market stale DAY-limit cleanup | 08:30 cron | yes |
 | Kite instrument catalog sync | 08:30 cron | yes |
 
 **Leader-only jobs mutate the database** and run in one elected process
@@ -586,7 +592,7 @@ something threw inside render — check the console before assuming a data probl
 
 ## Testing
 
-383 tests. `backend/tests/unit/` is mostly pure and needs no database;
+399 tests. `backend/tests/unit/` is mostly pure and needs no database;
 `backend/tests/integration/` self-skips when Postgres is unreachable and wraps
 each test in a rolled-back outer transaction, so nothing persists.
 

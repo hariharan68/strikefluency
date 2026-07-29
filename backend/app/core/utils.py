@@ -14,6 +14,7 @@ from app.core.constants import (
     MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE,
     PRE_MARKET_RESET_HOUR, PRE_MARKET_RESET_MINUTE,
 )
+from app.core.exceptions import MarketClosedError
 
 
 def get_ist_now() -> datetime:
@@ -61,6 +62,21 @@ def is_market_open() -> bool:
     market_close = time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)
 
     return market_open <= now.time() < market_close
+
+
+def require_market_open() -> None:
+    """
+    Fail closed before any paper-order execution.
+
+    This is deliberately environment-independent: mock/development mode may
+    provide off-hours quotes for UI work, but those quotes must never create,
+    fill, or close a position outside the exchange session.
+    """
+    if not is_market_open():
+        raise MarketClosedError(
+            "Market is closed. Orders, limit fills, and exits execute only "
+            "between 09:15 and 15:30 IST, Monday to Friday."
+        )
 
 
 def calculate_pnl(

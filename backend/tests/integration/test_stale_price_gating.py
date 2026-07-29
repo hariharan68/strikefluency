@@ -62,9 +62,7 @@ def _stale_seconds():
 def production_rules(monkeypatch):
     """Staleness is deliberately relaxed in development; test the real rules."""
     monkeypatch.setattr(settings, "ENVIRONMENT", "production")
-    for module in ("app.services.virtual_order_service",
-                   "app.services.pending_order_service"):
-        monkeypatch.setattr(f"{module}.is_market_open", lambda: True)
+    monkeypatch.setattr("app.core.utils.is_market_open", lambda: True)
 
 
 def _use(monkeypatch, provider, *modules):

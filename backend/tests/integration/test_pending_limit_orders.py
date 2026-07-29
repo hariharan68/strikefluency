@@ -32,11 +32,7 @@ P = "/api/v1"
 @pytest.fixture(autouse=True)
 def market_is_open(monkeypatch):
     """Keep the HTTP contract deterministic in CI, regardless of wall clock."""
-    for module in (
-        "app.services.virtual_order_service",
-        "app.services.pending_order_service",
-    ):
-        monkeypatch.setattr(f"{module}.is_market_open", lambda: True)
+    monkeypatch.setattr("app.core.utils.is_market_open", lambda: True)
 
 
 @pytest.fixture
@@ -162,6 +158,39 @@ def test_marketable_limit_fills_on_the_next_scan(api_client, db_session):
     # The fill produced a real position, exactly as a market order would.
     positions = api_client.get(f"{P}/trading/positions").json()
     assert len(positions["positions"]) == 1
+
+
+def test_marketable_limit_stays_pending_outside_market_hours(
+    api_client, db_session, monkeypatch
+):
+    """A trigger seen off-hours must wait for the next open-market scan."""
+    _strike, ltp = _atm_ltp()
+    placed = api_client.post(f"{P}/trading/pending", json=_limit(ltp * 2))
+    pending_id = placed.json()["id"]
+    reserved = Decimal(placed.json()["margin_blocked"])
+
+    monkeypatch.setattr("app.core.utils.is_market_open", lambda: False)
+
+    assert scan_and_fill(db_session) == 0
+    row = db_session.query(PendingOrder).filter(PendingOrder.id == pending_id).one()
+    assert row.status == "PENDING"
+    assert row.filled_order_id is None
+    assert row.margin_blocked == reserved
+    assert api_client.get(f"{P}/trading/positions").json()["positions"] == []
+
+
+def test_limit_placement_is_rejected_outside_market_hours(
+    api_client, db_session, monkeypatch
+):
+    _strike, ltp = _atm_ltp()
+    before = db_session.query(PendingOrder).count()
+    monkeypatch.setattr("app.core.utils.is_market_open", lambda: False)
+
+    response = api_client.post(f"{P}/trading/pending", json=_limit(ltp))
+
+    assert response.status_code == 400
+    assert response.json()["error"] == "MARKET_CLOSED"
+    assert db_session.query(PendingOrder).count() == before
 
 
 def test_unreachable_limit_stays_pending_across_scans(api_client, db_session):

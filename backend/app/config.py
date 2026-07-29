@@ -50,7 +50,8 @@ class Settings(BaseSettings):
     # real 65), and only ever described one instrument. Lot sizes now live in
     # app/core/instruments.py — see get_spec(symbol).lot_size.
 
-    # Fyers (dev/testing)
+    # Fyers (dev/testing). The redirect URI must exactly match both the
+    # listening API port and the URL registered in the Fyers app dashboard.
     FYERS_CLIENT_ID: str = ""
     FYERS_APP_ID: str = ""
     FYERS_SECRET_ID: str = ""

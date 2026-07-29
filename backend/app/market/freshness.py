@@ -20,13 +20,11 @@ The three questions callers ask, and the deliberately different answers:
                               False so the sweep skips and retries. (Doc section
                               18: "pause pending-order execution".)
 
-    Exits are NOT gated.      Deliberate. close_position serves manual exits,
-                              EOD square-off and expiry settlement. Refusing to
-                              close on stale data traps a user in a position and
-                              would leave intraday positions open overnight —
-                              strictly worse than exiting at a slightly old
-                              price, which the existing current_ltp fallback
-                              already bounds.
+    Exit freshness is not    During market hours, close_position may use its
+    gated.                    bounded current_ltp fallback rather than trap a
+                              user because one quote is stale. The independent
+                              market-hours execution guard still blocks every
+                              off-hours exit.
 
 Staleness thresholds are two-tier, mirroring what Kite already did: a quote can
 be too old to *open* on well before it is too old to display.

@@ -32,7 +32,7 @@ from typing import Callable, Optional
 
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.core import utils as core_utils
 from app.core.constants import (
     LEVERAGE_MULTIPLIER,
     PendingOrderStatus,
@@ -49,7 +49,7 @@ from app.core.exceptions import (
 )
 from app.core.instruments import get_spec
 from app.events import TradingEvent
-from app.core.utils import current_trading_day, is_market_open
+from app.core.utils import current_trading_day
 from app.market import freshness
 from app.market.provider_factory import get_market_provider
 from app.models.pending_order import PendingOrder
@@ -76,10 +76,7 @@ def place_pending_order(db: Session, user: User, order_data: dict) -> PendingOrd
     quantity, lot_size, product_type, limit_price, sl_price, target_price,
     setup_tag, client_order_id
     """
-    if not is_market_open() and not settings.is_development:
-        raise MarketClosedError(
-            "Market is closed. Orders only accepted between 09:15 and 15:30 IST."
-        )
+    core_utils.require_market_open()
 
     # Same lock ordering as place_order: account first, always.
     account = db.query(VirtualAccount).filter(
@@ -259,6 +256,12 @@ def scan_and_fill(db: Session,
     on_fill(user_id, reason) is invoked after each committed fill or rejection so
     the caller can notify that user. Callback errors are swallowed.
     """
+    # A scanner can also be called directly (tests, maintenance, a future
+    # worker), so the scheduler is not the execution boundary. Leave every
+    # resting order untouched until the next open-market scan.
+    if not core_utils.is_market_open():
+        return 0
+
     pendings = (
         db.query(PendingOrder)
         .filter(PendingOrder.status == PendingOrderStatus.PENDING)
@@ -309,8 +312,14 @@ def scan_and_fill(db: Session,
                 db.commit()
                 filled += 1
                 _notify(on_fill, user_id, str(TradingEvent.LIMIT_FILLED))
+            except MarketClosedError:
+                # The session can close between the sweep-level check and the
+                # actual fill. Roll back the reservation release and leave the
+                # order PENDING for the next open-market tick.
+                db.rollback()
+                return filled
             except (DisciplineViolationError, InsufficientBalanceError,
-                    QuoteUnavailableError, MarketClosedError) as e:
+                    QuoteUnavailableError) as e:
                 # A legitimate refusal: record why, release the funds, move on.
                 db.rollback()
                 message = getattr(e, "message", None) or str(e)

@@ -28,6 +28,7 @@ from typing import Callable, Optional
 
 from sqlalchemy.orm import Session
 
+from app.core import utils as core_utils
 from app.core.constants import ExitReason, OrderStatus
 from app.core.exceptions import OrderAlreadyClosedError
 from app.market import freshness
@@ -100,6 +101,7 @@ def scan_and_exit(db: Session,
     provider = get_market_provider()
     user_cache: dict = {}
     closed = 0
+    market_open = core_utils.is_market_open()
 
     for instrument, instr_orders in by_instrument.items():
         try:
@@ -113,7 +115,10 @@ def scan_and_exit(db: Session,
         # stop-loss the market never actually reached, and the user is closed
         # out of a position at a price that never existed. So the chain is
         # still used for MTM, but exits are held until it is fresh again.
-        may_trigger = freshness.is_tradeable(chain, instrument=instrument)
+        may_trigger = (
+            market_open
+            and freshness.is_tradeable(chain, instrument=instrument)
+        )
 
         for order in instr_orders:
             ltp, _ = _get_ltp_from_chain(chain, int(order.strike_price), order.option_type)

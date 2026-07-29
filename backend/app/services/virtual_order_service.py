@@ -11,18 +11,17 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.core import utils as core_utils
 from app.core.constants import ExitReason, LEVERAGE_MULTIPLIER, OrderStatus, ProductType
 from app.core.instruments import get_spec
 from app.core.exceptions import (
     IdempotencyConflictError,
     InsufficientBalanceError,
-    MarketClosedError,
     OrderAlreadyClosedError,
     OrderNotFoundError,
     QuoteUnavailableError,
 )
-from app.core.utils import calculate_pnl, current_trading_day, is_market_open
+from app.core.utils import calculate_pnl, current_trading_day
 from app.market import freshness
 from app.market.provider_factory import get_market_provider
 from app.models.journal_entry import JournalEntry
@@ -53,10 +52,7 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
         instrument, expiry_date, strike_price, option_type,
         action, quantity, lot_size, sl_price, target_price, setup_tag
     """
-    if not is_market_open() and not settings.is_development:
-        raise MarketClosedError(
-            "Market is closed. Orders only accepted between 09:15 and 15:30 IST."
-        )
+    core_utils.require_market_open()
 
     # The account is the per-user serialization point for every balance,
     # session and order mutation. The lock is held until the router commits.
@@ -252,6 +248,7 @@ def close_position(
     exit_ltp: Decimal = None,
 ) -> VirtualOrder:
     """Close an open position and calculate final P&L."""
+    core_utils.require_market_open()
 
     # Lock in the same order as placement: account -> order -> position ->
     # session. This serializes manual, SL/target and EOD close attempts and

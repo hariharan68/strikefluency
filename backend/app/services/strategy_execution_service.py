@@ -26,7 +26,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.core import utils as core_utils
 from app.core.constants import (
     ExitReason,
     LegInstrumentType,
@@ -39,12 +39,11 @@ from app.core.constants import (
 from app.core.exceptions import (
     DisciplineViolationError,
     InsufficientBalanceError,
-    MarketClosedError,
     OrderNotFoundError,
     StrategyValidationError,
 )
 from app.core.instruments import get_spec
-from app.core.utils import current_trading_day, is_market_open
+from app.core.utils import current_trading_day
 from app.market.provider_factory import get_market_provider
 from app.models.strategy import StrategyLeg as StrategyLegORM
 from app.models.strategy import StrategyPosition as StrategyPositionORM
@@ -172,15 +171,14 @@ def execute_strategy(db: Session, user: User, strategy_id: uuid.UUID) -> Strateg
     Execute a DRAFT strategy: fill every leg, block margin, open a position, and
     mirror each option leg into a VirtualOrder tagged with the strategy id.
     """
+    core_utils.require_market_open()
+
     orm = strategy_service.get_strategy(db, user, strategy_id)
     if orm.status != StrategyStatus.DRAFT:
         raise StrategyValidationError(code="NOT_A_DRAFT",
                                       message=f"Strategy is already {orm.status}.")
     if not orm.legs:
         raise StrategyValidationError(code="EMPTY", message="Strategy has no legs.")
-
-    if not is_market_open() and not settings.is_development:
-        raise MarketClosedError("Market is closed (09:15–15:30 IST).")
 
     account = db.query(VirtualAccount).filter(VirtualAccount.user_id == user.id).first()
     session = get_or_create_today(db, user)
@@ -287,6 +285,8 @@ def _mirror_order(db: Session, user: User, orm, leg_row: StrategyLegORM,
 def close_leg(db: Session, user: User, strategy_id: uuid.UUID, leg_id: uuid.UUID,
               exit_ltp: Optional[float] = None) -> StrategyLegORM:
     """Close a single OPEN leg while the rest of the strategy stays live."""
+    core_utils.require_market_open()
+
     orm = strategy_service.get_strategy(db, user, strategy_id)
     row = next((l for l in orm.legs if l.id == leg_id), None)
     if row is None:
@@ -309,6 +309,8 @@ def close_leg(db: Session, user: User, strategy_id: uuid.UUID, leg_id: uuid.UUID
 def square_off(db: Session, user: User, strategy_id: uuid.UUID,
                reason: str = ExitReason.MANUAL) -> StrategyPositionORM:
     """Close every open leg, release margin, realize P&L."""
+    core_utils.require_market_open()
+
     orm = strategy_service.get_strategy(db, user, strategy_id)
     if orm.status != StrategyStatus.EXECUTED:
         raise StrategyValidationError(code="NOT_EXECUTED",

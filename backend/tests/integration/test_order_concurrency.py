@@ -108,7 +108,7 @@ def fixed_market(monkeypatch):
         lambda: provider,
     )
     monkeypatch.setattr(
-        "app.services.virtual_order_service.is_market_open",
+        "app.core.utils.is_market_open",
         lambda: True,
     )
     return provider

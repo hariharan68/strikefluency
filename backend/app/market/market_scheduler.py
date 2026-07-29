@@ -4,8 +4,8 @@ app/market/market_scheduler.py
 APScheduler job that fetches market data every 3 seconds
 and broadcasts it to all connected WebSocket clients.
 
-Only runs during market hours (09:15–15:30 IST, Mon–Fri).
-In development mode: always runs regardless of market hours.
+Market-data broadcasts may run off-hours in development so the UI remains
+usable. State-changing execution jobs never run outside 09:15–15:30 IST.
 
 Started in main.py lifespan startup hook.
 Stopped in main.py lifespan shutdown hook.
@@ -176,11 +176,10 @@ async def _auto_exit_tick():
     Runs independently of connected WebSocket clients for exactly that reason.
     Owns its own short-lived DB session.
     """
-    from app.config import settings
     from app.database import SessionLocal
     from app.services.auto_exit_service import scan_and_exit
 
-    if not is_market_open() and not settings.is_development:
+    if not is_market_open():
         return
 
     closed_events = DeferredPublisher()
@@ -216,11 +215,10 @@ async def _limit_fill_tick():
     commits per order, so a rejection at trigger persists without discarding the
     fills that already succeeded in the same sweep.
     """
-    from app.config import settings
     from app.database import SessionLocal
     from app.services.pending_order_service import scan_and_fill
 
-    if not is_market_open() and not settings.is_development:
+    if not is_market_open():
         return
 
     fill_events = DeferredPublisher()
@@ -295,27 +293,23 @@ async def _intraday_squareoff_tick():
 
 async def _premarket_reset_tick():
     """
-    At 08:30 IST (before the 09:15 open), a safety net: force-close any INTRADAY
-    position still OPEN from a prior trading day using the last stored price.
-    Also marks the logical start of the new trading day.
+    At 08:30 IST, expire DAY limit orders stranded by a missed EOD sweep.
+
+    This job deliberately performs no position exits: paper executions are
+    forbidden before the 09:15 open.
     """
     from app.core.utils import current_trading_day
     from app.database import SessionLocal
-    from app.services.eod_service import premarket_reset
     from app.services.pending_order_service import expire_pending_orders
 
     db = SessionLocal()
     try:
-        n = premarket_reset(db)
         # Safety net for limit orders stranded by a missed EOD run. Scoped to
         # earlier trading days so a fresh morning's orders are never touched.
         p = expire_pending_orders(db, before_trading_day=current_trading_day())
         db.commit()
-        if n or p:
-            logger.info(
-                "Pre-market reset: closed %d stale intraday position(s), "
-                "expired %d stale limit order(s)", n, p,
-            )
+        if p:
+            logger.info("Pre-market reset: expired %d stale limit order(s)", p)
     except Exception as e:
         db.rollback()
         logger.error("Pre-market reset failed: %s", e)
@@ -525,7 +519,7 @@ def start_market_scheduler():
     logger.info(
         "Market data scheduler started (3s data, 15s MTM, 5s auto-exit, "
         "5s limit fill, 15:29 EOD square-off [expiry + intraday + limit expiry], "
-        "08:30 pre-market reset)"
+        "08:30 stale-limit cleanup)"
     )
 
 

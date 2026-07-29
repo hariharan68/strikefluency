@@ -60,7 +60,7 @@ class InsufficientBalanceError(StrikeFluencyError):
 
 
 class MarketClosedError(StrikeFluencyError):
-    """Order attempted outside 09:15–15:30 IST."""
+    """Paper-order execution attempted outside 09:15–15:30 IST."""
     pass
 
 

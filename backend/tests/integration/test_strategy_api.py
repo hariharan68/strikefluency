@@ -6,7 +6,14 @@ conftest.py. Skipped automatically when Postgres isn't reachable. Every test
 rolls back — nothing persists.
 """
 
+import uuid
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
+
+from app.core.constants import LegStatus, OrderStatus, StrategyStatus
+from app.models.strategy import Strategy, StrategyPosition
+from app.models.virtual_account import VirtualAccount
+from app.models.virtual_order import VirtualOrder
 
 P = "/api/v1/strategy"
 
@@ -64,6 +71,67 @@ def test_full_lifecycle(api_client, market_open):
 
     # now CLOSED
     assert api_client.get(f"{P}/{sid}").json()["status"] == "CLOSED"
+
+
+def test_off_hours_exit_keeps_four_leg_nrml_strategy_open(
+    api_client, db_session, market_open, monkeypatch
+):
+    """
+    Regression: a carry-forward four-leg position must not realize P&L when its
+    user presses Exit before the market opens or after it closes.
+    """
+    created = api_client.post(f"{P}/from-template", json={
+        "template_id": "short_iron_condor",
+        "underlying": "NIFTY",
+        "lots": 1,
+        "setup_tag": "OI_BASED",
+        "product_type": "NRML",
+    })
+    assert created.status_code == 201, created.text
+    strategy_id = uuid.UUID(created.json()["id"])
+    assert len(created.json()["legs"]) == 4
+
+    executed = api_client.post(f"{P}/{strategy_id}/execute")
+    assert executed.status_code == 200, executed.text
+    position_id = uuid.UUID(executed.json()["position"]["id"])
+
+    strategy = db_session.query(Strategy).filter(Strategy.id == strategy_id).one()
+    account = db_session.query(VirtualAccount).filter(
+        VirtualAccount.user_id == strategy.user_id
+    ).one()
+    balance_before = account.balance
+
+    monkeypatch.setattr("app.core.utils.is_market_open", lambda: False)
+    response = api_client.post(
+        f"{P}/{strategy_id}/square-off", json={"reason": "MANUAL"}
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"] == "MARKET_CLOSED"
+
+    db_session.expire_all()
+    strategy = db_session.query(Strategy).filter(
+        Strategy.id == strategy_id
+    ).one()
+    position = db_session.query(StrategyPosition).filter(
+        StrategyPosition.id == position_id
+    ).one()
+    mirrored = db_session.query(VirtualOrder).filter(
+        VirtualOrder.strategy_id == strategy_id
+    ).all()
+    account = db_session.query(VirtualAccount).filter(
+        VirtualAccount.user_id == strategy.user_id
+    ).one()
+
+    assert strategy.status == StrategyStatus.EXECUTED
+    assert strategy.product_type == "NRML"
+    assert all(leg.status == LegStatus.OPEN for leg in strategy.legs)
+    assert position.is_open is True
+    assert position.closed_at is None
+    assert position.realized_pnl == Decimal("0.00")
+    assert len(mirrored) == 4
+    assert all(order.status == OrderStatus.OPEN for order in mirrored)
+    assert account.balance == balance_before
 
 
 def test_execute_twice_is_rejected(api_client, market_open):
