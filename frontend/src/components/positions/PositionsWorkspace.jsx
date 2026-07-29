@@ -554,7 +554,19 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
   const averageRewardRisk = rewardRiskValues.length
     ? rewardRiskValues.reduce((sum, value) => sum + value, 0) / rewardRiskValues.length
     : 0
-  const wsLive = lastUpdate != null && Date.now() - lastUpdate < 12000
+  const liveInstruments = new Set([
+    ...positions.map(position => position.instrument),
+    ...strategies.map(strategy => strategy.underlying),
+  ])
+  const brokerQuotesLive = [...liveInstruments].every(instrument => {
+    const chain = chains[instrument]
+    if (!chain) return false
+    return !String(chain.source || '').startsWith('fyers')
+      || chain.live_quote_source === 'fyers_stream'
+  })
+  const wsLive = brokerQuotesLive
+    && lastUpdate != null
+    && Date.now() - lastUpdate < 4000
 
   const counts = {
     positions: positions.length + strategies.length,
@@ -776,9 +788,9 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
                           <td><SideBadge side={leg.action} /></td>
                           <td className="align-right num" title={`${leg.lots} lot${leg.lots === 1 ? '' : 's'} × ${leg.lot_size}`}>{contracts}</td>
                           <td className="align-right num">{leg.entry_price == null ? '—' : money(leg.entry_price)}</td>
-                          <td className="align-right num">{live.ltp == null ? '—' : money(live.ltp)}</td>
+                          <td className="align-right num" title={wsLive ? 'Streaming LTP · updates every second' : 'Last available LTP'}>{live.ltp == null ? '—' : money(live.ltp)}</td>
                           <td className="align-right num">{money(invested)}</td>
-                          <td className={`align-right num pnl ${live.pnl == null ? '' : live.pnl >= 0 ? 'gain' : 'loss'}`}>
+                          <td className={`align-right num pnl ${live.pnl == null ? '' : live.pnl >= 0 ? 'gain' : 'loss'}`} title={wsLive ? 'Calculated continuously from streaming LTP' : 'Calculated from last available LTP'}>
                             {live.pnl == null ? '—' : signedMoney(live.pnl)}
                           </td>
                           <td className="positions-protection num">
@@ -804,9 +816,9 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
                     <td><SideBadge side={position.action} /></td>
                     <td className="align-right num" title={`${position.quantity} lot${position.quantity === 1 ? '' : 's'} × ${position.lot_size}`}>{contracts}</td>
                     <td className="align-right num">{money(position.avg_entry_price)}</td>
-                    <td className="align-right num">{money(live.ltp)}</td>
+                    <td className="align-right num" title={wsLive ? 'Streaming LTP · updates every second' : 'Last available LTP'}>{money(live.ltp)}</td>
                     <td className="align-right num">{money(invested)}</td>
-                    <td className={`align-right num pnl ${live.pnl >= 0 ? 'gain' : 'loss'}`}>{signedMoney(live.pnl)}</td>
+                    <td className={`align-right num pnl ${live.pnl >= 0 ? 'gain' : 'loss'}`} title={wsLive ? 'Calculated continuously from streaming LTP' : 'Calculated from last available LTP'}>{signedMoney(live.pnl)}</td>
                     <td className="positions-protection num">
                       <strong>{order?.sl_price == null ? 'No SL' : money(order.sl_price, 0)}</strong>
                       <span>{order?.target_price == null ? 'No target' : `${money(order.target_price, 0)} target`}</span>
@@ -1091,7 +1103,7 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
       <section className="positions-metric-grid" aria-label="Position summary">
         <MetricCard
           label="Open P&L"
-          flag={wsLive ? 'Live' : 'Last price'}
+          flag={wsLive ? 'Live · 1s' : 'Last price'}
           value={signedMoney(openPnl)}
           note={`${openPnl >= 0 ? '+' : ''}${percent(capitalUsed > 0 ? openPnl / capitalUsed * 100 : 0)} on deployed capital`}
           tone={openPnl >= 0 ? 'gain' : 'loss'}

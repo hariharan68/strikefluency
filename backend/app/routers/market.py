@@ -8,7 +8,7 @@ Market data endpoints:
   GET /market/status                           → open/closed + IST time
   WS  /market/ws                              → live stream (WebSocket)
 
-The WebSocket endpoint streams option chain updates every 3 seconds.
+The WebSocket endpoint streams display-time option LTP updates every second.
 The REST endpoints are for initial page load before WS connects.
 """
 
@@ -222,7 +222,7 @@ async def websocket_market(websocket: WebSocket, user: User = Depends(get_ws_use
          so the kernel's get_ws_user dependency authenticates the
          token from the query string BEFORE the connection is accepted)
       2. Server accepts + sends latest cached data immediately
-      3. Every 3 seconds: scheduler broadcasts new option chain data
+      3. Every second: scheduler broadcasts new display-time option LTPs
       4. Client disconnects → server removes from active connections
 
     Data format received by client:

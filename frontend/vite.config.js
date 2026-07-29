@@ -11,7 +11,9 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: {
-        '/api': { target: apiTarget, changeOrigin: true },
+        // The authenticated market socket lives at /api/v1/market/ws, so the
+        // normal API proxy must explicitly support HTTP Upgrade requests.
+        '/api': { target: apiTarget, changeOrigin: true, ws: true },
         '/ws': { target: wsTarget, ws: true }
       }
     }

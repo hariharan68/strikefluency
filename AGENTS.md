@@ -86,7 +86,7 @@ npm run build
 
 # Tests
 cd backend
-pytest              # 399 tests; integration tests self-skip without Postgres
+pytest              # 402 tests; integration tests self-skip without Postgres
 ```
 
 **Never commit** `.env`, `fyers_token.json`, `access_token.txt`, or `fyers_logs/`.
@@ -387,8 +387,11 @@ broken during a brief feed hiccup.
 - `MARKET_ORDER_BLOCK_SECONDS` (120s) is a **backstop, not a replacement**. A
   provider's own `assert_orderable` runs first and still wins where stricter —
   Kite demands <30s because it has a live tick feed. The generic bound must stay
-  above the slowest provider's cache TTL (Fyers caches chains for 95s), or it
-  rejects orders during entirely normal operation.
+  above the slowest provider's structural cache TTL (Fyers caches REST chains
+  for 95s), or it rejects orders during entirely normal operation. Fyers
+  overlays read-only data-socket LTPs for display, but deliberately preserves
+  the REST `timestamp`; one fresh premium must not make OI/IV/structure look
+  fresh to the execution boundary.
 - Simulated sources (`mock`, `mock_fallback`) are
   refused in production but **allowed in development** — locally the mock
   provider *is* the data source, and blocking it would block all local trading.
@@ -493,7 +496,7 @@ APScheduler `AsyncIOScheduler`, timezone `Asia/Kolkata`.
 
 | Job | Cadence | Leader-only |
 |---|---|---|
-| market status + option chain broadcast | 3s | no |
+| market status + option chain broadcast | 1s | no |
 | option metrics + analytics broadcast | 15s | no |
 | strategy mark-to-market | 15s | yes |
 | SL/target auto-exit | 5s | yes |
@@ -592,7 +595,7 @@ something threw inside render — check the console before assuming a data probl
 
 ## Testing
 
-399 tests. `backend/tests/unit/` is mostly pure and needs no database;
+402 tests. `backend/tests/unit/` is mostly pure and needs no database;
 `backend/tests/integration/` self-skips when Postgres is unreachable and wraps
 each test in a rolled-back outer transaction, so nothing persists.
 

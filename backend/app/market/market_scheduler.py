@@ -1,7 +1,7 @@
 """
 app/market/market_scheduler.py
 ───────────────────────────────
-APScheduler job that fetches market data every 3 seconds
+APScheduler job that publishes display-time market data every second
 and broadcasts it to all connected WebSocket clients.
 
 Market-data broadcasts may run off-hours in development so the UI remains
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 # Instruments to broadcast
 INSTRUMENTS = ["NIFTY", "BANKNIFTY", "SENSEX"]
+MARKET_DATA_BROADCAST_SECONDS = 1
 
 # Scheduler instance (started/stopped in main.py)
 scheduler = AsyncIOScheduler(timezone="Asia/Kolkata")
@@ -68,7 +69,7 @@ def build_market_status() -> dict:
 
 async def _tick():
     """
-    Called every 3 seconds by the scheduler.
+    Called every second by the scheduler.
     Broadcasts market status (always — the closed/open badge must stay live
     off-hours), then option chains for each instrument during market hours
     (or always in development). Skips entirely when no clients are connected.
@@ -94,7 +95,10 @@ async def _tick():
 
     for instrument in INSTRUMENTS:
         try:
-            option_chain = provider.get_option_chain(instrument)
+            option_chain = await asyncio.to_thread(
+                provider.get_option_chain,
+                instrument,
+            )
 
             await manager.broadcast({
                 "type":       "option_chain",
@@ -111,7 +115,7 @@ async def _metrics_tick():
     Every 15 seconds: compute the option intelligence (metrics + per-leg
     analytics chain) for each instrument's default expiry and broadcast both.
     One chain build feeds both frames; the per-strike IV inversion runs in a
-    worker thread so it never blocks the event loop that carries the 3s tick.
+    worker thread so it never blocks the event loop that carries the 1s tick.
     """
     from app.config import settings
     from fastapi.encoders import jsonable_encoder
@@ -427,7 +431,7 @@ def start_market_scheduler():
     scheduler.add_job(
         _tick,
         trigger="interval",
-        seconds=3,
+        seconds=MARKET_DATA_BROADCAST_SECONDS,
         id="market_data_tick",
         replace_existing=True,
         misfire_grace_time=5,

@@ -8,6 +8,7 @@ import useDiscipline from '../../hooks/useDiscipline'
 import { LOT_SIZES } from '../../utils/constants'
 import FloatingOrderTicket from '../trading/FloatingOrderTicket'
 import { getApiErrorMessage } from '../../utils/apiError'
+import { mergeLiveOptionChain } from '../../utils/livePnl'
 
 // WS metrics/analytics broadcasts cover the DEFAULT expiry only; when the user
 // picks another expiry the page falls back to plain REST polling as before.
@@ -170,6 +171,8 @@ export default function OptionChainWorkspace({ onInstrumentChange, onOrderPlaced
   // WS-pushed metrics + analytics for this instrument (default expiry only).
   const wsM = useMarketStore(s => s.metrics[instrument])
   const wsA = useMarketStore(s => s.analytics[instrument])
+  const liveChain = useMarketStore(s => s.chains[instrument])
+  const liveChainAt = useMarketStore(s => s.chainAt[instrument])
   const wsFresh = (slot) => slot?.data && Date.now() - slot.at < WS_FRESH_MS
   const wsCovers = (exp) => !exp || exp === wsA?.data?.expiry_date
 
@@ -215,15 +218,20 @@ export default function OptionChainWorkspace({ onInstrumentChange, onOrderPlaced
     setIdx(i => (i + dir + INSTRUMENTS.length) % INSTRUMENTS.length)
   }
 
+  const displayChain = useMemo(
+    () => mergeLiveOptionChain(chain, liveChain, expiry),
+    [chain, expiry, liveChain],
+  )
+
   const model = useMemo(() => {
-    if (!chain?.chain_rows?.length) return null
+    if (!displayChain?.chain_rows?.length) return null
     const byStrike = new Map()
-    for (const r of chain.chain_rows) {
+    for (const r of displayChain.chain_rows) {
       if (!byStrike.has(r.strike)) byStrike.set(r.strike, { strike: r.strike, ce: null, pe: null })
       byStrike.get(r.strike)[r.option_type === 'CE' ? 'ce' : 'pe'] = r
     }
     let all = [...byStrike.values()].sort((a, b) => a.strike - b.strike)
-    const atm = chain.atm_strike
+    const atm = displayChain.atm_strike
     const atmIdx = all.reduce((best, row, i) => Math.abs(row.strike - atm) < Math.abs(all[best].strike - atm) ? i : best, 0)
     if (strikeCount !== 'All') {
       all = all.slice(Math.max(0, atmIdx - strikeCount), Math.min(all.length, atmIdx + strikeCount + 1))
@@ -237,8 +245,8 @@ export default function OptionChainWorkspace({ onInstrumentChange, onOrderPlaced
       sorted.forEach((r, i) => m.set(r.strike, i + 1))
       return m
     }
-    return { rows: all, atm, maxCe, maxPe, maxPain: chain.max_pain_strike, ceRank: rankMap('ce'), peRank: rankMap('pe') }
-  }, [chain, strikeCount])
+    return { rows: all, atm, maxCe, maxPe, maxPain: displayChain.max_pain_strike, ceRank: rankMap('ce'), peRank: rankMap('pe') }
+  }, [displayChain, strikeCount])
 
   const change = metrics?.change_pct ?? 0
   const chgColor = change >= 0 ? 'var(--gain)' : 'var(--loss)'
@@ -251,11 +259,17 @@ export default function OptionChainWorkspace({ onInstrumentChange, onOrderPlaced
     const days = Math.max(0, Math.round((d - new Date()) / 86400000))
     return `${d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} (${days}d)`
   })()
+  const liveCoversExpiry = !expiry || !liveChain?.expiry || expiry === liveChain.expiry
+  const fyersStreamLive = !String(liveChain?.source || '').startsWith('fyers')
+    || liveChain?.live_quote_source === 'fyers_stream'
+  const feedLive = liveCoversExpiry && fyersStreamLive
+    && liveChainAt != null && now.getTime() - liveChainAt < 4000
+  const liveSpot = displayChain?.spot ?? metrics?.spot
 
   const th = { padding: '8px 12px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }
   const td = { padding: '9px 12px', fontSize: 12.5 }
 
-  const lotSize = chain?.lot_size || LOT_SIZES[instrument] || 50
+  const lotSize = displayChain?.lot_size || LOT_SIZES[instrument] || 50
   const openTicket = (row, side, act) => {
     const leg = side === 'CE' ? row.ce : row.pe
     setTicket({
@@ -299,14 +313,21 @@ export default function OptionChainWorkspace({ onInstrumentChange, onOrderPlaced
           </div>
 
           {metrics && <>
-            <HeaderStat label="Spot" value={fmtNum(metrics.spot)} sub={`${change >= 0 ? '' : ''}${change.toFixed(2)}%`} subColor={chgColor} />
+            <HeaderStat label="Spot" value={fmtNum(liveSpot)} sub={`${change >= 0 ? '' : ''}${change.toFixed(2)}%`} subColor={chgColor} />
             <HeaderStat label="Future" value={fmtNum(metrics.future)} sub="—" subColor="var(--text-muted)" />
             <HeaderStat label="VIX" value={metrics.vix != null ? fmtNum(metrics.vix) : '—'} />
           </>}
 
           <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--text-muted)', fontSize: 12.5 }}>
             <Clock size={13} /> <span className="num">{now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}, {ist}</span>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--gain)', boxShadow: '0 0 6px var(--gain)' }} />
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 7px',
+              borderRadius: 999, background: feedLive ? 'var(--gain-bg)' : 'var(--warn-bg)',
+              color: feedLive ? 'var(--gain-text)' : 'var(--warn)', fontSize: 9.5, fontWeight: 800,
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />
+              {feedLive ? 'LIVE · 1s' : 'SNAPSHOT'}
+            </span>
           </div>
         </div>
       </Card>
@@ -369,7 +390,7 @@ export default function OptionChainWorkspace({ onInstrumentChange, onOrderPlaced
                   const isPain = row.strike === model.maxPain
                   const iv = row.ce?.iv ?? row.pe?.iv
                   // ITM wash: a call is in-the-money below spot, a put above it.
-                  const spot = metrics?.spot ?? model.atm
+                  const spot = liveSpot ?? model.atm
                   const ceBg = !isAtm && spot > 0 && row.strike < spot ? 'var(--itm-bg)' : undefined
                   const peBg = !isAtm && spot > 0 && row.strike > spot ? 'var(--itm-bg)' : undefined
                   return (
@@ -384,7 +405,7 @@ export default function OptionChainWorkspace({ onInstrumentChange, onOrderPlaced
                       <td style={{ ...td, background: ceBg }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                           {row.ce && <ChainBS onBuy={() => openTicket(row, 'CE', 'BUY')} onSell={() => openTicket(row, 'CE', 'SELL')} />}
-                          <span className="num" style={{ color: 'var(--gain-text)', fontWeight: 600 }}>{fmtNum(row.ce?.ltp)}</span>
+                          <span className="num" title={row.ce?.quote_at ? `Live quote ${row.ce.quote_at}` : 'Latest snapshot'} style={{ color: 'var(--gain-text)', fontWeight: 650 }}>{fmtNum(row.ce?.ltp)}</span>
                         </div>
                       </td>
                       {/* STRIKE + IV */}
@@ -397,7 +418,7 @@ export default function OptionChainWorkspace({ onInstrumentChange, onOrderPlaced
                       {/* PUT */}
                       <td style={{ ...td, background: peBg }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 8 }}>
-                          <span className="num" style={{ color: 'var(--loss-text)', fontWeight: 600 }}>{fmtNum(row.pe?.ltp)}</span>
+                          <span className="num" title={row.pe?.quote_at ? `Live quote ${row.pe.quote_at}` : 'Latest snapshot'} style={{ color: 'var(--loss-text)', fontWeight: 650 }}>{fmtNum(row.pe?.ltp)}</span>
                           {row.pe && <ChainBS onBuy={() => openTicket(row, 'PE', 'BUY')} onSell={() => openTicket(row, 'PE', 'SELL')} />}
                         </div>
                       </td>
@@ -426,7 +447,7 @@ export default function OptionChainWorkspace({ onInstrumentChange, onOrderPlaced
               </span>
             )
           })}
-          <span style={{ marginLeft: 'auto' }}>Top-3 volumes highlighted · Refreshes every 15s · OI lags exchange 1–3 min</span>
+          <span style={{ marginLeft: 'auto' }}>Top-3 volumes highlighted · LTP every 1s · OI & greeks every 15s</span>
         </div>
       </Card>
 

@@ -5,6 +5,7 @@ const useMarketStore = create((set) => ({
   // single slot would get clobbered by whichever arrived last. Key by instrument
   // and let consumers select the one they're showing.
   chains: {},
+  chainAt: {},       // { [instrument]: browser arrival timestamp }
   optionChain: null,   // last received — kept for existing single-value reads
   spotPrice: 0,
   atmStrike: 0,
@@ -19,13 +20,17 @@ const useMarketStore = create((set) => ({
   brokerStatus: null,
   metrics: {},    // { [instrument]: { data, at } }
   analytics: {},  // { [instrument]: { data, at } }
-  setOptionChain: (data) => set((state) => ({
-    chains: data?.instrument ? { ...state.chains, [data.instrument]: data } : state.chains,
-    optionChain: data,
-    spotPrice: data?.spot_price ?? state.spotPrice,
-    atmStrike: data?.atm_strike ?? state.atmStrike,
-    lastUpdate: Date.now(),
-  })),
+  setOptionChain: (data) => set((state) => {
+    const receivedAt = Date.now()
+    return {
+      chains: data?.instrument ? { ...state.chains, [data.instrument]: data } : state.chains,
+      chainAt: data?.instrument ? { ...state.chainAt, [data.instrument]: receivedAt } : state.chainAt,
+      optionChain: data,
+      spotPrice: data?.spot_price ?? state.spotPrice,
+      atmStrike: data?.atm_strike ?? state.atmStrike,
+      lastUpdate: receivedAt,
+    }
+  }),
   setMarketStatus: (isOpen) => set({ isMarketOpen: isOpen }),
   setStatus: (data) => set({ status: data, isMarketOpen: !!data?.is_open, statusAt: Date.now() }),
   setBrokerStatus: (data) => set({ brokerStatus: data, statusAt: Date.now() }),

@@ -1,7 +1,12 @@
 ﻿"""Live market data from Fyers API v3 with cache and mock fallback."""
 
+import copy
 import logging
+import tempfile
+import threading
+import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from app.core.instruments import get_spec
@@ -21,6 +26,7 @@ SPOT_TTL_SECONDS = 35
 OPTION_CHAIN_TTL_SECONDS = 95
 HISTORY_TTL_SECONDS = 3600
 EXPIRY_TTL_SECONDS = 3600   # the expiry list changes at most once a week
+STREAM_QUOTE_TTL_SECONDS = 30
 
 
 class FyersMarketDataProvider(MarketDataProvider):
@@ -32,7 +38,18 @@ class FyersMarketDataProvider(MarketDataProvider):
         self._mock = MockMarketDataProvider()
         self._cache: dict[tuple[Any, ...], tuple[datetime, Any]] = {}
         self._last_good: dict[tuple[Any, ...], Any] = {}
+        self._stream_socket = None
+        self._stream_ready = False
+        self._stream_stop = threading.Event()
+        self._stream_lock = threading.RLock()
+        self._subscribe_lock = threading.Lock()
+        self._stream_quotes: dict[str, tuple[float, float, str]] = {}
+        self._desired_symbols: set[str] = set(FYERS_SYMBOLS.values())
+        self._subscribed_symbols: set[str] = set()
+        self._contract_symbols: dict[tuple[str, int, str, str], str] = {}
         self._connect()
+        if self._connected:
+            self._start_quote_stream()
 
     def _connect(self):
         try:
@@ -63,7 +80,35 @@ class FyersMarketDataProvider(MarketDataProvider):
     def is_connected(self) -> bool:
         return self._connected
 
+    def provider_status(self) -> dict:
+        with self._stream_lock:
+            latest = max(
+                (quote[1] for quote in self._stream_quotes.values()),
+                default=None,
+            )
+            subscribed = len(self._subscribed_symbols)
+        age_ms = (
+            max(0, round((time.monotonic() - latest) * 1000))
+            if latest is not None else None
+        )
+        stream_state = "connecting"
+        if age_ms is not None:
+            stream_state = (
+                "live"
+                if age_ms <= STREAM_QUOTE_TTL_SECONDS * 1000
+                else "stale"
+            )
+        return {
+            "quote_stream": stream_state if self._stream_ready else "connecting",
+            "quote_stream_age_ms": age_ms,
+            "quote_stream_symbols": subscribed,
+        }
+
     def get_spot_price(self, instrument: str) -> float:
+        live = self._live_quote(FYERS_SYMBOLS.get(instrument))
+        if live is not None:
+            return live[0]
+
         key = ("spot", instrument)
         cached = self._get_cached(key, SPOT_TTL_SECONDS)
         if cached is not None:
@@ -84,24 +129,37 @@ class FyersMarketDataProvider(MarketDataProvider):
         key = ("chain", instrument, expiry or "")
         cached = self._get_cached(key, OPTION_CHAIN_TTL_SECONDS)
         if cached is not None:
-            return cached
+            return self._overlay_live_quotes(cached)
 
         try:
             value = self._fetch_option_chain(instrument, expiry)
             self._store_good(key, value)
-            return value
+            return self._overlay_live_quotes(value)
         except Exception as e:
             logger.warning("Fyers option-chain fallback for %s: %s", instrument, e)
             last = self._last_good.get(key)
             if last is not None:
-                fallback = dict(last)
+                fallback = copy.deepcopy(last)
                 fallback["source"] = "fyers_cached"
-                return fallback
+                return self._overlay_live_quotes(fallback)
             data = self._mock.get_option_chain(instrument, expiry)
             data["source"] = "mock_fallback"
             return data
 
     def get_ltp(self, instrument: str, strike: int, option_type: str, expiry: str) -> float:
+        symbol = self._contract_symbols.get(
+            (instrument, int(strike), option_type.upper(), expiry)
+        )
+        live = self._live_quote(symbol)
+        if live is None:
+            # Useful before the first structural chain has registered Fyers'
+            # exact symbol for this contract.
+            live = self._live_quote(
+                self._build_option_symbol(instrument, strike, option_type, expiry)
+            )
+        if live is not None:
+            return live[0]
+
         key = ("ltp", instrument, strike, option_type, expiry)
         cached = self._get_cached(key, SPOT_TTL_SECONDS)
         if cached is not None:
@@ -160,6 +218,7 @@ class FyersMarketDataProvider(MarketDataProvider):
 
         parsed = self._parse_option_chain(instrument, response["data"])
         parsed["source"] = "fyers"
+        self._register_chain_symbols(parsed)
         return parsed
 
     def _fetch_ltp(self, instrument: str, strike: int, option_type: str, expiry: str) -> float:
@@ -291,6 +350,9 @@ class FyersMarketDataProvider(MarketDataProvider):
                 "ask": float(contract.get("ask") or 0),
                 "delta": float(contract.get("delta") or 0),
             }
+            symbol = contract.get("symbol")
+            if symbol:
+                strikes_map[strike][side]["symbol"] = str(symbol)
 
         sorted_strikes = sorted(strikes_map.values(), key=lambda x: x["strike"])
         atm_strike = self._get_atm_strike(spot_price, sorted_strikes)
@@ -329,6 +391,194 @@ class FyersMarketDataProvider(MarketDataProvider):
         expiry_str = dt.strftime("%y%m%d")
         exchange = "BSE" if instrument == "SENSEX" else "NSE"
         return f"{exchange}:{instrument}{expiry_str}{strike}{option_type}"
+
+    def _start_quote_stream(self) -> None:
+        """Connect the market-data-only socket without blocking application boot."""
+        thread = threading.Thread(
+            target=self._connect_quote_stream,
+            name="fyers-quote-stream",
+            daemon=True,
+        )
+        thread.start()
+
+    def _connect_quote_stream(self) -> None:
+        try:
+            from fyers_apiv3.FyersWebsocket import data_ws
+
+            log_dir = Path(tempfile.gettempdir()) / "strikefluency-fyers"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            socket = data_ws.FyersDataSocket(
+                access_token=self.access_token,
+                log_path=str(log_dir),
+                litemode=True,
+                write_to_file=True,
+                reconnect=True,
+                on_message=self._on_stream_message,
+                on_connect=self._on_stream_connect,
+                on_error=self._on_stream_error,
+                on_close=self._on_stream_close,
+            )
+            with self._stream_lock:
+                self._stream_socket = socket
+            if self._stream_stop.is_set():
+                socket.close_connection()
+                return
+            socket.connect()
+        except Exception as exc:
+            self._stream_ready = False
+            logger.warning(
+                "Fyers quote stream unavailable; REST prices remain active: %s",
+                exc,
+            )
+
+    def _on_stream_connect(self) -> None:
+        if self._stream_stop.is_set():
+            return
+        with self._stream_lock:
+            self._stream_ready = True
+            # The SDK clears its own subscription state on reconnect.
+            self._subscribed_symbols.clear()
+        self._subscribe_pending()
+        logger.info("Fyers live quote stream connected")
+
+    def _on_stream_message(self, message: dict) -> None:
+        if self._stream_stop.is_set() or not isinstance(message, dict):
+            return
+        symbol = str(message.get("symbol") or "")
+        try:
+            ltp = float(message.get("ltp"))
+        except (TypeError, ValueError):
+            return
+        if not symbol or ltp <= 0:
+            return
+
+        received = datetime.now().astimezone().isoformat()
+        with self._stream_lock:
+            self._stream_ready = True
+            self._stream_quotes[symbol] = (ltp, time.monotonic(), received)
+
+    def _on_stream_error(self, error) -> None:
+        logger.warning("Fyers quote stream error: %s", error)
+
+    def _on_stream_close(self, message) -> None:
+        self._stream_ready = False
+        if not self._stream_stop.is_set():
+            logger.warning("Fyers quote stream closed: %s", message)
+
+    def _register_chain_symbols(self, chain: dict) -> None:
+        instrument = str(chain.get("instrument") or "")
+        expiry = str(chain.get("expiry") or "")
+        symbols = {FYERS_SYMBOLS[instrument]} if instrument in FYERS_SYMBOLS else set()
+
+        with self._stream_lock:
+            for row in chain.get("strikes", []):
+                strike = int(float(row.get("strike") or 0))
+                for option_type, side_key in (("CE", "ce"), ("PE", "pe")):
+                    symbol = str((row.get(side_key) or {}).get("symbol") or "")
+                    if not symbol:
+                        continue
+                    symbols.add(symbol)
+                    self._contract_symbols[
+                        (instrument, strike, option_type, expiry)
+                    ] = symbol
+            self._desired_symbols.update(symbols)
+            ready = self._stream_ready
+
+        if ready:
+            # SDK symbol conversion can take ~0.5s. Keep it away from the
+            # scheduler/event-loop thread that broadcasts UI frames.
+            threading.Thread(
+                target=self._subscribe_pending,
+                name="fyers-quote-subscribe",
+                daemon=True,
+            ).start()
+
+    def _subscribe_pending(self) -> None:
+        with self._subscribe_lock:
+            with self._stream_lock:
+                socket = self._stream_socket
+                pending = sorted(self._desired_symbols - self._subscribed_symbols)
+            if not socket or not pending or self._stream_stop.is_set():
+                return
+            try:
+                socket.subscribe(symbols=pending, data_type="SymbolUpdate")
+                with self._stream_lock:
+                    self._subscribed_symbols.update(pending)
+                logger.info(
+                    "Fyers quote stream subscribed to %d new symbols",
+                    len(pending),
+                )
+            except Exception as exc:
+                logger.warning("Fyers quote subscription failed: %s", exc)
+
+    def _live_quote(self, symbol: str | None) -> tuple[float, str, int] | None:
+        if not symbol:
+            return None
+        with self._stream_lock:
+            quote = self._stream_quotes.get(symbol)
+        if quote is None:
+            return None
+        ltp, received_at, received_iso = quote
+        age_ms = max(0, round((time.monotonic() - received_at) * 1000))
+        if age_ms > STREAM_QUOTE_TTL_SECONDS * 1000:
+            return None
+        return ltp, received_iso, age_ms
+
+    def _overlay_live_quotes(self, structural: dict) -> dict:
+        """
+        Copy the REST structure and apply streamed LTPs.
+
+        The original `timestamp` remains the REST snapshot time. Live display
+        freshness is separate so one premium tick can never make the whole
+        structural snapshot appear fresh to execution safeguards.
+        """
+        chain = copy.deepcopy(structural)
+        newest: tuple[str, int] | None = None
+        live_count = 0
+
+        instrument = str(chain.get("instrument") or "")
+        spot = self._live_quote(FYERS_SYMBOLS.get(instrument))
+        if spot is not None:
+            chain["spot_price"] = spot[0]
+            newest = (spot[1], spot[2])
+            live_count += 1
+
+        for row in chain.get("strikes", []):
+            for side_key in ("ce", "pe"):
+                side = row.get(side_key) or {}
+                quote = self._live_quote(side.get("symbol"))
+                if quote is None:
+                    continue
+                side["ltp"] = quote[0]
+                side["quote_at"] = quote[1]
+                side["quote_age_ms"] = quote[2]
+                side["quote_source"] = "fyers_stream"
+                live_count += 1
+                if newest is None or quote[2] < newest[1]:
+                    newest = (quote[1], quote[2])
+
+        if spot is not None:
+            chain["atm_strike"] = self._get_atm_strike(
+                chain["spot_price"], chain.get("strikes", [])
+            )
+        chain["live_quote_at"] = newest[0] if newest else None
+        chain["live_quote_age_ms"] = newest[1] if newest else None
+        chain["live_quote_count"] = live_count
+        chain["live_quote_source"] = "fyers_stream" if live_count else None
+        return chain
+
+    def close(self) -> None:
+        """Stop the quote socket when provider_factory rotates the provider."""
+        self._stream_stop.set()
+        self._stream_ready = False
+        with self._stream_lock:
+            socket = self._stream_socket
+            self._stream_socket = None
+        if socket is not None:
+            try:
+                socket.close_connection()
+            except Exception as exc:
+                logger.debug("Fyers quote stream close failed: %s", exc)
 
     def _get_cached(self, key: tuple[Any, ...], ttl_seconds: int):
         entry = self._cache.get(key)

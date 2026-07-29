@@ -34,7 +34,7 @@ export default function FloatingOrderTicket({ ticket, disciplineOff = false, pre
   const [balance, setBalance] = useState(null)
   const setupRef = useRef(null)
 
-  // Live LTP straight off the market WebSocket chain (3s ticks).
+  // Live LTP straight off the market WebSocket chain (1s display ticks).
   const chains = useMarketStore(s => s.chains)
   const liveLtp = ltpFromChain(chains[instrument], strike, optionType) ?? Number(ticket.ltp) ?? 0
 
