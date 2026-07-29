@@ -8,8 +8,8 @@ import {
   Sparkles, Target, Trash2, Wallet, X,
 } from 'lucide-react'
 import {
-  Area, AreaChart, Bar, CartesianGrid, ComposedChart, Legend, Line, LineChart,
-  ReferenceLine, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis,
+  Area, AreaChart, CartesianGrid, Legend, Line, LineChart,
+  ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis,
 } from 'recharts'
 import { getOptionChainData, getOptionMetrics } from '../../api/options'
 import { getPositions } from '../../api/trading'
@@ -20,6 +20,7 @@ import {
 } from '../../api/strategy'
 import useMarketStore from '../../store/marketStore'
 import { useToast } from '../../components/common/Toast'
+import StrategyPayoffGraph from '../../components/strategy/StrategyPayoffGraph'
 import { formatCurrency } from '../../utils/formatters'
 import { SETUP_TAGS, SETUP_TAG_LABELS } from '../../utils/constants'
 import { getApiErrorMessage, toDisplayMessage } from '../../utils/apiError'
@@ -113,7 +114,7 @@ function ErrorDialog({ error, onRetry, onDismiss }) {
     <Modal
       title="Oops! Something went wrong"
       onClose={onDismiss}
-      actions={<><button className="osb-btn outline" onClick={onRetry}>Retry</button><button className="osb-btn primary" onClick={onDismiss}>Dismiss</button></>}
+      actions={<><button className="osb-btn secondary" onClick={onRetry}>Retry</button><button className="osb-btn primary" onClick={onDismiss}>Dismiss</button></>}
     >
       <div className="osb-error-copy"><AlertCircle size={28} /><p>{error.message || String(error)}</p></div>
     </Modal>
@@ -150,24 +151,80 @@ function TargetControls({ instrument, spot, targetPrice, setTargetPrice, targetD
   const dayMs = 86400000
   const dayCount = Math.max(0, Math.round((new Date(maxDate) - new Date(today)) / dayMs))
   const selectedDay = Math.max(0, Math.round((new Date(targetDate) - new Date(today)) / dayMs))
+  const targetMove = spot ? ((targetPrice - spot) / spot) * 100 : 0
+  const targetMin = Math.max(step, Math.floor((spot * 0.9) / step) * step)
+  const targetMax = Math.max(targetMin + step, Math.ceil((spot * 1.1) / step) * step)
   return (
     <div className="osb-target-controls">
-      <div className="osb-target-row">
-        <label>{instrument} Target</label>
-        <button type="button" className="osb-link" onClick={() => setTargetPrice(spot)}>Reset</button>
-        <Stepper value={Math.round(targetPrice || spot || 0)} onChange={setTargetPrice} min={1} step={step} ariaLabel={`${instrument} target`} />
-        <span className={targetPrice >= spot ? 'gain' : 'loss'}>{spot ? `${(((targetPrice - spot) / spot) * 100).toFixed(2)}%` : '—'}</span>
-        <input type="range" min={spot * 0.9} max={spot * 1.1} step={step} value={targetPrice || spot || 0} onChange={event => setTargetPrice(Number(event.target.value))} />
-      </div>
-      <div className="osb-target-row">
-        <label>Date <Tooltip text="The hypothetical valuation date. Entry prices and expiry payoff remain unchanged." /></label>
-        <button type="button" className="osb-link" onClick={() => setTargetDate(today)}>Reset</button>
-        <button type="button" className="osb-icon-btn" onClick={() => setTargetDate(isoDate(new Date(new Date(targetDate).getTime() - dayMs)))} disabled={selectedDay <= 0}><ChevronLeft size={14} /></button>
-        <strong>{new Date(`${targetDate}T15:30:00`).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' })} 3:30 PM</strong>
-        <button type="button" className="osb-icon-btn" onClick={() => setTargetDate(isoDate(new Date(new Date(targetDate).getTime() + dayMs)))} disabled={selectedDay >= dayCount}><ChevronRight size={14} /></button>
-        <input type="range" min={0} max={dayCount} step={1} value={selectedDay} onChange={event => setTargetDate(isoDate(new Date(new Date(today).getTime() + Number(event.target.value) * dayMs)))} />
-        <small>{selectedDay}d to target</small>
-      </div>
+      <section className="osb-target-card">
+        <header>
+          <div>
+            <span>{instrument} target</span>
+            <small>Move the underlying to model the outcome</small>
+          </div>
+          <b className={targetMove >= 0 ? 'gain' : 'loss'}>
+            {targetMove >= 0 ? '+' : ''}{targetMove.toFixed(2)}%
+          </b>
+        </header>
+        <div className="osb-target-main">
+          <Stepper
+            value={Math.round(targetPrice || spot || 0)}
+            onChange={setTargetPrice}
+            min={1}
+            step={step}
+            ariaLabel={`${instrument} target`}
+          />
+          <button type="button" className="osb-link" onClick={() => setTargetPrice(spot)}>Reset</button>
+        </div>
+        <input
+          type="range"
+          aria-label={`${instrument} target price`}
+          min={targetMin}
+          max={targetMax}
+          step={step}
+          value={targetPrice || spot || targetMin}
+          onChange={event => setTargetPrice(Number(event.target.value))}
+        />
+        <footer><span>{number(targetMin, 0)}</span><span>Spot {number(spot, 0)}</span><span>{number(targetMax, 0)}</span></footer>
+      </section>
+
+      <section className="osb-target-card">
+        <header>
+          <div>
+            <span>Target date <Tooltip text="The hypothetical valuation date. Entry prices and expiry payoff remain unchanged." /></span>
+            <small>Slide from today through expiry</small>
+          </div>
+          <b>{selectedDay}D</b>
+        </header>
+        <div className="osb-target-main date">
+          <button
+            type="button"
+            className="osb-icon-btn"
+            onClick={() => setTargetDate(isoDate(new Date(new Date(targetDate).getTime() - dayMs)))}
+            disabled={selectedDay <= 0}
+            aria-label="Previous target date"
+          ><ChevronLeft size={14} /></button>
+          <strong>{new Date(`${targetDate}T15:30:00`).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' })} · 3:30 PM</strong>
+          <button
+            type="button"
+            className="osb-icon-btn"
+            onClick={() => setTargetDate(isoDate(new Date(new Date(targetDate).getTime() + dayMs)))}
+            disabled={selectedDay >= dayCount}
+            aria-label="Next target date"
+          ><ChevronRight size={14} /></button>
+          <button type="button" className="osb-link" onClick={() => setTargetDate(today)}>Reset</button>
+        </div>
+        <input
+          type="range"
+          aria-label="Target date"
+          min={0}
+          max={dayCount}
+          step={1}
+          value={selectedDay}
+          onChange={event => setTargetDate(isoDate(new Date(new Date(today).getTime() + Number(event.target.value) * dayMs)))}
+        />
+        <footer><span>Today</span><span>{selectedDay}d selected</span><span>{dateLabel(maxDate)}</span></footer>
+      </section>
     </div>
   )
 }
@@ -571,12 +628,13 @@ export default function StrategyBuilderPage() {
   }
 
   const chartData = useMemo(() => {
-    const maxOi = Math.max(1, ...rows.flatMap(row => [row.ce?.oi || 0, row.pe?.oi || 0]))
-    return (analysis?.curves || []).filter((_, index) => index % chartZoom === 0).map(point => {
+    const points = analysis?.curves || []
+    if (!points.length) return []
+    return points.map(point => {
       const row = rows.find(item => Number(item.strike) === Number(point.price))
-      return { ...point, callOi: row?.ce?.oi || 0, putOi: row?.pe?.oi || 0, maxOi }
+      return { ...point, callOi: row?.ce?.oi || 0, putOi: row?.pe?.oi || 0 }
     })
-  }, [analysis, rows, chartZoom])
+  }, [analysis, rows])
 
   const historyData = useMemo(() => (context?.history || []).map(item => {
     const close = Number(item.close || item[4] || spot)
@@ -661,36 +719,21 @@ export default function StrategyBuilderPage() {
     <>
       <div className="osb-subtabs"><button className={payoffView === 'Payoff Graph' ? 'active' : ''} onClick={() => setPayoffView('Payoff Graph')}>Payoff Graph</button><button className={payoffView === 'Payoff Table' ? 'active' : ''} onClick={() => setPayoffView('Payoff Table')}>Payoff Table</button></div>
       {payoffView === 'Payoff Graph' ? (
-        <>
-          <div className="osb-chart-controls">
-            <span>OI data at {Math.round(spot / strikeStep) * strikeStep}</span><span className="call">Call OI</span><span className="put">Put OI</span><span className="expiry">On Expiry</span><span className="target">On Target Date</span>
-            <select value={sdMode} onChange={event => setSdMode(event.target.value)}><option>Fixed</option><option>Dynamic</option></select>
-            <select value={oiMode} onChange={event => setOiMode(event.target.value)}><option>Bars</option><option>Off</option></select>
-          </div>
-          <div className="osb-payoff-chart">
-            {analysisBusy && <span className="osb-chart-spinner"><Loader2 className="spin" size={18} /> Recalculating</span>}
-            <button className="osb-zoom" onClick={() => setChartZoom(value => value === 1 ? 2 : value === 2 ? 4 : 1)}>{chartZoom === 1 ? 'Zoom In' : 'Zoom Out'}</button>
-            <ResponsiveContainer width="100%" height={390}>
-              <ComposedChart data={chartData} margin={{ top: 24, right: 34, left: 18, bottom: 8 }}>
-                <defs>
-                  <linearGradient id="osbGain" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="var(--gain)" stopOpacity=".24" /><stop offset="1" stopColor="var(--gain)" stopOpacity=".02" /></linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--osb-border)" />
-                <XAxis dataKey="price" tick={{ fontSize: 10 }} />
-                <YAxis yAxisId="pnl" tickFormatter={value => `${Math.round(value / 1000)}k`} tick={{ fontSize: 10 }} label={{ value: 'Profit / loss (₹)', angle: -90, position: 'insideLeft', fontSize: 10 }} />
-                <YAxis yAxisId="oi" orientation="right" hide={oiMode === 'Off'} tickFormatter={value => `${(value / 100000).toFixed(0)}L`} tick={{ fontSize: 10 }} />
-                <ChartTooltip formatter={(value, key) => key.includes('Oi') ? Number(value).toLocaleString('en-IN') : cash(value)} />
-                {oiMode !== 'Off' && <><Bar yAxisId="oi" dataKey="callOi" fill="var(--loss)" opacity={0.35} /><Bar yAxisId="oi" dataKey="putOi" fill="var(--gain)" opacity={0.35} /></>}
-                <Area yAxisId="pnl" dataKey="expiry_pnl" stroke="var(--loss)" fill="url(#osbGain)" strokeWidth={2} />
-                <Line yAxisId="pnl" type="monotone" dataKey="target_pnl" stroke="var(--primary)" strokeWidth={2} dot={false} />
-                <ReferenceLine yAxisId="pnl" y={0} stroke="var(--text-muted)" />
-                {spot > 0 && <ReferenceLine yAxisId="pnl" x={spot} stroke="var(--warn)" strokeWidth={2} label={{ value: `Current price: ${number(spot)}`, fill: 'var(--warn)', fontSize: 10 }} />}
-                {analysis?.standard_deviation && [-2, -1, 1, 2].map(mult => <ReferenceLine key={mult} yAxisId="pnl" x={spot + mult * analysis.standard_deviation.one.points} stroke="var(--text-muted)" strokeDasharray="4 4" label={{ value: `${mult}SD`, fontSize: 9, fill: 'var(--text-muted)' }} />)}
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-          <div className={`osb-projected ${Number(analysis?.projected?.pnl) >= 0 ? 'gain' : 'loss'}`}>{Number(analysis?.projected?.pnl) >= 0 ? 'Projected profit' : 'Projected loss'}: {cash(Math.abs(analysis?.projected?.pnl || 0))} ({number(analysis?.projected?.percent)}%) <Tooltip text="Modelled P&L at the selected target price and date." /></div>
-        </>
+        <StrategyPayoffGraph
+          analysis={analysis}
+          analysisBusy={analysisBusy}
+          chartData={chartData}
+          chartZoom={chartZoom}
+          instrument={instrument}
+          oiMode={oiMode}
+          sdMode={sdMode}
+          setChartZoom={setChartZoom}
+          setOiMode={setOiMode}
+          setSdMode={setSdMode}
+          spot={spot}
+          strikeStep={strikeStep}
+          targetDate={targetDate}
+        />
       ) : (
         <>
           <div className="osb-table-controls"><label>Target Interval <select value={interval} onChange={event => setIntervalValue(Number(event.target.value))}><option value={25}>25</option><option value={50}>50</option><option value={100}>100</option></select></label><Toggle checked={showPercent} onChange={setShowPercent} label="Show %" /></div>
@@ -773,8 +816,8 @@ export default function StrategyBuilderPage() {
                 <button className="osb-link" onClick={() => setShowCharges(true)}><Calculator size={13} /> Charges</button>
               </div>
               <div className="osb-action-row">
-                <button className="osb-btn outline" onClick={openChain}>Add/Edit</button>
-                <button className="osb-btn outline" onClick={() => persistConfiguration('DRAFT', strategyName || `Draft · ${new Date().toLocaleString('en-IN')}`)}>Add to Drafts</button>
+                <button className="osb-btn secondary" onClick={openChain}>Add/Edit</button>
+                <button className="osb-btn secondary" onClick={() => persistConfiguration('DRAFT', strategyName || `Draft · ${new Date().toLocaleString('en-IN')}`)}>Add to Drafts</button>
                 <button className="osb-btn primary" onClick={() => setTradeDialog(true)} disabled={!includedLegs.length || analysisBusy}>{includedLegs.length === 1 ? (includedLegs[0].action === 'BUY' ? 'Buy' : 'Sell') : 'Trade All'}</button>
                 <div className="osb-overflow"><button className="osb-more" onClick={() => setShowOverflow(value => !value)}><MoreHorizontal size={17} /></button>{showOverflow && <div><button onClick={() => configId ? persistConfiguration('SAVED', strategyName) : setSaveDialog({ kind: 'SAVED', clone: false })}>Save</button><button disabled={!strategyName} onClick={() => setSaveDialog({ kind: 'SAVED', clone: true })}>Save As</button><button disabled={!configId} onClick={() => { navigator.clipboard?.writeText(`${window.location.origin}/strategy-builder?config=${configId}`); toast.success('Private strategy link copied') }}>Share <ChevronRight size={13} /></button></div>}</div>
               </div>
@@ -850,17 +893,17 @@ export default function StrategyBuilderPage() {
             {chainMode === 'Strangles' && <div className="osb-combo-list">{rows.slice(0, Math.floor(rows.length / 2)).map((row, index) => { const peer = rows[rows.length - 1 - index]; return <div key={`${row.strike}-${peer.strike}`}><b>{row.strike} PE / {peer.strike} CE</b><span>{cash((row.pe?.ltp || 0) + (peer.ce?.ltp || 0))}</span><button className="buy" onClick={() => addPair(row.strike, 'PE', peer.strike, 'CE', 'BUY')}>B</button><button className="sell" onClick={() => addPair(row.strike, 'PE', peer.strike, 'CE', 'SELL')}>S</button></div> })}</div>}
             {chainMode === 'Futures' && <div className="osb-futures-list"><table className="osb-data-table"><thead><tr><th>Expiry</th><th>B/S</th><th>Price</th></tr></thead><tbody>{(context?.futures || []).map((future, index) => { const exp = future.expiry || future.expiry_date || expiries[index]; const price = future.price || future.quote?.last_price || spot; return <tr key={exp}><td>{dateLabel(exp)} ({future.days ?? Math.max(0, Math.round((new Date(exp) - new Date()) / 86400000))} Days)</td><td><button className="buy" onClick={() => addStaged({ ...makeLeg(null, 'FUT', 'BUY', rows, exp), price, liveLtp: price })}>B</button><button className="sell" onClick={() => addStaged({ ...makeLeg(null, 'FUT', 'SELL', rows, exp), price, liveLtp: price })}>S</button></td><td>{number(price)}</td></tr>})}</tbody></table><h3>Synthetic Futures <Tooltip text="Call-put synthetic at the ATM strike." /></h3><div className="osb-combo-list">{expiries.slice(0, 3).map(exp => { const atm = chain?.atm_strike || Math.round(spot / strikeStep) * strikeStep; return <div key={exp}><b>{dateLabel(exp)} Synthetic FUT *</b><span>{atm}</span><button className="buy" onClick={() => addStaged([makeLeg(atm, 'CE', 'BUY', rows, exp), makeLeg(atm, 'PE', 'SELL', rows, exp)])}>B</button><button className="sell" onClick={() => addStaged([makeLeg(atm, 'CE', 'SELL', rows, exp), makeLeg(atm, 'PE', 'BUY', rows, exp)])}>S</button></div>})}</div></div>}
           </div>
-          <footer className="osb-chain-footer"><b>{stagedLegs.length} leg(s) selected</b><div><button className="osb-btn outline" onClick={() => setStagedLegs([])}>Clear All</button><button className="osb-btn primary" onClick={() => { setLegs(stagedLegs); setActiveTemplate(null); setChainOverlay(false) }}>Done</button></div></footer>
+          <footer className="osb-chain-footer"><b>{stagedLegs.length} leg(s) selected</b><div><button className="osb-btn secondary" onClick={() => setStagedLegs([])}>Clear All</button><button className="osb-btn primary" onClick={() => { setLegs(stagedLegs); setActiveTemplate(null); setChainOverlay(false) }}>Done</button></div></footer>
         </section>}
       </div>}
 
-      {showInsights && <aside className="osb-insights"><header><div><span><Clock3 size={14} /> Decay</span><h2>Your warnings</h2></div><button onClick={() => setShowInsights(false)}><X /></button></header><div>{warnings.length ? warnings.map((warning, index) => <article key={warning}><b>{index === 0 && warning.includes('theta') ? 'Weekend theta bleed' : 'Strategy warning'}</b><p>{warning} Review the payoff and target-date projection before executing the paper strategy.</p></article>) : <div className="osb-list-empty"><Check size={30} /><b>No current warnings</b></div>}</div><button className="osb-btn outline wide" onClick={() => setShowInsights(false)}>Hide</button></aside>}
+      {showInsights && <aside className="osb-insights"><header><div><span><Clock3 size={14} /> Decay</span><h2>Your warnings</h2></div><button onClick={() => setShowInsights(false)}><X /></button></header><div>{warnings.length ? warnings.map((warning, index) => <article key={warning}><b>{index === 0 && warning.includes('theta') ? 'Weekend theta bleed' : 'Strategy warning'}</b><p>{warning} Review the payoff and target-date projection before executing the paper strategy.</p></article>) : <div className="osb-list-empty"><Check size={30} /><b>No current warnings</b></div>}</div><button className="osb-btn secondary wide" onClick={() => setShowInsights(false)}>Hide</button></aside>}
 
-      {pendingMode && <Modal onClose={() => setPendingMode(null)} actions={<><button className="osb-btn outline" onClick={() => setPendingMode(null)}>Cancel</button><button className="osb-btn primary" onClick={() => { setStagedLegs([]); setChainMode(pendingMode); setPendingMode(null) }}>Proceed</button></>}><p>You are changing strategy type from <b>{chainMode}</b> to <b>{pendingMode}</b>. Existing overlay selections will be cleared.</p></Modal>}
+      {pendingMode && <Modal onClose={() => setPendingMode(null)} actions={<><button className="osb-btn secondary" onClick={() => setPendingMode(null)}>Cancel</button><button className="osb-btn primary" onClick={() => { setStagedLegs([]); setChainMode(pendingMode); setPendingMode(null) }}>Proceed</button></>}><p>You are changing strategy type from <b>{chainMode}</b> to <b>{pendingMode}</b>. Existing overlay selections will be cleared.</p></Modal>}
       {showCharges && <Modal title="Charges breakdown" onClose={() => setShowCharges(false)} actions={<button className="osb-btn primary" onClick={() => setShowCharges(false)}>Done</button>}><div className="osb-charge-list">{Object.entries(analysis?.pricing?.charges || {}).map(([key, value]) => <div key={key}><span>{key.replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase())}</span><b>{cash(value)}</b></div>)}</div></Modal>}
-      {showManualDialog && <Modal title="Manual P/L" onClose={() => setShowManualDialog(false)} actions={<><button className="osb-btn outline" onClick={() => { setManualPnl(0); setShowManualDialog(false) }}>Clear</button><button className="osb-btn primary" onClick={() => setShowManualDialog(false)}>Apply</button></>}><label className="osb-field">Signed P&L amount (₹)<input autoFocus type="number" value={manualPnl} onChange={event => setManualPnl(Number(event.target.value))} /><small>Use a negative number for a manual loss.</small></label></Modal>}
-      {saveDialog && <Modal title={saveDialog.clone ? 'Save strategy as' : 'Save strategy'} onClose={() => setSaveDialog(null)} actions={<><button className="osb-btn outline" onClick={() => setSaveDialog(null)}>Cancel</button><button className="osb-btn primary" disabled={!saveDialog.name?.trim()} onClick={() => persistConfiguration('SAVED', saveDialog.name, saveDialog.clone)}>Save</button></>}><label className="osb-field">Strategy name<input autoFocus maxLength={100} value={saveDialog.name ?? strategyName} onChange={event => setSaveDialog(current => ({ ...current, name: event.target.value }))} placeholder="e.g. NIFTY weekly iron condor" /></label></Modal>}
-      {tradeDialog && <Modal title="Review paper execution" onClose={() => !executing && setTradeDialog(false)} actions={<><button className="osb-btn outline" disabled={executing} onClick={() => setTradeDialog(false)}>Cancel</button><button className="osb-btn primary" disabled={!setupTag || executing} onClick={execute}>{executing ? <><Loader2 className="spin" size={14} /> Executing…</> : 'Confirm Trade All'}</button></>}><div className="osb-trade-review"><div><span>Strategy</span><b>{displayName} · {includedLegs.length} legs</b></div><div><span>Estimated funds</span><b>{cash(analysis?.funds?.funds_needed)}</b></div><label className="osb-field">Setup tag<select value={setupTag} onChange={event => setSetupTag(event.target.value)}><option value="">Select setup</option>{SETUP_TAGS.map(tag => <option key={tag} value={tag}>{SETUP_TAG_LABELS[tag]}</option>)}</select></label><label className="osb-field">Product<select value={productType} onChange={event => setProductType(event.target.value)}><option value="INTRADAY">Intraday</option><option value="NRML">Positional</option></select></label><p><ShieldAlert size={16} /> Live paper fills are re-quoted by the server. What-if prices are never used as executable prices.</p></div></Modal>}
+      {showManualDialog && <Modal title="Manual P/L" onClose={() => setShowManualDialog(false)} actions={<><button className="osb-btn secondary" onClick={() => { setManualPnl(0); setShowManualDialog(false) }}>Clear</button><button className="osb-btn primary" onClick={() => setShowManualDialog(false)}>Apply</button></>}><label className="osb-field">Signed P&L amount (₹)<input autoFocus type="number" value={manualPnl} onChange={event => setManualPnl(Number(event.target.value))} /><small>Use a negative number for a manual loss.</small></label></Modal>}
+      {saveDialog && <Modal title={saveDialog.clone ? 'Save strategy as' : 'Save strategy'} onClose={() => setSaveDialog(null)} actions={<><button className="osb-btn secondary" onClick={() => setSaveDialog(null)}>Cancel</button><button className="osb-btn primary" disabled={!saveDialog.name?.trim()} onClick={() => persistConfiguration('SAVED', saveDialog.name, saveDialog.clone)}>Save</button></>}><label className="osb-field">Strategy name<input autoFocus maxLength={100} value={saveDialog.name ?? strategyName} onChange={event => setSaveDialog(current => ({ ...current, name: event.target.value }))} placeholder="e.g. NIFTY weekly iron condor" /></label></Modal>}
+      {tradeDialog && <Modal title="Review paper execution" onClose={() => !executing && setTradeDialog(false)} actions={<><button className="osb-btn secondary" disabled={executing} onClick={() => setTradeDialog(false)}>Cancel</button><button className="osb-btn primary" disabled={!setupTag || executing} onClick={execute}>{executing ? <><Loader2 className="spin" size={14} /> Executing…</> : 'Confirm Trade All'}</button></>}><div className="osb-trade-review"><div><span>Strategy</span><b>{displayName} · {includedLegs.length} legs</b></div><div><span>Estimated funds</span><b>{cash(analysis?.funds?.funds_needed)}</b></div><label className="osb-field">Setup tag<select value={setupTag} onChange={event => setSetupTag(event.target.value)}><option value="">Select setup</option>{SETUP_TAGS.map(tag => <option key={tag} value={tag}>{SETUP_TAG_LABELS[tag]}</option>)}</select></label><label className="osb-field">Product<select value={productType} onChange={event => setProductType(event.target.value)}><option value="INTRADAY">Intraday</option><option value="NRML">Positional</option></select></label><p><ShieldAlert size={16} /> Live paper fills are re-quoted by the server. What-if prices are never used as executable prices.</p></div></Modal>}
       <ErrorDialog error={errorState} onRetry={() => { setErrorState(null); retryRef.current?.() }} onDismiss={() => setErrorState(null)} />
     </div>
   )

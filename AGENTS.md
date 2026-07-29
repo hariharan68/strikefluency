@@ -581,8 +581,8 @@ something threw inside render — check the console before assuming a data probl
 
 ### Design system
 
-**Three themes**, all token-driven from `src/styles/index.css`: `dark` (default),
-`light` (misty), `forest-light`. `useTheme.js` stamps a class plus
+**Four themes**, all token-driven from `src/styles/index.css`: `dark` (default),
+`light` (misty), `forest-light`, `aqua-light`. `useTheme.js` stamps a class plus
 `data-theme` on `<html>`.
 
 - **Never hardcode a hex value.** Use the CSS custom properties. Use

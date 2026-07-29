@@ -11,7 +11,12 @@ import FyersSetupWizard from '../../components/broker/FyersSetupWizard'
 import KiteSetupWizard from '../../components/broker/KiteSetupWizard'
 import DisciplineModeToggle from '../../components/discipline/DisciplineModeToggle'
 import { getSessions, logout, logoutAll, revokeSession, updateProfile } from '../../api/auth'
-import useTheme, { DARK_THEME, FOREST_LIGHT_THEME, MISTY_LIGHT_THEME } from '../../hooks/useTheme'
+import useTheme, {
+  AQUA_LIGHT_THEME,
+  DARK_THEME,
+  FOREST_LIGHT_THEME,
+  MISTY_LIGHT_THEME,
+} from '../../hooks/useTheme'
 import useLayoutMode, { FULL_LAYOUT, ICON_LAYOUT } from '../../hooks/useLayoutMode'
 import { User, Bell, Shield, ShieldCheck, Globe, LogOut, ChevronRight, Link as LinkIcon, RefreshCw, Unplug, Trash2, Palette, PanelLeft, Check } from 'lucide-react'
 import { getApiErrorMessage } from '../../utils/apiError'
@@ -592,7 +597,7 @@ const THEME_OPTIONS = [
   {
     id: FOREST_LIGHT_THEME,
     name: 'Forest Paper',
-    badge: 'New light',
+    badge: 'Warm light',
     description: 'Warm paper surfaces with forest, mint, and amber tones.',
     canvas: '#f6f3ea',
     surface: 'rgba(255,253,247,0.92)',
@@ -600,6 +605,18 @@ const THEME_OPTIONS = [
     primary: '#123e32',
     text: '#10231d',
     previewBackground: 'radial-gradient(circle at 88% 8%, rgba(69,199,149,0.25), transparent 48%), radial-gradient(circle at 8% 92%, rgba(210,138,50,0.16), transparent 44%), #f6f3ea',
+  },
+  {
+    id: AQUA_LIGHT_THEME,
+    name: 'Aqua Cloud',
+    badge: 'New light',
+    description: 'Airy blue canvas, crisp white cards, and a bright aqua accent.',
+    canvas: '#f4f7fd',
+    surface: '#ffffff',
+    line: 'rgba(26,32,68,0.10)',
+    primary: '#42c8bd',
+    text: '#1a203c',
+    previewBackground: 'radial-gradient(circle at 90% 8%, rgba(66,200,189,0.18), transparent 42%), linear-gradient(145deg, #f7f9fe, #edf2fa)',
   },
 ]
 

@@ -18,6 +18,11 @@
   --color-surface: #fffdf7;
   --color-surface2: #ebe8dd;
 }
+
+:root.aqua-light .floating-order-ticket {
+  --color-surface: var(--bg-alt);
+  --color-surface2: var(--bg-deep);
+}
 .floating-paper-only-notice {
   display: flex;
   align-items: flex-start;

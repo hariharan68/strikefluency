@@ -6,7 +6,7 @@ Virtual trading endpoints:
   GET  /trading/account           → account balance + discipline summary
   POST /trading/orders            → place a new virtual order
   GET  /trading/orders            → orderbook (today by default; ?scope=all)
-  GET  /trading/tradebook         → today's executed trades (?scope=all)
+  GET  /trading/tradebook         → today's filled trades (?scope=all)
   GET  /trading/orders/{id}       → single order detail
   POST /trading/orders/{id}/close → close an open position manually
   GET  /trading/positions         → all open positions with live P&L
@@ -255,14 +255,18 @@ def list_tradebook(
     scope: str = Query(default="today", pattern="^(today|all)$"),
 ):
     """
-    The tradebook — executed (no longer OPEN) orders, newest first.
+    The tradebook — every filled order, newest first.
 
     scope=today (default) shows only the current trading day's fills, so it
     resets each morning like the orderbook; scope=all returns full trade history.
+
+    ``OPEN`` is a position state, not an execution state. A VirtualOrder is
+    created only after an entry fill, so open entries belong in the tradebook
+    immediately. Unfilled/cancelled LIMIT orders live in ``pending_orders``.
     """
     query = db.query(VirtualOrder).filter(
         VirtualOrder.user_id == current_user.id,
-        VirtualOrder.status != OrderStatus.OPEN,
+        VirtualOrder.status != OrderStatus.CANCELLED,
     )
 
     if scope == "today":

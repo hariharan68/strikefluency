@@ -36,7 +36,7 @@ import './PositionsWorkspace.css'
 
 const TABS = [
   { key: 'positions', label: 'Live Positions' },
-  { key: 'tradebook', label: 'Position Book' },
+  { key: 'tradebook', label: 'Tradebook' },
   { key: 'orderbook', label: 'Orderbook' },
   { key: 'pending', label: 'Open Pending' },
   { key: 'logs', label: 'Logs' },
@@ -305,7 +305,7 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
       })
     }
 
-    const coreFailed = !positionsResult.ok || !ordersResult.ok || !tradesResult.ok
+    const coreFailed = !positionsResult.ok || !strategiesResult.ok || !ordersResult.ok || !tradesResult.ok
     if (coreFailed) setLoadError('Some trading data could not be refreshed. Showing the latest available values.')
     if (!quiet) setLoading(false)
   }, [])
@@ -510,7 +510,8 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
 
   const openPnl = positions.reduce((sum, position) => sum + liveForPosition(position).pnl, 0)
     + strategies.reduce((sum, strategy) => sum + liveForStrategy(strategy), 0)
-  const tradebookPnl = trades.reduce((sum, trade) => sum + asNumber(trade.pnl), 0)
+  const completedTrades = trades.filter(trade => trade.status !== 'OPEN')
+  const tradebookPnl = completedTrades.reduce((sum, trade) => sum + asNumber(trade.pnl), 0)
   const bookedPnl = account?.today_realized_pnl != null
     ? asNumber(account.today_realized_pnl)
     : tradebookPnl
@@ -540,12 +541,12 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
     && positions.every(position => orderById.get(String(position.order_id))?.sl_price != null)
     && strategies.every(strategy => strategy.max_loss != null)
 
-  const winningTrades = trades.filter(trade => asNumber(trade.pnl) > 0)
-  const losingTrades = trades.filter(trade => asNumber(trade.pnl) <= 0)
-  const winRate = trades.length ? winningTrades.length / trades.length * 100 : 0
-  const bestTrade = trades.length ? Math.max(...trades.map(trade => asNumber(trade.pnl))) : 0
-  const maxDrawdown = trades.length ? Math.min(0, ...trades.map(trade => asNumber(trade.pnl))) : 0
-  const rewardRiskValues = trades.map(trade => {
+  const winningTrades = completedTrades.filter(trade => asNumber(trade.pnl) > 0)
+  const losingTrades = completedTrades.filter(trade => asNumber(trade.pnl) <= 0)
+  const winRate = completedTrades.length ? winningTrades.length / completedTrades.length * 100 : 0
+  const bestTrade = completedTrades.length ? Math.max(...completedTrades.map(trade => asNumber(trade.pnl))) : 0
+  const maxDrawdown = completedTrades.length ? Math.min(0, ...completedTrades.map(trade => asNumber(trade.pnl))) : 0
+  const rewardRiskValues = completedTrades.map(trade => {
     const entry = asNumber(trade.entry_price)
     const risk = Math.abs(entry - asNumber(trade.sl_price))
     const reward = Math.abs(asNumber(trade.target_price) - entry)
@@ -1005,19 +1006,23 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
 
     if (tab === 'tradebook') {
       if (!visibleTrades.length) {
-        return <EmptyState icon={Wallet} title="No closed positions today" description="Completed trades will appear here with their realized result." />
+        return <EmptyState icon={Wallet} title="No fills today" description="Executed entry and exit fills will appear here." />
       }
       const renderTrade = (trade, grouped = false) => {
-        const pnl = asNumber(trade.pnl)
+        const isOpen = trade.status === 'OPEN'
+        const pnl = isOpen || trade.pnl == null ? null : asNumber(trade.pnl)
         return (
           <tr className={grouped ? 'positions-strategy-leg-row' : undefined} key={trade.id}>
-            <td className="num muted">{formatTime(trade.exit_time || trade.entry_time)}</td>
+            <td className="num muted">{formatTime(trade.entry_time)}</td>
+            <td className="num muted">{formatTime(trade.exit_time)}</td>
             <td>{grouped ? <StrategyChildInstrument item={trade} /> : <InstrumentCell item={trade} />}</td>
             <td><SideBadge side={trade.action} /></td>
             <td className="align-right num">{trade.quantity}</td>
             <td className="align-right num">{money(trade.entry_price)}</td>
             <td className="align-right num">{trade.exit_price == null ? '—' : money(trade.exit_price)}</td>
-            <td className={`align-right num pnl ${pnl >= 0 ? 'gain' : 'loss'}`}>{signedMoney(pnl)}</td>
+            <td className={`align-right num pnl ${pnl == null ? '' : pnl >= 0 ? 'gain' : 'loss'}`}>
+              {pnl == null ? '—' : signedMoney(pnl)}
+            </td>
             <td><StatusPill status={trade.status} /></td>
           </tr>
         )
@@ -1026,16 +1031,16 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
         <div className="positions-table-scroll">
           <table className="positions-table book-table">
             <thead><tr>
-              <th>Exit Time</th><th>Instrument</th><th>Side</th><th className="align-right">Lots</th>
+              <th>Entry Time</th><th>Exit Time</th><th>Instrument</th><th>Side</th><th className="align-right">Lots</th>
               <th className="align-right">Entry</th><th className="align-right">Exit</th>
-              <th className="align-right">Booked P&amp;L</th><th>Reason</th>
+              <th className="align-right">Realized P&amp;L</th><th>Status</th>
             </tr></thead>
             <tbody>
               {tradeSections.map(section => (
                 section.strategy
                   ? (
                     <Fragment key={section.key}>
-                      <StrategyBookHeader strategy={section.strategy} colSpan={8} />
+                      <StrategyBookHeader strategy={section.strategy} colSpan={9} />
                       {section.items.map(trade => renderTrade(trade, true))}
                     </Fragment>
                   )

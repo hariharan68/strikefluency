@@ -73,6 +73,63 @@ def test_full_lifecycle(api_client, market_open):
     assert api_client.get(f"{P}/{sid}").json()["status"] == "CLOSED"
 
 
+def test_execute_preview_is_visible_in_positions_and_tradebook(api_client, market_open):
+    """The one-request Builder flow must not leave its ORM leg collection stale."""
+    expanded = api_client.get(
+        f"{P}/templates/short_straddle/legs",
+        params={"underlying": "NIFTY"},
+    )
+    assert expanded.status_code == 200, expanded.text
+
+    preview_legs = []
+    for index, leg in enumerate(expanded.json()["legs"]):
+        preview_legs.append({
+            "client_id": f"builder-leg-{index}",
+            "included": True,
+            "action": leg["action"],
+            "instrument_type": leg["instrument_type"],
+            "strike": leg["strike"],
+            "lots": leg["lots"],
+            "expiry": leg["expiry"],
+            "entry_price": leg["ltp"],
+            "live_ltp": leg["ltp"],
+            "iv": leg["iv"],
+        })
+
+    executed = api_client.post(f"{P}/execute-preview", json={
+        "underlying": "NIFTY",
+        "multiplier": 1,
+        "name": "Builder straddle",
+        "setup_tag": "OI_BASED",
+        "product_type": "INTRADAY",
+        "legs": preview_legs,
+    })
+    assert executed.status_code == 200, executed.text
+    strategy_id = executed.json()["strategy"]["id"]
+
+    # PositionsWorkspace reads strategy positions from this list endpoint.
+    listed = api_client.get(P, params={"page_size": 100})
+    assert listed.status_code == 200, listed.text
+    visible = next(
+        row for row in listed.json()["strategies"]
+        if row["id"] == strategy_id
+    )
+    assert visible["status"] == "EXECUTED"
+    assert visible["position"]["is_open"] is True
+    assert len(visible["legs"]) == 2
+
+    # An OPEN VirtualOrder is already an executed entry fill and belongs in the
+    # tradebook immediately; OPEN describes the resulting position.
+    tradebook = api_client.get("/api/v1/trading/tradebook")
+    assert tradebook.status_code == 200, tradebook.text
+    mirrored = [
+        row for row in tradebook.json()["orders"]
+        if row["strategy_id"] == strategy_id
+    ]
+    assert len(mirrored) == 2
+    assert all(row["status"] == OrderStatus.OPEN for row in mirrored)
+
+
 def test_off_hours_exit_keeps_four_leg_nrml_strategy_open(
     api_client, db_session, market_open, monkeypatch
 ):

@@ -3,12 +3,22 @@ import { useCallback, useEffect, useState } from 'react'
 export const DARK_THEME = 'dark'
 export const MISTY_LIGHT_THEME = 'light'
 export const FOREST_LIGHT_THEME = 'forest-light'
+export const AQUA_LIGHT_THEME = 'aqua-light'
 
 const THEME_STORAGE_KEY = 'sf-theme'
 const LIGHT_THEME_STORAGE_KEY = 'sf-light-theme'
 const THEME_CHANGE_EVENT = 'sf-theme-change'
-const VALID_THEMES = new Set([DARK_THEME, MISTY_LIGHT_THEME, FOREST_LIGHT_THEME])
-const VALID_LIGHT_THEMES = new Set([MISTY_LIGHT_THEME, FOREST_LIGHT_THEME])
+const VALID_THEMES = new Set([
+  DARK_THEME,
+  MISTY_LIGHT_THEME,
+  FOREST_LIGHT_THEME,
+  AQUA_LIGHT_THEME,
+])
+const VALID_LIGHT_THEMES = new Set([
+  MISTY_LIGHT_THEME,
+  FOREST_LIGHT_THEME,
+  AQUA_LIGHT_THEME,
+])
 
 const normalizeTheme = (theme) => VALID_THEMES.has(theme) ? theme : DARK_THEME
 
@@ -32,6 +42,7 @@ export const applyTheme = (theme) => {
   root.classList.toggle(DARK_THEME, nextTheme === DARK_THEME)
   root.classList.toggle(MISTY_LIGHT_THEME, nextTheme === MISTY_LIGHT_THEME)
   root.classList.toggle(FOREST_LIGHT_THEME, nextTheme === FOREST_LIGHT_THEME)
+  root.classList.toggle(AQUA_LIGHT_THEME, nextTheme === AQUA_LIGHT_THEME)
   root.dataset.theme = nextTheme
 
   localStorage.setItem(THEME_STORAGE_KEY, nextTheme)

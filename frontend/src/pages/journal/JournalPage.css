@@ -47,6 +47,19 @@
   background-color: #f5f2e9;
 }
 
+:root.aqua-light .journal-page {
+  --color-surface: var(--bg-alt);
+  --color-surface2: var(--bg-deep);
+  --border: var(--color-border);
+  --border-light: color-mix(in srgb, var(--color-border) 68%, transparent);
+  --primary-bg: var(--color-accent-bg);
+  --primary-border: var(--color-border2);
+  --gain-bg: color-mix(in srgb, var(--gain) 10%, var(--bg-alt));
+  --loss-bg: color-mix(in srgb, var(--loss) 10%, var(--bg-alt));
+  --warn-bg: color-mix(in srgb, var(--warn) 12%, var(--bg-alt));
+  background-color: var(--bg);
+}
+
 .journal-page button,
 .journal-page input,
 .journal-page select,

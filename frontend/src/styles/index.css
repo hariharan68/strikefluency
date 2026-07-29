@@ -245,6 +245,86 @@
   --paper-warmth: rgba(210,138,50,0.08);
 }
 
+/* Crisp aqua-on-cloud light theme inspired by airy analytics dashboards.
+   Unlike Misty Teal, surfaces stay opaque so dense trading data remains sharp. */
+:root.aqua-light {
+  color-scheme: light;
+
+  --color-bg: #f4f7fd;
+  --color-surface: #ffffff;
+  --color-surface2: #f8faff;
+  --color-border: rgba(26,32,60,0.09);
+  --color-border2: rgba(13,142,134,0.24);
+  --color-accent: #0d8e86;
+  --color-accent-d: #08736e;
+  --color-accent-l: #42c8bd;
+  --color-accent-bg: rgba(66,200,189,0.12);
+  --color-text: #1a203c;
+  --color-text2: #4a557a;
+  --color-muted: #7c88a6;
+  --color-subtle: #7c88a6;
+  --color-faint: #a8b1c7;
+
+  --bg: #f4f7fd;
+  --bg-deep: #eaf0fa;
+  --bg-alt: #ffffff;
+  --bg-panel: #ffffff;
+  --tile: #ffffff;
+  --sidebar-bg: #f8faff;
+  --sidebar-active: #0d8e86;
+  --sidebar-active-bg: #ffffff;
+  --border: rgba(26,32,60,0.09);
+  --border-light: rgba(26,32,60,0.06);
+  --text: #1a203c;
+  --text-sub: #4a557a;
+  --text-muted: #7c88a6;
+  --primary: #0d8e86;
+  --primary-dark: #08736e;
+  --primary-bg: rgba(66,200,189,0.12);
+  --primary-border: rgba(13,142,134,0.24);
+  --primary-glow-rgb: 66,200,189;
+  --on-primary: #ffffff;
+
+  --secondary: #42c8bd;
+  --secondary-bg: rgba(66,200,189,0.10);
+  --gain: #159b69;
+  --gain-bg: rgba(21,155,105,0.10);
+  --gain-text: #117a55;
+  --gain-bar: #2bc48a;
+  --loss: #df5269;
+  --loss-bg: rgba(223,82,105,0.10);
+  --loss-text: #b63850;
+  --loss-bar: #df5269;
+  --warn: #c98818;
+  --warn-bg: rgba(201,136,24,0.11);
+  --itm-bg: rgba(246,190,84,0.14);
+
+  --brand-dark: #ffffff;
+  --brand-dark-soft: #f8faff;
+
+  --accent-gradient: linear-gradient(135deg, #42c8bd 0%, #6edacf 100%);
+  --card-glow: inset 0 1px rgba(255,255,255,0.92);
+
+  --shadow: 0 8px 26px rgba(36,49,89,0.06), var(--card-glow);
+  --shadow-md: 0 16px 42px rgba(36,49,89,0.11), var(--card-glow);
+  --shadow-pop: 0 28px 72px rgba(36,49,89,0.18);
+
+  --footer-bg: #1a203c;
+  --footer-bg2: #11162d;
+  --footer-text: #adb7d0;
+  --footer-heading: #ffffff;
+  --footer-link: #70ddd4;
+  --footer-link-hover: #ffffff;
+  --footer-muted: #c7cfe0;
+  --footer-sub: #909cba;
+  --footer-divider: rgba(255,255,255,0.13);
+  --footer-social-border: rgba(255,255,255,0.18);
+  --footer-social-hover: rgba(255,255,255,0.08);
+
+  --cloud-aqua: rgba(66,200,189,0.12);
+  --cloud-blue: rgba(99,128,210,0.08);
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html { min-height: 100%; }
@@ -280,6 +360,15 @@ body {
   background-image:
     radial-gradient(64% 78% at 104% -8%, var(--paper-glow), transparent 64%),
     radial-gradient(48% 58% at -8% 94%, var(--paper-warmth), transparent 70%),
+    linear-gradient(145deg, var(--bg) 0%, var(--bg-deep) 100%);
+  background-attachment: fixed;
+}
+
+:root.aqua-light body {
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(54% 68% at 104% -8%, var(--cloud-aqua), transparent 68%),
+    radial-gradient(44% 58% at -8% 96%, var(--cloud-blue), transparent 70%),
     linear-gradient(145deg, var(--bg) 0%, var(--bg-deep) 100%);
   background-attachment: fixed;
 }
@@ -442,8 +531,14 @@ input:focus, select:focus, textarea:focus { outline: none; }
 :root.light .sf-btn-primary {
   background: linear-gradient(135deg, var(--primary), var(--secondary));
 }
+:root.aqua-light .sf-btn-primary {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+}
 .sf-btn-primary:hover { background: var(--primary-dark); border-color: var(--primary-dark); filter: brightness(1.05); box-shadow: 0 8px 24px -8px rgba(var(--primary-glow-rgb),0.65); }
 :root.light .sf-btn-primary:hover {
+  background: linear-gradient(135deg, var(--primary-dark), var(--secondary));
+}
+:root.aqua-light .sf-btn-primary:hover {
   background: linear-gradient(135deg, var(--primary-dark), var(--secondary));
 }
 .sf-btn-primary:active, .sf-btn-outline:active { transform: scale(0.98); }
@@ -507,6 +602,14 @@ input:focus, select:focus, textarea:focus { outline: none; }
     linear-gradient(145deg, var(--bg) 0%, var(--bg-deep) 100%);
   background-attachment: fixed;
 }
+:root.aqua-light .sf-app-shell {
+  background-color: transparent;
+  background-image:
+    radial-gradient(54% 68% at 104% -8%, var(--cloud-aqua), transparent 68%),
+    radial-gradient(44% 58% at -8% 96%, var(--cloud-blue), transparent 70%),
+    linear-gradient(145deg, var(--bg) 0%, var(--bg-deep) 100%);
+  background-attachment: fixed;
+}
 .sf-main-shell { min-width: 0; flex: 1; display: flex; flex-direction: column; margin-left: 240px; transition: margin-left 0.24s ease; }
 .sf-page-content { flex: 1; overflow-x: hidden; overflow-y: auto; padding: 20px 28px 32px; }
 
@@ -562,6 +665,27 @@ input:focus, select:focus, textarea:focus { outline: none; }
 :root.forest-light .sf-icon-button,
 :root.forest-light .sf-sidebar-toggle {
   backdrop-filter: blur(18px) saturate(135%);
+}
+:root.aqua-light .sf-sidebar {
+  border-right-color: transparent;
+  box-shadow: 10px 0 34px rgba(36,49,89,0.035);
+}
+:root.aqua-light .sf-topbar {
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(16px) saturate(125%);
+}
+:root.aqua-light .sf-nav-link.active {
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+}
+:root.aqua-light .sf-card,
+:root.aqua-light .sf-search-box,
+:root.aqua-light .sf-icon-button,
+:root.aqua-light .sf-sidebar-toggle,
+:root.aqua-light .sf-upgrade-card,
+:root.aqua-light .sf-user-card {
+  border-color: var(--border-light);
+  box-shadow: var(--shadow);
 }
 .sf-brand {
   display: flex;

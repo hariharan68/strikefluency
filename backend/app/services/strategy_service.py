@@ -75,10 +75,15 @@ def _account(db: Session, user: User) -> VirtualAccount:
     return account
 
 
-def _persist_leg(db: Session, user: User, strategy_id: uuid.UUID, leg: Leg) -> StrategyLegORM:
+def _persist_leg(
+    db: Session,
+    user: User,
+    strategy: StrategyORM,
+    leg: Leg,
+) -> StrategyLegORM:
     row = StrategyLegORM(
         id=leg.id,
-        strategy_id=strategy_id,
+        strategy_id=strategy.id,
         user_id=user.id,
         tenant_id=user.tenant_id,
         instrument=leg.contract.underlying,
@@ -90,6 +95,11 @@ def _persist_leg(db: Session, user: User, strategy_id: uuid.UUID, leg: Leg) -> S
         lot_size=leg.lot_size,
         entry_price=Decimal(str(leg.entry_price)) if leg.entry_price is not None else None,
         status=leg.status,
+        # Keep both sides of the ORM relationship synchronized. This matters
+        # when a draft is assembled and executed in one request: ``to_domain()``
+        # has already loaded ``strategy.legs``, so setting only strategy_id
+        # would leave that in-memory collection stale until the session expires.
+        strategy=strategy,
     )
     db.add(row)
     return row
@@ -125,7 +135,7 @@ def create_from_template(db: Session, user: User, *, template_id: str,
     db.add(orm)
     db.flush()
     for leg in domain.legs:
-        _persist_leg(db, user, orm.id, leg)
+        _persist_leg(db, user, orm, leg)
     logger.info("Draft strategy %s (%s) created for user %s", orm.id, template_id, user.id)
     return orm
 
@@ -183,7 +193,7 @@ def add_leg(db: Session, user: User, strategy_id: uuid.UUID, *, instrument_type:
     domain = to_domain(orm)
     leg = builder.make_leg(orm.underlying, instrument_type, action, lots, expiry, strike=strike)
     builder.add_leg(domain, leg)             # validates against existing legs
-    row = _persist_leg(db, user, orm.id, leg)
+    row = _persist_leg(db, user, orm, leg)
     db.flush()
     return row
 
