@@ -234,7 +234,10 @@ export default function PositionActionPanel({
       aria-modal="false"
       aria-labelledby="position-action-title"
       className={`position-action-panel ${isModify ? 'modify' : 'exit'}`}
-      style={{ left: panelPosition.x, top: panelPosition.y }}
+      style={{
+        left: panelPosition.x,
+        '--position-panel-top': `${panelPosition.y}px`,
+      }}
     >
       <header className="position-action-header" onMouseDown={startDrag}>
         <div className="position-action-title">

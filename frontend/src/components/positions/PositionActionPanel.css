@@ -1,15 +1,31 @@
 .position-action-panel {
   position: fixed;
+  top: var(--position-panel-top);
   z-index: 1100;
   width: min(460px, calc(100vw - 24px));
-  max-height: calc(100vh - 24px);
-  overflow: auto;
+  max-height: calc(100vh - var(--position-panel-top) - 12px);
+  max-height: calc(100dvh - var(--position-panel-top) - 12px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   isolation: isolate;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--bg-alt);
   color: var(--text);
   box-shadow: var(--shadow-pop);
+}
+
+.position-action-panel > .position-action-header,
+.position-action-panel > .position-action-summary {
+  flex: 0 0 auto;
+}
+
+.position-action-panel > form {
+  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
 }
 
 .position-action-header {
@@ -156,7 +172,14 @@
 
 .position-action-summary strong.live { color: var(--primary); }
 
-.position-action-body { padding: 16px; }
+.position-action-body {
+  min-height: 0;
+  padding: 16px;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
 
 .position-action-section-heading {
   display: flex;
@@ -465,12 +488,14 @@
 
 .position-action-footer {
   padding: 12px 14px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 9px;
   border-top: 1px solid var(--border);
   background: var(--color-surface2);
+  box-shadow: 0 -8px 20px color-mix(in srgb, var(--bg) 30%, transparent);
 }
 
 .position-action-footer button {
@@ -516,7 +541,7 @@
 @media (max-width: 520px) {
   .position-action-panel {
     left: 12px !important;
-    top: 12px !important;
+    --position-panel-top: 12px !important;
   }
 
   .position-action-drag-hint { display: none; }
@@ -527,4 +552,24 @@
   .position-action-footer { flex-wrap: wrap; }
   .position-action-footer button.cancel-limit { margin-right: 0; }
   .position-action-footer button { flex: 1; }
+}
+
+@media (max-height: 860px) {
+  .position-action-header {
+    min-height: 60px;
+    padding: 10px 14px;
+  }
+
+  .position-action-summary { padding: 9px 14px; }
+  .position-action-summary > div { padding: 6px 5px; }
+  .position-action-body { padding: 12px 16px; }
+  .position-exit-type-tabs { margin-top: 10px; }
+  .position-exit-limit-editor {
+    margin-top: 10px;
+    padding: 10px 12px;
+  }
+  .position-action-info,
+  .position-action-warning,
+  .position-action-error { margin-top: 10px; }
+  .position-action-footer { padding: 10px 14px; }
 }
