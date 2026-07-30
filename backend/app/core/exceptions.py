@@ -84,6 +84,11 @@ class OrderAlreadyClosedError(StrikeFluencyError):
     pass
 
 
+class OrderProtectionError(StrikeFluencyError):
+    """Stop-loss or target changes are invalid for the open order."""
+    pass
+
+
 class IdempotencyConflictError(StrikeFluencyError):
     """A client order ID was reused with a different order payload."""
     pass

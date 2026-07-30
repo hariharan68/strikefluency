@@ -47,6 +47,8 @@ coverage.xml
 *.cover
 .hypothesis/
 Docm
+securitydocs
+archidocs
 
 # MyPy / type checkers
 .mypy_cache/

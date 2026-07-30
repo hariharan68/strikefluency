@@ -1,6 +1,6 @@
 # StrikeFluency — Agent Notes
 
-Durable project context for AI/agent work. **Verified against source on 2026-07-28.**
+Durable project context for AI/agent work. **Verified against source on 2026-07-30.**
 
 > Works with any coding agent — Claude Code, Codex and others all read
 > `AGENTS.md` by convention. Nothing here is tool-specific.
@@ -39,7 +39,7 @@ is registered. Every HTTP and WebSocket route must be either:
 - **declared public** — an entry in `PUBLIC_ROUTES` with a written reason.
 
 Anything else raises `RuntimeError` and **the process never binds a port**.
-Current audit: **98 authenticated, 12 declared public**.
+Current audit: **99 authenticated, 12 declared public**.
 
 To add an endpoint, just take `CurrentUser`:
 
@@ -86,7 +86,7 @@ npm run build
 
 # Tests
 cd backend
-pytest              # 402 tests; integration tests self-skip without Postgres
+pytest              # 409 tests; integration tests self-skip without Postgres
 ```
 
 **Never commit** `.env`, `fyers_token.json`, `access_token.txt`, or `fyers_logs/`.
@@ -101,7 +101,7 @@ token, starts the market scheduler and auth maintenance; shutdown reverses it.
 CORS and the cookie `Origin` check both read `settings.trusted_origins` — one
 list, so they cannot drift.
 
-### Routers (13, all under `/api/v1`, 110 routes)
+### Routers (13, all under `/api/v1`, 111 routes)
 
 | Prefix | Purpose |
 |---|---|
@@ -211,6 +211,10 @@ Notes:
   `leverage_enabled` setting is on, ÷ 1 when off.
 - `client_order_id` makes placement retry-safe; a replay returns the original
   fill (HTTP 200 instead of 201) and never re-prices.
+- `PATCH /trading/orders/{id}/protection` replaces only `sl_price` and
+  `target_price` on an open single-leg order. It follows the same account →
+  order → position lock order as close, preserves the mandatory-SL rule while
+  Discipline Mode is on, and never edits strategy legs or broker state.
 
 ### The funds ledger (`virtual_fund_ledger`)
 
@@ -319,10 +323,10 @@ Deliberately small — publisher and consumer are the same process, so this is a
 naming layer, not decoupling. There is **no `consumer.py` and no dispatcher**;
 add one when a second subscriber exists, not before.
 
-- `TradingEvent` (StrEnum) replaces ten inline magic strings. **The values are a
+- `TradingEvent` (StrEnum) replaces eleven inline magic strings. **The values are a
   wire contract**: `useMarketWebSocket.js` dispatches on `msg.reason`, so a
   rename silently stops the frontend refreshing — no error, just a stale desk.
-  `tests/unit/test_events.py::test_wire_values_are_unchanged` pins all ten.
+  `tests/unit/test_events.py::test_wire_values_are_unchanged` pins all eleven.
 - `publish(user_id, event)` — call **only after `db.commit()`**. Takes no third
   argument, so the no-payload contract is enforced by the signature: clients
   re-run their REST loaders, keeping REST the single source of truth rather
@@ -595,7 +599,7 @@ something threw inside render — check the console before assuming a data probl
 
 ## Testing
 
-402 tests. `backend/tests/unit/` is mostly pure and needs no database;
+409 tests. `backend/tests/unit/` is mostly pure and needs no database;
 `backend/tests/integration/` self-skips when Postgres is unreachable and wraps
 each test in a rolled-back outer transaction, so nothing persists.
 

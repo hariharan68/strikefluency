@@ -24,6 +24,7 @@ import {
   getPendingOrders,
   getPositions,
   getTradebook,
+  updateOrderProtection,
 } from '../../api/trading'
 import { getRules, getTodayViolations } from '../../api/discipline'
 import { listStrategies, squareOff } from '../../api/strategy'
@@ -32,6 +33,8 @@ import useMarketStore from '../../store/marketStore'
 import usePreferencesStore from '../../store/preferencesStore'
 import useTradingStore from '../../store/tradingStore'
 import { livePnl, ltpFromChain } from '../../utils/livePnl'
+import { getApiErrorMessage } from '../../utils/apiError'
+import PositionActionPanel from './PositionActionPanel'
 import './PositionsWorkspace.css'
 
 const TABS = [
@@ -262,6 +265,9 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [closingId, setClosingId] = useState(null)
+  const [modifyingId, setModifyingId] = useState(null)
+  const [positionPanel, setPositionPanel] = useState(null)
+  const [positionPanelError, setPositionPanelError] = useState('')
 
   const load = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) setLoading(true)
@@ -329,6 +335,13 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
     () => new Map(orders.map(order => [String(order.id), order])),
     [orders],
   )
+
+  const selectedPosition = positionPanel
+    ? positions.find(position => String(position.order_id) === String(positionPanel.orderId))
+    : null
+  const selectedOrder = positionPanel
+    ? orderById.get(String(positionPanel.orderId))
+    : null
 
   const liveForPosition = position => {
     const streamedLtp = ltpFromChain(chains[position.instrument], position.strike_price, position.option_type)
@@ -578,15 +591,52 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
     logs: logSections.length,
   }
 
+  const openPositionPanel = (mode, orderId) => {
+    setPositionPanelError('')
+    setPositionPanel({ mode, orderId })
+  }
+
+  const closePositionPanel = () => {
+    if (closingId || modifyingId) return
+    setPositionPanel(null)
+    setPositionPanelError('')
+  }
+
+  const handleProtectionUpdate = async (orderId, protection) => {
+    setPositionPanelError('')
+    setModifyingId(orderId)
+    try {
+      await updateOrderProtection(orderId, protection)
+      success('Stop Loss and Target Price updated')
+      await load({ quiet: true })
+      setPositionPanel(null)
+    } catch (requestError) {
+      const message = getApiErrorMessage(
+        requestError,
+        'Could not update protection levels.',
+      )
+      setPositionPanelError(message)
+      toastError(message)
+    } finally {
+      setModifyingId(null)
+    }
+  }
+
   const handleClose = async orderId => {
-    if (confirmClose && !window.confirm('Close this paper position at the current market price? Nothing will be sent to your broker.')) return
+    setPositionPanelError('')
     setClosingId(orderId)
     try {
       await closeOrder(orderId)
       success('Paper position closed')
       await load({ quiet: true })
-    } catch {
-      toastError('Could not close position')
+      setPositionPanel(null)
+    } catch (requestError) {
+      const message = getApiErrorMessage(
+        requestError,
+        'Could not close position.',
+      )
+      setPositionPanelError(message)
+      toastError(message)
     } finally {
       setClosingId(null)
     }
@@ -827,8 +877,8 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
                     <td><StatusPill /></td>
                     <td>
                       <div className="positions-row-actions">
-                        <button type="button" onClick={() => navigate(`/trading?order=${position.order_id}`)}>Modify</button>
-                        <button type="button" className="exit" disabled={closingId === position.order_id} onClick={() => handleClose(position.order_id)}>
+                        <button type="button" onClick={() => openPositionPanel('modify', position.order_id)}>Modify</button>
+                        <button type="button" className="exit" disabled={closingId === position.order_id} onClick={() => openPositionPanel('exit', position.order_id)}>
                           {closingId === position.order_id ? '…' : 'Exit'}
                         </button>
                       </div>
@@ -1272,6 +1322,29 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
           </article>
         </aside>
       </section>
+
+      {positionPanel && selectedPosition && selectedOrder && (
+        <PositionActionPanel
+          key={`${positionPanel.mode}-${positionPanel.orderId}`}
+          mode={positionPanel.mode}
+          position={selectedPosition}
+          order={selectedOrder}
+          live={liveForPosition(selectedPosition)}
+          busy={
+            closingId === positionPanel.orderId
+            || modifyingId === positionPanel.orderId
+          }
+          error={positionPanelError}
+          slRequired={
+            account?.account?.discipline_mode_enabled !== false
+            && rules.find(rule => rule.rule_code === 'MANDATORY_SL')?.is_active !== false
+            && rules.find(rule => rule.rule_code === 'MANDATORY_SL')?.rule_value?.enabled !== false
+          }
+          onClose={closePositionPanel}
+          onSave={protection => handleProtectionUpdate(positionPanel.orderId, protection)}
+          onExit={() => handleClose(positionPanel.orderId)}
+        />
+      )}
     </div>
   )
 }

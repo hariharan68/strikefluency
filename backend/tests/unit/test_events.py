@@ -19,6 +19,7 @@ from app.events import DeferredPublisher, TradingEvent, publish
 # changing frontend/src/hooks/useMarketWebSocket.js in the same commit.
 WIRE_VALUES = {
     "ORDER_PLACED": "order_placed",
+    "ORDER_PROTECTION_UPDATED": "order_protection_updated",
     "ORDER_CLOSED": "order_closed",
     "LIMIT_PLACED": "limit_placed",
     "LIMIT_CANCELLED": "limit_cancelled",

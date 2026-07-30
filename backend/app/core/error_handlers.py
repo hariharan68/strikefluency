@@ -23,6 +23,7 @@ from app.core.exceptions import (
     MarketClosedError,
     OrderAlreadyClosedError,
     OrderNotFoundError,
+    OrderProtectionError,
     PendingOrderNotCancellableError,
     PendingOrderNotFoundError,
     PositionNotFoundError,
@@ -158,6 +159,13 @@ def register_error_handlers(app):
         return JSONResponse(
             status_code=400,
             content={"error": "ORDER_ALREADY_CLOSED", "message": str(exc)},
+        )
+
+    @app.exception_handler(OrderProtectionError)
+    async def order_protection_handler(request: Request, exc: OrderProtectionError):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "ORDER_PROTECTION_INVALID", "message": str(exc)},
         )
 
     @app.exception_handler(IdempotencyConflictError)

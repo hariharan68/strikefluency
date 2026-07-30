@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import date, timedelta
+from decimal import Decimal
 
 import pytest
 from fastapi import FastAPI
@@ -11,6 +12,7 @@ from app.core.error_handlers import register_error_handlers
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.market.provider_factory import get_market_provider
+from app.models.virtual_account import VirtualAccount
 from app.routers.trading import router
 
 
@@ -100,3 +102,93 @@ def test_reusing_client_order_id_with_different_payload_is_conflict(api_client):
 
     assert conflict.status_code == 409
     assert conflict.json()["error"] == "IDEMPOTENCY_CONFLICT"
+
+
+def test_open_order_protection_can_be_updated_in_place(api_client):
+    created = api_client.post(f"{P}/trading/orders", json=_order()).json()
+    ltp = Decimal(created["entry_ltp"])
+    stop = (ltp / 2).quantize(Decimal("0.01"))
+    target = (ltp * 2).quantize(Decimal("0.01"))
+
+    response = api_client.patch(
+        f"{P}/trading/orders/{created['id']}/protection",
+        json={"sl_price": str(stop), "target_price": str(target)},
+    )
+
+    assert response.status_code == 200, response.text
+    assert Decimal(response.json()["sl_price"]) == stop
+    assert Decimal(response.json()["target_price"]) == target
+    assert response.json()["status"] == "OPEN"
+
+
+def test_protection_update_rejects_level_on_wrong_side_of_market(api_client):
+    created = api_client.post(f"{P}/trading/orders", json=_order()).json()
+    ltp = Decimal(created["entry_ltp"])
+
+    response = api_client.patch(
+        f"{P}/trading/orders/{created['id']}/protection",
+        json={
+            "sl_price": str((ltp / 2).quantize(Decimal("0.01"))),
+            "target_price": str((ltp / 2).quantize(Decimal("0.01"))),
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"] == "ORDER_PROTECTION_INVALID"
+
+
+def test_sell_position_uses_reversed_protection_sides(api_client):
+    chain = get_market_provider().get_option_chain("NIFTY")
+    strike = int(chain["atm_strike"])
+    row = next(item for item in chain["strikes"] if int(item["strike"]) == strike)
+    ltp = Decimal(str(row["ce"]["ltp"]))
+    created = api_client.post(
+        f"{P}/trading/orders",
+        json=_order(
+            action="SELL",
+            sl_price=str((ltp * 2).quantize(Decimal("0.01"))),
+            target_price=str((ltp / 2).quantize(Decimal("0.01"))),
+        ),
+    ).json()
+
+    response = api_client.patch(
+        f"{P}/trading/orders/{created['id']}/protection",
+        json={
+            "sl_price": str((ltp * Decimal("1.5")).quantize(Decimal("0.01"))),
+            "target_price": str((ltp * Decimal("0.75")).quantize(Decimal("0.01"))),
+        },
+    )
+
+    assert response.status_code == 200, response.text
+
+
+def test_discipline_mode_does_not_allow_stop_loss_removal(api_client):
+    created = api_client.post(f"{P}/trading/orders", json=_order()).json()
+
+    response = api_client.patch(
+        f"{P}/trading/orders/{created['id']}/protection",
+        json={"sl_price": None, "target_price": created["target_price"]},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"] == "DISCIPLINE_VIOLATION"
+    assert response.json()["rule_code"] == "MANDATORY_SL"
+
+
+def test_free_play_allows_stop_loss_and_target_removal(
+        api_client, db_session, seeded_user):
+    account = db_session.query(VirtualAccount).filter(
+        VirtualAccount.user_id == seeded_user.id
+    ).one()
+    account.discipline_mode_enabled = False
+    db_session.flush()
+    created = api_client.post(f"{P}/trading/orders", json=_order()).json()
+
+    response = api_client.patch(
+        f"{P}/trading/orders/{created['id']}/protection",
+        json={"sl_price": None, "target_price": None},
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["sl_price"] is None
+    assert response.json()["target_price"] is None

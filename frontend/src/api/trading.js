@@ -12,6 +12,8 @@ export const getOrders = (page = 1, status = null, scope = 'today') =>
   client.get('/trading/orders', { params: { page, scope, ...(status ? { status } : {}) } })
 export const getTradebook = (page = 1, scope = 'today') =>
   client.get('/trading/tradebook', { params: { page, scope } })
+export const updateOrderProtection = (orderId, data) =>
+  client.patch(`/trading/orders/${orderId}/protection`, data)
 export const closeOrder = (orderId) => client.post(`/trading/orders/${orderId}/close`)
 
 // ── Resting LIMIT orders ──

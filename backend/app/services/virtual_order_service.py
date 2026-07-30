@@ -12,18 +12,27 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.core import utils as core_utils
-from app.core.constants import ExitReason, LEVERAGE_MULTIPLIER, OrderStatus, ProductType
+from app.core.constants import (
+    DisciplineRuleCode,
+    ExitReason,
+    LEVERAGE_MULTIPLIER,
+    OrderStatus,
+    ProductType,
+)
 from app.core.instruments import get_spec
 from app.core.exceptions import (
+    DisciplineViolationError,
     IdempotencyConflictError,
     InsufficientBalanceError,
     OrderAlreadyClosedError,
     OrderNotFoundError,
+    OrderProtectionError,
     QuoteUnavailableError,
 )
 from app.core.utils import calculate_pnl, current_trading_day
 from app.market import freshness
 from app.market.provider_factory import get_market_provider
+from app.models.discipline_rule import DisciplineRule
 from app.models.journal_entry import JournalEntry
 from app.models.virtual_account import VirtualAccount
 from app.models.virtual_order import VirtualOrder
@@ -237,6 +246,111 @@ def place_order(db: Session, user: User, order_data: dict) -> VirtualOrder:
         f"brokerage=₹{entry_brokerage.total}"
     )
 
+    return order
+
+
+def update_order_protection(
+    db: Session,
+    user: User,
+    order_id: uuid.UUID,
+    *,
+    sl_price: Decimal | None,
+    target_price: Decimal | None,
+) -> VirtualOrder:
+    """
+    Replace the stop-loss and target on an open single-leg paper order.
+
+    This changes protection instructions only; it never changes quantity,
+    direction, margin, P&L, or broker state. It intentionally does not require
+    market hours because saving protection is not an execution. The existing
+    auto-exit sweep will enforce the new levels during market hours.
+    """
+    # Match the close path's lock order exactly so a protection edit cannot
+    # race a manual, SL/target, EOD, or expiry close.
+    account = db.query(VirtualAccount).filter(
+        VirtualAccount.user_id == user.id
+    ).with_for_update().first()
+
+    order = db.query(VirtualOrder).filter(
+        VirtualOrder.id == order_id,
+        VirtualOrder.user_id == user.id,
+    ).with_for_update().first()
+
+    if not order:
+        raise OrderNotFoundError(f"Order {order_id} not found")
+    if order.status != OrderStatus.OPEN:
+        raise OrderAlreadyClosedError(f"Order {order_id} is already {order.status}")
+    if order.strategy_id is not None:
+        raise OrderProtectionError(
+            "This leg belongs to a strategy and must be managed at strategy level."
+        )
+
+    position = db.query(VirtualPosition).filter(
+        VirtualPosition.order_id == order.id,
+        VirtualPosition.is_open == True,
+    ).with_for_update().first()
+    if position is None:
+        raise OrderProtectionError("The open position record is unavailable.")
+
+    sl = _optional_decimal(sl_price)
+    target = _optional_decimal(target_price)
+    quantum = Decimal("0.01")
+    if sl is not None:
+        sl = sl.quantize(quantum)
+    if target is not None:
+        target = target.quantize(quantum)
+
+    if sl is not None and sl <= 0:
+        raise OrderProtectionError("Stop Loss must be greater than zero.")
+    if target is not None and target <= 0:
+        raise OrderProtectionError("Target Price must be greater than zero.")
+
+    mandatory_sl = db.query(DisciplineRule).filter(
+        DisciplineRule.user_id == user.id,
+        DisciplineRule.rule_code == DisciplineRuleCode.MANDATORY_SL,
+        DisciplineRule.is_active == True,
+    ).first()
+    mandatory_sl_enabled = (
+        mandatory_sl is None
+        or (mandatory_sl.rule_value or {}).get("enabled", True)
+    )
+    if (
+        account is not None
+        and account.discipline_mode_enabled
+        and mandatory_sl_enabled
+        and sl is None
+    ):
+        raise DisciplineViolationError(
+            rule_code=DisciplineRuleCode.MANDATORY_SL,
+            message="Stop Loss (SL) is mandatory while Discipline Mode is ON.",
+        )
+
+    reference_price = Decimal(str(position.current_ltp or order.entry_price))
+    if order.action == "BUY":
+        if sl is not None and sl >= reference_price:
+            raise OrderProtectionError(
+                f"For a BUY position, Stop Loss ({sl}) must be below "
+                f"the current premium ({reference_price})."
+            )
+        if target is not None and target <= reference_price:
+            raise OrderProtectionError(
+                f"For a BUY position, Target Price ({target}) must be above "
+                f"the current premium ({reference_price})."
+            )
+    else:
+        if sl is not None and sl <= reference_price:
+            raise OrderProtectionError(
+                f"For a SELL position, Stop Loss ({sl}) must be above "
+                f"the current premium ({reference_price})."
+            )
+        if target is not None and target >= reference_price:
+            raise OrderProtectionError(
+                f"For a SELL position, Target Price ({target}) must be below "
+                f"the current premium ({reference_price})."
+            )
+
+    order.sl_price = sl
+    order.target_price = target
     return order
 
 

@@ -8,7 +8,7 @@ Deliberately small. Publisher and consumer are the same process, and
 manager, so a dispatcher here would be ceremony rather than decoupling. What
 this package actually buys:
 
-  - typed event names instead of ten free-text strings scattered across two
+  - typed event names instead of free-text strings scattered across two
     routers, a service and the scheduler
   - one named implementation of the collect-then-emit-after-commit pattern that
     market_scheduler was hand-rolling twice

@@ -8,6 +8,7 @@ Virtual trading endpoints:
   GET  /trading/orders            → orderbook (today by default; ?scope=all)
   GET  /trading/tradebook         → today's filled trades (?scope=all)
   GET  /trading/orders/{id}       → single order detail
+  PATCH /trading/orders/{id}/protection → change SL / target on an open order
   POST /trading/orders/{id}/close → close an open position manually
   GET  /trading/positions         → all open positions with live P&L
   GET  /trading/sessions/today    → today's trading session state
@@ -50,6 +51,7 @@ from app.schemas.virtual_order import (
     OrderListResponse,
     OrderResponse,
     PlaceOrderRequest,
+    UpdateOrderProtectionRequest,
 )
 from app.schemas.virtual_position import PositionListResponse, PositionResponse
 from app.services import audit_service
@@ -67,6 +69,7 @@ from app.services.virtual_order_service import (
     close_position,
     get_open_positions,
     place_order,
+    update_order_protection,
 )
 
 router = APIRouter(prefix="/trading", tags=["Virtual Trading"])
@@ -303,6 +306,44 @@ def get_order(
     if not order:
         raise OrderNotFoundError(f"Order {order_id} not found")
 
+    return OrderResponse.model_validate(order)
+
+
+@router.patch("/orders/{order_id}/protection", response_model=OrderResponse)
+def modify_order_protection(
+    order_id: uuid.UUID,
+    data: UpdateOrderProtectionRequest,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+):
+    """
+    Replace the stop-loss and target on an open single-leg paper position.
+
+    Quantity, side, instrument, margin, and broker state are immutable here.
+    Strategy legs remain governed by their strategy-level risk controls.
+    """
+    order = update_order_protection(
+        db,
+        current_user,
+        order_id,
+        sl_price=data.sl_price,
+        target_price=data.target_price,
+    )
+    audit_service.record(
+        db, action=AuditAction.ORDER_PROTECTION_UPDATED,
+        user_id=current_user.id, tenant_id=current_user.tenant_id,
+        reference_type=AuditRef.VIRTUAL_ORDER, reference_id=order.id,
+        detail={
+            "sl_price": str(order.sl_price) if order.sl_price is not None else None,
+            "target_price": (
+                str(order.target_price) if order.target_price is not None else None
+            ),
+        },
+    )
+    db.commit()
+    db.refresh(order)
+
+    publish(current_user.id, TradingEvent.ORDER_PROTECTION_UPDATED)
     return OrderResponse.model_validate(order)
 
 

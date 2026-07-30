@@ -82,6 +82,21 @@ class CloseOrderResponse(BaseModel):
     message: str
 
 
+class UpdateOrderProtectionRequest(BaseModel):
+    # Both keys are required so a client must state the complete protection
+    # intent. A null value deliberately removes that protection when the
+    # user's active discipline rules permit it.
+    sl_price: Optional[Decimal]
+    target_price: Optional[Decimal]
+
+    @field_validator("sl_price", "target_price")
+    @classmethod
+    def protection_price_positive(cls, value):
+        if value is not None and value <= 0:
+            raise ValueError("Protection prices must be greater than zero")
+        return value
+
+
 class OrderListResponse(BaseModel):
     orders: list[OrderResponse]
     total: int

@@ -97,6 +97,27 @@ def test_closing_an_order_writes_an_audit_row(api_client, db_session, seeded_use
     assert "pnl" in rows[0].detail
 
 
+def test_updating_protection_writes_an_audit_row(
+        api_client, db_session, seeded_user):
+    order = api_client.post(f"{P}/trading/orders", json=_payload()).json()
+    ltp = Decimal(order["entry_ltp"])
+    response = api_client.patch(
+        f"{P}/trading/orders/{order['id']}/protection",
+        json={
+            "sl_price": str((ltp / 2).quantize(Decimal("0.01"))),
+            "target_price": str((ltp * 2).quantize(Decimal("0.01"))),
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    rows = _rows(
+        db_session, seeded_user.id, AuditAction.ORDER_PROTECTION_UPDATED
+    )
+    assert len(rows) == 1
+    assert rows[0].detail["sl_price"] == response.json()["sl_price"]
+    assert rows[0].detail["target_price"] == response.json()["target_price"]
+
+
 def test_an_idempotent_replay_does_not_write_a_second_row(
         api_client, db_session, seeded_user):
     payload = _payload()

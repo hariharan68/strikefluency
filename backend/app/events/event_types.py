@@ -1,7 +1,7 @@
 """
 The trading events a client can be told about.
 
-These were ten bare strings written inline at ten call sites. A typo in any one
+These were bare strings written inline at their call sites. A typo in any one
 of them produced a frame the frontend silently ignored — no error, just a desk
 that quietly stopped refreshing.
 
@@ -21,6 +21,7 @@ from enum import StrEnum
 class TradingEvent(StrEnum):
     # Single orders — app/routers/trading.py
     ORDER_PLACED = "order_placed"
+    ORDER_PROTECTION_UPDATED = "order_protection_updated"
     ORDER_CLOSED = "order_closed"
     LIMIT_PLACED = "limit_placed"
     LIMIT_CANCELLED = "limit_cancelled"
