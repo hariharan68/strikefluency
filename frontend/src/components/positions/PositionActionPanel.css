@@ -132,32 +132,59 @@
 
 .position-action-summary > div {
   min-width: 0;
-  padding: 8px 6px;
+  min-height: 61px;
+  padding: 9px 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   text-align: center;
   border: 1px solid var(--border-light);
   border-radius: 9px;
   background: var(--color-surface2);
 }
 
-.position-action-summary span,
-.position-action-summary small {
+.position-action-summary span {
   display: block;
   overflow: hidden;
   color: var(--text-muted);
-  font-size: 8px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: .01em;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .position-action-summary strong {
   display: block;
-  margin: 4px 0 2px;
+  margin: 5px 0 2px;
   overflow: hidden;
   color: var(--text);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  font-weight: 750;
+  letter-spacing: -.012em;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.position-action-summary small {
+  display: block;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 8.5px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.position-action-summary strong.buy,
+.position-action-summary strong.sell {
+  letter-spacing: .02em;
 }
 
 .position-action-summary strong.buy,
