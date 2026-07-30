@@ -1,44 +1,61 @@
-# ADR 0002 — a subscription seam, not billing machinery
+# ADR 0002: retain a plan seam without billing machinery
 
-**Status:** Accepted · 2026-07-27
-**Context:** Architecture gap #9, from `PAPER_TRADING_SAAS_ARCHITECTURE.md` §21, §41
+- **Status:** Accepted
+- **Decision date:** 2026-07-27
+- **Last source verification:** 2026-07-30
+- **Owners:** StrikeFluency maintainers
+
+## Context
+
+StrikeFluency is currently free. The repository has no payment-provider
+integration and no subscription, payment, invoice, price, or entitlement
+tables. Product details such as paid tiers, gated capabilities, downgrade
+behavior, refunds, and provider choice are not defined.
+
+Two elements that are expensive to retrofit do exist:
+
+- `users.plan`, constrained to the recognized plan values and defaulting to
+  `free`; and
+- `require_plan(minimum)`, which compares ordered plan levels.
+
+`BILLING_ENABLED` defaults to `false`. While disabled, the gate admits users.
+When enabled, unknown plan values rank below known plans and therefore fail
+closed. The dependency is an authorization layer, not authentication; protected
+routes must still take `CurrentUser` or an equivalent authenticated dependency.
 
 ## Decision
 
-Ship `users.plan` and `require_plan()`. Do not build `subscription_plans`,
-`subscriptions` or `payments` tables, and do not integrate a payment provider.
+Keep the user-plan column and plan-gating dependency as an integration seam. Do
+not add billing tables, payment webhooks, checkout, or a payment provider until
+the product has a specific charging requirement.
 
-## Why
+## Consequences
 
-StrikeFluency is free and has no paying users. Payment rails nobody uses are
-the clearest over-scope in the architecture doc: they carry real ongoing cost
-(webhook handling, proration, refunds, PCI-adjacent scope, provider API churn)
-against zero current benefit, and they would be built against guessed
-requirements — what the tiers are, what they gate, what a downgrade does to an
-open position — none of which are known.
+- The current product remains free and has no billing lifecycle to operate.
+- Routes can be wired to `require_plan()` without changing current access while
+  billing is disabled.
+- Turning `BILLING_ENABLED` on without first defining and provisioning plan data
+  may deny users whose stored plan is below the requested minimum; it does not
+  create subscriptions.
+- Payment compliance, webhook idempotency, refunds, proration, and downgrade
+  behavior remain explicitly outside the implemented system.
+- `backend/tests/unit/test_plans.py` detects the accidental introduction of
+  subscription or payment models.
 
-What is expensive to add later is not the billing integration, which is
-well-trodden. It is the **column on a live `users` table** and the **shape of
-the gate** threaded through every route. So those exist:
+## Revisit when
 
-- `users.plan`, defaulting to `'free'`, constrained by `ck_users_plan`
-- `Plan.ORDER`, so "at least pro" is expressible and unknown values fail closed
-- `require_plan(minimum)`, a real check behind `settings.BILLING_ENABLED`
+Reconsider this decision only after the team defines a concrete paid capability,
+the plans and entitlements that expose it, provider ownership, subscription
+lifecycle, downgrade behavior for active trading state, support/refund policy,
+and operational/compliance requirements.
 
-`BILLING_ENABLED` is `False`, so the gate admits everyone. That is not a stub
-that silently does nothing — it is an explicit kill switch, tested on both
-sides, so the gate can be wired onto routes today and is already correct the
-day it is switched on.
+The replacement design should be recorded in a new ADR that supersedes this
+one.
 
-## What would change this
+## Source evidence
 
-A decision to charge for something specific. At that point the questions above
-have answers, and the tables can be designed against them rather than against a
-guess.
-
-## Consequence
-
-`PAPER_TRADING_SAAS_ARCHITECTURE.md` lists subscription and payment tables this
-codebase does not have, on purpose. `tests/unit/test_plans.py` fails if
-subscription or payment models appear without this file being updated in the
-same commit.
+- `backend/app/core/plans.py`
+- `backend/app/config.py`
+- `backend/app/models/user.py`
+- `backend/app/dependencies.py`
+- `backend/tests/unit/test_plans.py`

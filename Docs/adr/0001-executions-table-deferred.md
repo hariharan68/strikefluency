@@ -1,52 +1,63 @@
-# ADR 0001 — `executions` is `virtual_orders` until partial fills exist
+# ADR 0001: defer a separate executions table
 
-**Status:** Accepted · 2026-07-27
-**Context:** Architecture gap #2, from `PAPER_TRADING_SAAS_ARCHITECTURE.md` §21
+- **Status:** Accepted
+- **Decision date:** 2026-07-27
+- **Last source verification:** 2026-07-30
+- **Owners:** StrikeFluency maintainers
+
+## Context
+
+Trading systems commonly separate an order from its fills because one order can
+execute in several quantities and at several prices. StrikeFluency does not
+implement partial fills. A filled `VirtualOrder` creates one
+`VirtualPosition`, and `virtual_positions.order_id` is protected by
+`uq_virtual_positions_order_id`.
+
+The current order row already records the data a one-to-one execution row would
+contain:
+
+| Execution concept | Current source |
+|---|---|
+| Filled quantity | `virtual_orders.quantity` |
+| Fill price | `virtual_orders.entry_price` after slippage |
+| Slippage | `virtual_orders.slippage_points` |
+| Simulated entry charge | `virtual_orders.entry_brokerage` |
+| Execution time | `virtual_orders.entry_time` |
+
+Creating an `executions` table under the one-order/one-position constraint would
+duplicate data written in the same transaction without adding information.
 
 ## Decision
 
-Do not create an `executions` table. `virtual_orders` is the execution record
-until partial fills are a real product requirement.
+Use `virtual_orders` as the execution record until partial fills become a real
+product requirement. Do not add a one-to-one `executions` table.
 
-## Why
+## Consequences
 
-The doc separates orders from fills so one order can have many executions. That
-separation earns its keep only when partial fills exist. They do not, and they
-cannot: `virtual_positions` carries
+- Order placement remains all-or-nothing.
+- Position closing remains full-position rather than quantity-aware.
+- Analytics and journaling read fill facts from `virtual_orders`.
+- The schema avoids duplicate, fully derivable records.
+- A future partial-fill design will require a deliberate migration rather than
+  treating the current order model as already fill-aware.
 
-```
-UniqueConstraint("order_id", name="uq_virtual_positions_order_id")
-```
+## Revisit when
 
-one order, one position. An `executions` table added under that constraint
-would hold exactly one row per order, and every column it wants already exists:
+Reconsider this decision when any supported flow requires:
 
-| doc column          | already on `virtual_orders` |
-|---------------------|-----------------------------|
-| `quantity`          | `quantity`                  |
-| `fill_price`        | `entry_price` (post-slippage) |
-| `slippage`          | `slippage_points`           |
-| `simulated_charges` | `entry_brokerage`           |
-| `executed_at`       | `entry_time`                |
+- several fills for one entry order;
+- a resting order filled at several prices or times;
+- a partial position exit; or
+- quantity aggregation under one order identifier.
 
-So the table would be a duplicate written in the same transaction as the row it
-duplicates, and its backfill would be 100% derived data — data that would have
-to be re-derived anyway once the schema changes for real partial fills.
+That redesign must address the unique position constraint, quantity-aware P&L
+and margin, exit allocation, journal/analytics aggregation, and the interactions
+with pending orders, automatic exits, EOD/expiry exits, and concurrency tests.
 
-## What would change this
+## Source evidence
 
-Any of:
-
-- partial fills on single orders (`close_position` is all-or-nothing today)
-- an order resting across multiple fills at different prices
-- averaging into a position under one order id
-
-The first real requirement should drop `uq_virtual_positions_order_id`, add
-`executions`, and rework `close_position` into a quantity-aware exit. That is a
-substantial change to `auto_exit_service`, `eod_service`, `pending_order_service`
-and the concurrency tests — worth doing once, deliberately, rather than half now.
-
-## Consequence
-
-`PAPER_TRADING_SAAS_ARCHITECTURE.md` §21 lists a table this codebase does not
-have, on purpose. This file is the reason.
+- `backend/app/models/virtual_order.py`
+- `backend/app/models/virtual_position.py`
+- `backend/app/services/virtual_order_service.py`
+- `backend/app/services/pending_order_service.py`
+- `backend/tests/integration/test_order_concurrency.py`
