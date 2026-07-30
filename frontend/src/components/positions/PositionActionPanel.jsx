@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import {
   AlertTriangle,
   Check,
+  Clock3,
   GripHorizontal,
   LogOut,
   ShieldCheck,
@@ -42,10 +43,15 @@ export default function PositionActionPanel({
   slRequired = true,
   onClose,
   onSave,
+  onExitLimit,
   onExit,
 }) {
   const [stopLoss, setStopLoss] = useState(order.sl_price ?? '')
   const [targetPrice, setTargetPrice] = useState(order.target_price ?? '')
+  const [exitMode, setExitMode] = useState(
+    order.exit_limit_price == null ? 'MARKET' : 'LIMIT',
+  )
+  const [limitPrice, setLimitPrice] = useState(order.exit_limit_price ?? '')
   const [validationError, setValidationError] = useState('')
   const panelRef = useRef(null)
   const primaryRef = useRef(null)
@@ -64,6 +70,7 @@ export default function PositionActionPanel({
 
   const stop = parseOptionalPrice(stopLoss)
   const target = parseOptionalPrice(targetPrice)
+  const limit = parseOptionalPrice(limitPrice)
   const projectedAt = level => {
     if (level == null || !Number.isFinite(level)) return null
     const points = position.action === 'BUY' ? level - entry : entry - level
@@ -71,17 +78,33 @@ export default function PositionActionPanel({
   }
   const stopOutcome = projectedAt(stop)
   const targetOutcome = projectedAt(target)
+  const limitOutcome = projectedAt(limit)
+  const hasActiveLimit = order.exit_limit_price != null
+  const isLimitExit = !isModify && exitMode === 'LIMIT'
+  const isMarketableLimit = (
+    limit != null
+    && Number.isFinite(limit)
+    && (
+      (position.action === 'BUY' && limit <= ltp)
+      || (position.action === 'SELL' && limit >= ltp)
+    )
+  )
 
   const directionHint = position.action === 'BUY'
     ? `For this BUY position, SL must stay below ${money(ltp)} and target above it.`
     : `For this SELL position, SL must stay above ${money(ltp)} and target below it.`
+  const limitTriggerHint = limit == null || Number.isNaN(limit)
+    ? 'Enter the premium you want.'
+    : position.action === 'BUY'
+      ? `SELL to close when the premium reaches ${money(limit)} or higher.`
+      : `BUY to close when the premium reaches ${money(limit)} or lower.`
 
   const subtitle = `${position.instrument} ${Math.round(asNumber(position.strike_price))} ${position.option_type}`
   const displayError = validationError || error
 
   useEffect(() => {
     primaryRef.current?.focus()
-  }, [mode])
+  }, [exitMode, mode])
 
   useEffect(() => {
     const handleKey = event => {
@@ -170,6 +193,32 @@ export default function PositionActionPanel({
     })
   }
 
+  const submitExitLimit = event => {
+    event.preventDefault()
+    setValidationError('')
+    if (limit == null || Number.isNaN(limit)) {
+      setValidationError('Enter a valid limit premium.')
+      return
+    }
+    if (limit <= 0) {
+      setValidationError('Limit premium must be greater than zero.')
+      return
+    }
+    onExitLimit?.(limit)
+  }
+
+  const selectExitMode = nextMode => {
+    setValidationError('')
+    setExitMode(nextMode)
+    if (
+      nextMode === 'LIMIT'
+      && String(limitPrice).trim() === ''
+      && ltp > 0
+    ) {
+      setLimitPrice(ltp.toFixed(2))
+    }
+  }
+
   const summary = useMemo(() => [
     { label: 'Side', value: position.action, tone: sideTone },
     { label: 'Quantity', value: `${contracts} qty`, note: `${position.quantity} lot${position.quantity === 1 ? '' : 's'}` },
@@ -206,11 +255,6 @@ export default function PositionActionPanel({
           </button>
         </div>
       </header>
-
-      <div className="position-action-paper-note">
-        <ShieldCheck size={14} />
-        <span><strong>Paper trade only.</strong> This panel never sends an order to your broker.</span>
-      </div>
 
       <div className="position-action-summary">
         {summary.map(item => (
@@ -279,7 +323,7 @@ export default function PositionActionPanel({
 
             <div className="position-action-info">
               <Check size={14} />
-              <span>Saved levels are monitored by the 5-second paper auto-exit sweep during market hours.</span>
+              <span>Saved levels are monitored by the 5-second auto-exit sweep during market hours.</span>
             </div>
 
             {displayError && (
@@ -299,30 +343,107 @@ export default function PositionActionPanel({
           </footer>
         </form>
       ) : (
-        <>
+        <form onSubmit={isLimitExit ? submitExitLimit : event => event.preventDefault()}>
           <div className="position-action-body">
             <div className="position-action-section-heading">
               <div>
                 <h3>Review exit order</h3>
-                <p>The closing side is fixed to flatten this position—no new exposure is opened.</p>
+                <p>The closing side and full quantity are fixed to flatten this position.</p>
               </div>
               <LogOut size={17} />
             </div>
 
-            <dl className="position-exit-order">
-              <div><dt>Transaction</dt><dd className={closingSide === 'BUY' ? 'buy' : 'sell'}>{closingSide} to close</dd></div>
-              <div><dt>Order type</dt><dd>Market</dd></div>
-              <div><dt>Quantity</dt><dd>{contracts} qty · {position.quantity} lot{position.quantity === 1 ? '' : 's'}</dd></div>
-              <div><dt>Reference premium</dt><dd>{money(ltp)}</dd></div>
-              <div><dt>Estimated P&L</dt><dd className={asNumber(live?.pnl) >= 0 ? 'gain' : 'loss'}>{signedMoney(live?.pnl)}</dd></div>
-            </dl>
-
-            <div className="position-action-warning">
-              <AlertTriangle size={16} />
-              <span>
-                Confirming executes a paper market exit now. The final fill includes simulated slippage and exit charges, so final P&L may differ from this estimate.
-              </span>
+            <div className="position-exit-type-tabs" role="tablist" aria-label="Exit order type">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={exitMode === 'MARKET'}
+                className={exitMode === 'MARKET' ? 'active market' : ''}
+                onClick={() => selectExitMode('MARKET')}
+                disabled={busy}
+              >
+                <LogOut size={14} />
+                <span><strong>Market</strong><small>Exit now</small></span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={exitMode === 'LIMIT'}
+                className={exitMode === 'LIMIT' ? 'active limit' : ''}
+                onClick={() => selectExitMode('LIMIT')}
+                disabled={busy}
+              >
+                <Clock3 size={14} />
+                <span><strong>Limit</strong><small>Exit at your price</small></span>
+                {hasActiveLimit && <em>Active</em>}
+              </button>
             </div>
+
+            {isLimitExit ? (
+              <>
+                <div className="position-exit-limit-editor">
+                  <div className="position-exit-limit-label">
+                    <span>Limit premium</span>
+                    {hasActiveLimit && <em>Resting at {money(order.exit_limit_price)}</em>}
+                  </div>
+                  <div className="position-action-input">
+                    <span>₹</span>
+                    <input
+                      ref={primaryRef}
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={limitPrice}
+                      onChange={event => {
+                        setLimitPrice(event.target.value)
+                        setValidationError('')
+                      }}
+                      placeholder="Enter exit premium"
+                    />
+                  </div>
+                  <div className="position-exit-limit-meta">
+                    <span>{limitTriggerHint}</span>
+                    <strong className={limitOutcome == null ? '' : limitOutcome >= 0 ? 'gain' : 'loss'}>
+                      {limitOutcome == null ? 'Projected P&L —' : `Projected P&L ${signedMoney(limitOutcome)}`}
+                    </strong>
+                  </div>
+                </div>
+
+                <dl className="position-exit-order compact">
+                  <div><dt>Transaction</dt><dd className={closingSide === 'BUY' ? 'buy' : 'sell'}>{closingSide} to close</dd></div>
+                  <div><dt>Order type</dt><dd>Limit · Full quantity</dd></div>
+                  <div><dt>Quantity</dt><dd>{contracts} qty · {position.quantity} lot{position.quantity === 1 ? '' : 's'}</dd></div>
+                  <div><dt>Current premium</dt><dd>{money(ltp)}</dd></div>
+                </dl>
+
+                <div className={isMarketableLimit ? 'position-action-warning' : 'position-action-info'}>
+                  {isMarketableLimit ? <AlertTriangle size={16} /> : <Clock3 size={15} />}
+                  <span>
+                    {isMarketableLimit
+                      ? 'The current premium already satisfies this limit, so it can close on the next eligible 5-second scan.'
+                      : 'The instruction stays active until the premium reaches your price, you cancel it, or the position closes.'}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <dl className="position-exit-order">
+                  <div><dt>Transaction</dt><dd className={closingSide === 'BUY' ? 'buy' : 'sell'}>{closingSide} to close</dd></div>
+                  <div><dt>Order type</dt><dd>Market</dd></div>
+                  <div><dt>Quantity</dt><dd>{contracts} qty · {position.quantity} lot{position.quantity === 1 ? '' : 's'}</dd></div>
+                  <div><dt>Reference premium</dt><dd>{money(ltp)}</dd></div>
+                  <div><dt>Estimated P&L</dt><dd className={asNumber(live?.pnl) >= 0 ? 'gain' : 'loss'}>{signedMoney(live?.pnl)}</dd></div>
+                </dl>
+
+                <div className="position-action-warning">
+                  <AlertTriangle size={16} />
+                  <span>
+                    Confirming exits at the current available premium. The final fill includes configured slippage and exit charges, so final P&L may differ from this estimate.
+                  </span>
+                </div>
+              </>
+            )}
 
             {displayError && (
               <div className="position-action-error" role="alert">
@@ -333,19 +454,35 @@ export default function PositionActionPanel({
           </div>
 
           <footer className="position-action-footer">
-            <button type="button" className="secondary" onClick={onClose} disabled={busy}>Keep position</button>
+            {isLimitExit && hasActiveLimit && (
+              <button
+                type="button"
+                className="secondary cancel-limit"
+                onClick={() => onExitLimit?.(null)}
+                disabled={busy}
+              >
+                Cancel active limit
+              </button>
+            )}
+            <button type="button" className="secondary" onClick={onClose} disabled={busy}>
+              Keep position
+            </button>
             <button
-              ref={primaryRef}
-              type="button"
-              className="exit"
-              onClick={onExit}
+              ref={isLimitExit ? undefined : primaryRef}
+              type={isLimitExit ? 'submit' : 'button'}
+              className={isLimitExit ? 'primary' : 'exit'}
+              onClick={isLimitExit ? undefined : onExit}
               disabled={busy}
             >
-              <LogOut size={15} />
-              {busy ? 'Exiting…' : `Exit ${contracts} at market`}
+              {isLimitExit ? <Clock3 size={15} /> : <LogOut size={15} />}
+              {busy
+                ? isLimitExit ? 'Saving…' : 'Exiting…'
+                : isLimitExit
+                  ? hasActiveLimit ? 'Update limit exit' : 'Place limit exit'
+                  : `Exit ${contracts} at market`}
             </button>
           </footer>
-        </>
+        </form>
       )}
     </section>,
     document.body,

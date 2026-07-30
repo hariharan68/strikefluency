@@ -72,6 +72,11 @@ def _ensure_strategy_schema(conn) -> None:
         conn.execute(text(
             "ALTER TABLE virtual_orders ADD COLUMN entry_brokerage "
             "NUMERIC(10, 2) NOT NULL DEFAULT 0.00"))
+    # Resting full-position LIMIT exit (migration 20260802).
+    if "exit_limit_price" not in vo_cols:
+        conn.execute(text(
+            "ALTER TABLE virtual_orders ADD COLUMN exit_limit_price "
+            "NUMERIC(10, 2) NULL"))
     # Subscription seam (migration 20260801) — add if not yet applied.
     u_cols = {c["name"] for c in insp.get_columns("users")}
     if "plan" not in u_cols:

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Minus, Plus, ChevronDown, ChevronUp, Zap, Check, ShieldCheck, Clock, Info } from 'lucide-react'
+import { X, Minus, Plus, ChevronDown, ChevronUp, Zap, Check, Clock, Info } from 'lucide-react'
 import { placeOrder, placePendingOrder, getAccount } from '../../api/trading'
 import useMarketStore from '../../store/marketStore'
 import { ltpFromChain } from '../../utils/livePnl'
@@ -201,11 +201,6 @@ export default function FloatingOrderTicket({ ticket, disciplineOff = false, pre
             <X size={15} />
           </button>
         </div>
-      </div>
-
-      <div className="floating-paper-only-notice">
-        <ShieldCheck size={14} />
-        <span><strong>Simulation only.</strong> Market data comes in from your provider; this paper trade never goes back to the broker.</span>
       </div>
 
       {/* ── Product tabs ── */}

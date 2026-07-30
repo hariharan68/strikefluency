@@ -30,6 +30,11 @@ class VirtualOrder(Base):
     # a multi-leg Strategy has no per-leg stop — risk is managed at strategy level.
     sl_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
     target_price: Mapped[Optional[Decimal]] = mapped_column(Numeric(10, 2), nullable=True)
+    # Full-position resting exit instruction chosen from the exit ticket.
+    # Unlike target_price, it may be marketable when saved.
+    exit_limit_price: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 2), nullable=True
+    )
     status: Mapped[str] = mapped_column(String(20), default="OPEN", nullable=False)
     # INTRADAY orders are auto-squared-off at EOD (15:29 IST); NRML carry forward.
     product_type: Mapped[str] = mapped_column(String(10), default="INTRADAY", nullable=False)

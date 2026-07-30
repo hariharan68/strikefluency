@@ -121,6 +121,43 @@ def test_open_order_protection_can_be_updated_in_place(api_client):
     assert response.json()["status"] == "OPEN"
 
 
+def test_open_order_limit_exit_can_be_placed_replaced_and_cancelled(api_client):
+    created = api_client.post(f"{P}/trading/orders", json=_order()).json()
+
+    placed = api_client.patch(
+        f"{P}/trading/orders/{created['id']}/exit-limit",
+        json={"exit_limit_price": "350.129"},
+    )
+    assert placed.status_code == 200, placed.text
+    assert Decimal(placed.json()["exit_limit_price"]) == Decimal("350.13")
+    assert placed.json()["status"] == "OPEN"
+
+    replaced = api_client.patch(
+        f"{P}/trading/orders/{created['id']}/exit-limit",
+        json={"exit_limit_price": "375.00"},
+    )
+    assert replaced.status_code == 200, replaced.text
+    assert Decimal(replaced.json()["exit_limit_price"]) == Decimal("375.00")
+
+    cancelled = api_client.patch(
+        f"{P}/trading/orders/{created['id']}/exit-limit",
+        json={"exit_limit_price": None},
+    )
+    assert cancelled.status_code == 200, cancelled.text
+    assert cancelled.json()["exit_limit_price"] is None
+
+
+def test_exit_limit_rejects_non_positive_price(api_client):
+    created = api_client.post(f"{P}/trading/orders", json=_order()).json()
+
+    response = api_client.patch(
+        f"{P}/trading/orders/{created['id']}/exit-limit",
+        json={"exit_limit_price": "0"},
+    )
+
+    assert response.status_code == 422
+
+
 def test_protection_update_rejects_level_on_wrong_side_of_market(api_client):
     created = api_client.post(f"{P}/trading/orders", json=_order()).json()
     ltp = Decimal(created["entry_ltp"])

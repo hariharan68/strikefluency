@@ -22,6 +22,7 @@ from app.core.exceptions import (
     InvalidCredentialsError,
     MarketClosedError,
     OrderAlreadyClosedError,
+    OrderExitLimitError,
     OrderNotFoundError,
     OrderProtectionError,
     PendingOrderNotCancellableError,
@@ -166,6 +167,13 @@ def register_error_handlers(app):
         return JSONResponse(
             status_code=400,
             content={"error": "ORDER_PROTECTION_INVALID", "message": str(exc)},
+        )
+
+    @app.exception_handler(OrderExitLimitError)
+    async def order_exit_limit_handler(request: Request, exc: OrderExitLimitError):
+        return JSONResponse(
+            status_code=400,
+            content={"error": "ORDER_EXIT_LIMIT_INVALID", "message": str(exc)},
         )
 
     @app.exception_handler(IdempotencyConflictError)

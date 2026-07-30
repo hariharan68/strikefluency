@@ -549,6 +549,11 @@
   font-size: 11px;
 }
 
+.positions-protection span.exit-limit {
+  color: var(--primary);
+  font-weight: 650;
+}
+
 .positions-row-actions {
   display: flex;
   align-items: center;

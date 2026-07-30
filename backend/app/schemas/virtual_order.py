@@ -61,6 +61,7 @@ class OrderResponse(BaseModel):
     exit_price: Optional[Decimal] = None
     sl_price: Optional[Decimal] = None   # None for legs mirrored from a strategy
     target_price: Optional[Decimal] = None
+    exit_limit_price: Optional[Decimal] = None
     status: str
     entry_time: datetime
     exit_time: Optional[datetime] = None
@@ -94,6 +95,18 @@ class UpdateOrderProtectionRequest(BaseModel):
     def protection_price_positive(cls, value):
         if value is not None and value <= 0:
             raise ValueError("Protection prices must be greater than zero")
+        return value
+
+
+class UpdateOrderExitLimitRequest(BaseModel):
+    # Required-but-nullable: null explicitly cancels a resting exit instruction.
+    exit_limit_price: Optional[Decimal]
+
+    @field_validator("exit_limit_price")
+    @classmethod
+    def exit_limit_price_positive(cls, value):
+        if value is not None and value <= 0:
+            raise ValueError("Exit limit price must be greater than zero")
         return value
 
 

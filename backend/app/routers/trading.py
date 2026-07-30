@@ -9,6 +9,7 @@ Virtual trading endpoints:
   GET  /trading/tradebook         → today's filled trades (?scope=all)
   GET  /trading/orders/{id}       → single order detail
   PATCH /trading/orders/{id}/protection → change SL / target on an open order
+  PATCH /trading/orders/{id}/exit-limit → place / edit / cancel a LIMIT exit
   POST /trading/orders/{id}/close → close an open position manually
   GET  /trading/positions         → all open positions with live P&L
   GET  /trading/sessions/today    → today's trading session state
@@ -51,6 +52,7 @@ from app.schemas.virtual_order import (
     OrderListResponse,
     OrderResponse,
     PlaceOrderRequest,
+    UpdateOrderExitLimitRequest,
     UpdateOrderProtectionRequest,
 )
 from app.schemas.virtual_position import PositionListResponse, PositionResponse
@@ -69,6 +71,7 @@ from app.services.virtual_order_service import (
     close_position,
     get_open_positions,
     place_order,
+    update_order_exit_limit,
     update_order_protection,
 )
 
@@ -343,6 +346,45 @@ def modify_order_protection(
     db.commit()
     db.refresh(order)
 
+    publish(current_user.id, TradingEvent.ORDER_PROTECTION_UPDATED)
+    return OrderResponse.model_validate(order)
+
+
+@router.patch("/orders/{order_id}/exit-limit", response_model=OrderResponse)
+def modify_order_exit_limit(
+    order_id: uuid.UUID,
+    data: UpdateOrderExitLimitRequest,
+    current_user: CurrentUser,
+    db: Session = Depends(get_db),
+):
+    """
+    Place, replace, or cancel a resting LIMIT exit for an open position.
+
+    The instruction always closes the complete position. It does not alter the
+    entry, quantity, side, margin, or any external broker state.
+    """
+    order = update_order_exit_limit(
+        db,
+        current_user,
+        order_id,
+        exit_limit_price=data.exit_limit_price,
+    )
+    audit_service.record(
+        db, action=AuditAction.ORDER_EXIT_LIMIT_UPDATED,
+        user_id=current_user.id, tenant_id=current_user.tenant_id,
+        reference_type=AuditRef.VIRTUAL_ORDER, reference_id=order.id,
+        detail={
+            "exit_limit_price": (
+                str(order.exit_limit_price)
+                if order.exit_limit_price is not None else None
+            ),
+        },
+    )
+    db.commit()
+    db.refresh(order)
+
+    # This event already means the open order's instructions changed. Clients
+    # refetch REST state, so no payload or new wire value is needed.
     publish(current_user.id, TradingEvent.ORDER_PROTECTION_UPDATED)
     return OrderResponse.model_validate(order)
 

@@ -25,6 +25,7 @@ from app.core.exceptions import (
     IdempotencyConflictError,
     InsufficientBalanceError,
     OrderAlreadyClosedError,
+    OrderExitLimitError,
     OrderNotFoundError,
     OrderProtectionError,
     QuoteUnavailableError,
@@ -354,6 +355,58 @@ def update_order_protection(
     return order
 
 
+def update_order_exit_limit(
+    db: Session,
+    user: User,
+    order_id: uuid.UUID,
+    *,
+    exit_limit_price: Decimal | None,
+) -> VirtualOrder:
+    """
+    Place, replace, or cancel the full-position resting LIMIT exit.
+
+    Saving the instruction is not an execution, so it is allowed outside
+    market hours. The auto-exit sweep applies the normal market-hours and
+    freshness boundaries before it can close the position.
+    """
+    # Preserve the close path's account -> order -> position lock order.
+    db.query(VirtualAccount).filter(
+        VirtualAccount.user_id == user.id
+    ).with_for_update().first()
+
+    order = db.query(VirtualOrder).filter(
+        VirtualOrder.id == order_id,
+        VirtualOrder.user_id == user.id,
+    ).with_for_update().first()
+
+    if not order:
+        raise OrderNotFoundError(f"Order {order_id} not found")
+    if order.status != OrderStatus.OPEN:
+        raise OrderAlreadyClosedError(f"Order {order_id} is already {order.status}")
+    if order.strategy_id is not None:
+        raise OrderExitLimitError(
+            "This leg belongs to a strategy and must be exited at strategy level."
+        )
+
+    position = db.query(VirtualPosition).filter(
+        VirtualPosition.order_id == order.id,
+        VirtualPosition.is_open == True,
+    ).with_for_update().first()
+    if position is None:
+        raise OrderExitLimitError("The open position record is unavailable.")
+
+    limit_price = _optional_decimal(exit_limit_price)
+    if limit_price is not None:
+        limit_price = limit_price.quantize(Decimal("0.01"))
+        if limit_price <= 0:
+            raise OrderExitLimitError(
+                "Exit limit price must be greater than zero."
+            )
+
+    order.exit_limit_price = limit_price
+    return order
+
+
 def close_position(
     db: Session,
     user: User,
@@ -411,6 +464,16 @@ def close_position(
         action=exit_action,
         instrument=order.instrument,
     )
+    if (
+        exit_reason == ExitReason.LIMIT_EXIT
+        and order.exit_limit_price is not None
+    ):
+        # A LIMIT trigger may receive price improvement, but never a worse fill
+        # than the user's instruction after slippage is applied.
+        if exit_action == "SELL":
+            exit_fill_price = max(exit_fill_price, order.exit_limit_price)
+        else:
+            exit_fill_price = min(exit_fill_price, order.exit_limit_price)
 
     # ── P&L calculation ────────────────────────────────────
     gross_pnl = calculate_pnl(

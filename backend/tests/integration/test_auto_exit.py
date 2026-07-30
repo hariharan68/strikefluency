@@ -26,10 +26,13 @@ from app.services.auto_exit_service import _decide_exit, scan_and_exit
 
 class _Ord:
     """Minimal stand-in for a VirtualOrder — only the fields _decide_exit reads."""
-    def __init__(self, action, sl=None, tgt=None):
+    def __init__(self, action, sl=None, tgt=None, exit_limit=None):
         self.action = action
         self.sl_price = Decimal(str(sl)) if sl is not None else None
         self.target_price = Decimal(str(tgt)) if tgt is not None else None
+        self.exit_limit_price = (
+            Decimal(str(exit_limit)) if exit_limit is not None else None
+        )
 
 
 def test_buy_sl_fires_when_premium_falls():
@@ -58,6 +61,23 @@ def test_sl_wins_over_target_on_same_tick_gap():
     assert _decide_exit(o, Decimal("50")) == ExitReason.SL_HIT  # ltp below both? only sl
     o2 = _Ord("SELL", sl=100, tgt=50)
     assert _decide_exit(o2, Decimal("120")) == ExitReason.SL_HIT
+
+
+def test_buy_limit_exit_fires_when_premium_reaches_or_exceeds_limit():
+    order = _Ord("BUY", exit_limit=350)
+    assert _decide_exit(order, Decimal("350")) == ExitReason.LIMIT_EXIT
+    assert _decide_exit(order, Decimal("349.99")) is None
+
+
+def test_sell_limit_exit_fires_when_premium_reaches_or_falls_below_limit():
+    order = _Ord("SELL", exit_limit=250)
+    assert _decide_exit(order, Decimal("250")) == ExitReason.LIMIT_EXIT
+    assert _decide_exit(order, Decimal("250.01")) is None
+
+
+def test_target_keeps_priority_over_limit_exit_on_same_tick():
+    order = _Ord("BUY", tgt=400, exit_limit=350)
+    assert _decide_exit(order, Decimal("450")) == ExitReason.TARGET_HIT
 
 
 # ── Integration harness ───────────────────────────────────────────
@@ -153,6 +173,48 @@ def test_target_hit_auto_closes_without_cooldown(db_session, seeded_user, wire_p
     assert refreshed.status == OrderStatus.TARGET_HIT
     sess = _today_session(db_session, seeded_user)
     assert (sess is None) or (sess.is_cooldown_active is False)
+
+
+def test_limit_exit_closes_at_crossed_premium_without_cooldown(
+        db_session, seeded_user, wire_provider):
+    order = _place(db_session, seeded_user)
+    order.exit_limit_price = Decimal("350")
+    db_session.flush()
+
+    # Trigger exactly at the limit. SELL-side slippage must not make the final
+    # fill worse than the user's limit.
+    wire_provider.ltp = Decimal("350")
+    closed = scan_and_exit(db_session)
+
+    assert closed == 1
+    refreshed = db_session.get(VirtualOrder, order.id)
+    assert refreshed.status == OrderStatus.CLOSED
+    assert refreshed.exit_reason == ExitReason.LIMIT_EXIT
+    assert refreshed.exit_price >= Decimal("350")
+    sess = _today_session(db_session, seeded_user)
+    assert (sess is None) or (sess.is_cooldown_active is False)
+
+
+def test_sell_limit_exit_never_fills_above_limit(
+        db_session, seeded_user, wire_provider):
+    order = _place(
+        db_session,
+        seeded_user,
+        sl=Decimal("500"),
+        tgt=Decimal("100"),
+        action="SELL",
+    )
+    order.exit_limit_price = Decimal("250")
+    db_session.flush()
+
+    wire_provider.ltp = Decimal("250")
+    closed = scan_and_exit(db_session)
+
+    assert closed == 1
+    refreshed = db_session.get(VirtualOrder, order.id)
+    assert refreshed.status == OrderStatus.CLOSED
+    assert refreshed.exit_reason == ExitReason.LIMIT_EXIT
+    assert refreshed.exit_price <= Decimal("250")
 
 
 def test_free_play_exit_skips_cooldown_and_score(db_session, seeded_user, wire_provider):

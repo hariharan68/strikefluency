@@ -24,6 +24,7 @@ import {
   getPendingOrders,
   getPositions,
   getTradebook,
+  updateOrderExitLimit,
   updateOrderProtection,
 } from '../../api/trading'
 import { getRules, getTodayViolations } from '../../api/discipline'
@@ -622,12 +623,38 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
     }
   }
 
+  const handleExitLimitUpdate = async (orderId, exitLimitPrice) => {
+    setPositionPanelError('')
+    setModifyingId(orderId)
+    try {
+      await updateOrderExitLimit(orderId, exitLimitPrice)
+      success(
+        exitLimitPrice == null
+          ? 'Limit exit cancelled'
+          : 'Limit exit instruction saved',
+      )
+      await load({ quiet: true })
+      setPositionPanel(null)
+    } catch (requestError) {
+      const message = getApiErrorMessage(
+        requestError,
+        exitLimitPrice == null
+          ? 'Could not cancel the limit exit.'
+          : 'Could not save the limit exit.',
+      )
+      setPositionPanelError(message)
+      toastError(message)
+    } finally {
+      setModifyingId(null)
+    }
+  }
+
   const handleClose = async orderId => {
     setPositionPanelError('')
     setClosingId(orderId)
     try {
       await closeOrder(orderId)
-      success('Paper position closed')
+      success('Position closed')
       await load({ quiet: true })
       setPositionPanel(null)
     } catch (requestError) {
@@ -873,6 +900,9 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
                     <td className="positions-protection num">
                       <strong>{order?.sl_price == null ? 'No SL' : money(order.sl_price, 0)}</strong>
                       <span>{order?.target_price == null ? 'No target' : `${money(order.target_price, 0)} target`}</span>
+                      {order?.exit_limit_price != null && (
+                        <span className="exit-limit">{money(order.exit_limit_price, 0)} exit limit</span>
+                      )}
                     </td>
                     <td><StatusPill /></td>
                     <td>
@@ -1342,6 +1372,7 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
           }
           onClose={closePositionPanel}
           onSave={protection => handleProtectionUpdate(positionPanel.orderId, protection)}
+          onExitLimit={price => handleExitLimitUpdate(positionPanel.orderId, price)}
           onExit={() => handleClose(positionPanel.orderId)}
         />
       )}

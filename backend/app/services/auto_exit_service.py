@@ -46,22 +46,27 @@ logger = logging.getLogger(__name__)
 
 def _decide_exit(order: VirtualOrder, ltp) -> str | None:
     """
-    Return the ExitReason if this order's SL/target is crossed at `ltp`,
-    else None. SL takes priority over target on a same-tick gap.
+    Return the ExitReason if this order's SL, target, or exit limit is crossed
+    at `ltp`, else None. Priority is SL, target, then exit limit.
     """
     sl = order.sl_price
     tgt = order.target_price
+    exit_limit = order.exit_limit_price
 
     if order.action == "BUY":
         if sl is not None and ltp <= sl:
             return ExitReason.SL_HIT
         if tgt is not None and ltp >= tgt:
             return ExitReason.TARGET_HIT
+        if exit_limit is not None and ltp >= exit_limit:
+            return ExitReason.LIMIT_EXIT
     else:  # SELL — short the option, loss when premium rises
         if sl is not None and ltp >= sl:
             return ExitReason.SL_HIT
         if tgt is not None and ltp <= tgt:
             return ExitReason.TARGET_HIT
+        if exit_limit is not None and ltp <= exit_limit:
+            return ExitReason.LIMIT_EXIT
 
     return None
 
@@ -70,8 +75,8 @@ def scan_and_exit(db: Session,
                   on_close: Optional[Callable[[object, str], None]] = None) -> int:
     """
     Scan every open standalone order: mark its position to market at the live
-    premium (current_ltp + unrealized_pnl), then auto-close it if an SL/target
-    level has been crossed. Returns the number of orders closed.
+    premium (current_ltp + unrealized_pnl), then auto-close it if an SL, target,
+    or resting exit limit has been crossed. Returns the number of orders closed.
 
     on_close(user_id, reason) is invoked after each successful close so the
     caller can notify that user (e.g. a WS push after commit). Callback errors
@@ -124,7 +129,7 @@ def scan_and_exit(db: Session,
             ltp, _ = _get_ltp_from_chain(chain, int(order.strike_price), order.option_type)
             if ltp is None:
                 # Strike outside the current chain window — no tradable quote,
-                # so neither mark-to-market nor SL/target can be evaluated.
+                # so neither mark-to-market nor an exit level can be evaluated.
                 continue
 
             # Live mark-to-market — keeps positions' unrealized P&L fresh even

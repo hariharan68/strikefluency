@@ -89,6 +89,11 @@ class OrderProtectionError(StrikeFluencyError):
     pass
 
 
+class OrderExitLimitError(StrikeFluencyError):
+    """A resting exit-limit change is invalid for the open order."""
+    pass
+
+
 class IdempotencyConflictError(StrikeFluencyError):
     """A client order ID was reused with a different order payload."""
     pass

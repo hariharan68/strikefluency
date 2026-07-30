@@ -77,6 +77,7 @@ class ExitReason:
     MANUAL = "MANUAL"
     SL_HIT = "SL_HIT"
     TARGET_HIT = "TARGET_HIT"
+    LIMIT_EXIT = "LIMIT_EXIT"
     EOD_SQUAREOFF = "EOD_SQUAREOFF"
 
 

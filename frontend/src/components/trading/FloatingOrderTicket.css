@@ -23,16 +23,3 @@
   --color-surface: var(--bg-alt);
   --color-surface2: var(--bg-deep);
 }
-.floating-paper-only-notice {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 9px 16px;
-  border-bottom: 1px solid color-mix(in srgb, var(--gain) 28%, var(--border));
-  background: var(--gain-bg);
-  color: var(--gain-text);
-  font-size: 10.5px;
-  line-height: 1.45;
-}
-
-.floating-paper-only-notice svg { flex: 0 0 auto; margin-top: 1px; }

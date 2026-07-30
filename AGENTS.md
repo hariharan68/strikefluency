@@ -39,7 +39,7 @@ is registered. Every HTTP and WebSocket route must be either:
 - **declared public** — an entry in `PUBLIC_ROUTES` with a written reason.
 
 Anything else raises `RuntimeError` and **the process never binds a port**.
-Current audit: **99 authenticated, 12 declared public**.
+Current audit: **100 authenticated, 12 declared public**.
 
 To add an endpoint, just take `CurrentUser`:
 
@@ -86,7 +86,7 @@ npm run build
 
 # Tests
 cd backend
-pytest              # 409 tests; integration tests self-skip without Postgres
+pytest              # 416 tests; integration tests self-skip without Postgres
 ```
 
 **Never commit** `.env`, `fyers_token.json`, `access_token.txt`, or `fyers_logs/`.
@@ -101,7 +101,7 @@ token, starts the market scheduler and auth maintenance; shutdown reverses it.
 CORS and the cookie `Origin` check both read `settings.trusted_origins` — one
 list, so they cannot drift.
 
-### Routers (13, all under `/api/v1`, 111 routes)
+### Routers (13, all under `/api/v1`, 112 routes)
 
 | Prefix | Purpose |
 |---|---|
@@ -164,7 +164,7 @@ Capital tiers: TIER_1 ₹1,00,000 · TIER_2 ₹5,00,000 · TIER_3 ₹10,00,000.
 
 There is **no** `MARKET_HOURS` discipline rule. The environment-independent
 execution boundary is `core.utils.require_market_open()`: MARKET entries,
-LIMIT placement/fills, strategy execution, manual exits, SL/target exits and
+LIMIT placement/fills, strategy execution, manual exits, SL/target/limit exits and
 EOD/expiry exits all fail closed outside 09:15–15:30 IST. Development/mock mode
 may show off-hours quotes but never bypasses this execution boundary.
 
@@ -211,6 +211,18 @@ Notes:
   `leverage_enabled` setting is on, ÷ 1 when off.
 - `client_order_id` makes placement retry-safe; a replay returns the original
   fill (HTTP 200 instead of 201) and never re-prices.
+
+**Resting position exits** — `VirtualOrder.exit_limit_price` is the single
+full-position LIMIT exit instruction. `PATCH /trading/orders/{id}/exit-limit`
+places/replaces it and a null value cancels it; saving is allowed outside market
+hours because it does not execute. The 5s auto-exit sweep applies the normal
+market-hours and freshness gates, then closes a BUY position when premium is at
+or above the limit and a SELL position when premium is at or below it. SL keeps
+first priority, followed by target, then the explicit limit on a same-tick gap.
+Slippage may improve a LIMIT fill but is bounded so it can never make the fill
+worse than the saved limit.
+It is intentionally attached to the open order rather than `pending_orders`:
+that table represents entries which have not created a position yet.
 - `PATCH /trading/orders/{id}/protection` replaces only `sl_price` and
   `target_price` on an open single-leg order. It follows the same account →
   order → position lock order as close, preserves the mandatory-SL rule while
@@ -503,7 +515,7 @@ APScheduler `AsyncIOScheduler`, timezone `Asia/Kolkata`.
 | market status + option chain broadcast | 1s | no |
 | option metrics + analytics broadcast | 15s | no |
 | strategy mark-to-market | 15s | yes |
-| SL/target auto-exit | 5s | yes |
+| SL/target/limit auto-exit | 5s | yes |
 | resting LIMIT order fills | 5s | yes |
 | expiry + intraday square-off | 15:29 cron | yes |
 | pre-market stale DAY-limit cleanup | 08:30 cron | yes |
@@ -599,7 +611,7 @@ something threw inside render — check the console before assuming a data probl
 
 ## Testing
 
-409 tests. `backend/tests/unit/` is mostly pure and needs no database;
+416 tests. `backend/tests/unit/` is mostly pure and needs no database;
 `backend/tests/integration/` self-skips when Postgres is unreachable and wraps
 each test in a rolled-back outer transaction, so nothing persists.
 
