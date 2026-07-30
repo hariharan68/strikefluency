@@ -19,6 +19,8 @@ export const updateOrderExitLimit = (orderId, exitLimitPrice) =>
     exit_limit_price: exitLimitPrice,
   })
 export const closeOrder = (orderId) => client.post(`/trading/orders/${orderId}/close`)
+export const emergencyExitPositions = () =>
+  client.post('/trading/positions/emergency-exit')
 
 // ── Resting LIMIT orders ──
 // A limit order does NOT open a position: it parks in the pending book until

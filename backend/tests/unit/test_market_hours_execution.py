@@ -24,6 +24,9 @@ from app.services import (
         lambda db, user: virtual_order_service.close_position(
             db, user, uuid.uuid4()
         ),
+        lambda db, user: virtual_order_service.emergency_exit_buy_positions(
+            db, user
+        ),
         lambda db, user: pending_order_service.place_pending_order(db, user, {}),
         lambda db, user: strategy_execution_service.execute_strategy(
             db, user, uuid.uuid4()

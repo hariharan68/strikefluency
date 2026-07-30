@@ -75,6 +75,7 @@ class PendingOrderStatus:
 # ── Exit reasons ──────────────────────────────────────────────
 class ExitReason:
     MANUAL = "MANUAL"
+    EMERGENCY_EXIT = "EMERGENCY_EXIT"
     SL_HIT = "SL_HIT"
     TARGET_HIT = "TARGET_HIT"
     LIMIT_EXIT = "LIMIT_EXIT"

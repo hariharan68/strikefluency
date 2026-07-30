@@ -25,7 +25,8 @@
 }
 
 .positions-primary-button,
-.positions-secondary-button {
+.positions-secondary-button,
+.positions-emergency-button {
   height: 38px;
   border-radius: 9px;
   padding: 0 15px;
@@ -54,6 +55,22 @@
 .positions-secondary-button {
   background: var(--color-surface);
   color: var(--text);
+}
+
+.positions-emergency-button {
+  border-color: var(--warn);
+  background: var(--warn);
+  color: var(--bg);
+}
+
+.positions-emergency-button:hover:not(:disabled) {
+  filter: brightness(1.04);
+  box-shadow: 0 8px 24px -13px var(--warn);
+}
+
+.positions-emergency-button:disabled {
+  opacity: .42;
+  cursor: not-allowed;
 }
 
 .positions-secondary-button:hover,
@@ -849,7 +866,8 @@
 @media (max-width: 760px) {
   .positions-page-actions { width: 100%; }
   .positions-primary-button,
-  .positions-secondary-button { flex: 1; }
+  .positions-secondary-button,
+  .positions-emergency-button { flex: 1; }
   .positions-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .positions-insights { grid-template-columns: 1fr; }
   .positions-book-controls { align-items: flex-start; flex-direction: column; }
@@ -860,7 +878,8 @@
 @media (max-width: 480px) {
   .positions-page-actions { flex-direction: column-reverse; }
   .positions-primary-button,
-  .positions-secondary-button { width: 100%; }
+  .positions-secondary-button,
+  .positions-emergency-button { width: 100%; }
   .positions-metric-grid { grid-template-columns: 1fr; }
   .positions-metric-card { min-height: 102px; }
   .positions-tabs button { padding: 0 9px; }

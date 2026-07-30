@@ -83,6 +83,13 @@ class CloseOrderResponse(BaseModel):
     message: str
 
 
+class EmergencyExitResponse(BaseModel):
+    closed_orders: list[OrderResponse]
+    closed_count: int
+    net_pnl: Decimal
+    message: str
+
+
 class UpdateOrderProtectionRequest(BaseModel):
     # Both keys are required so a client must state the complete protection
     # intent. A null value deliberately removes that protection when the

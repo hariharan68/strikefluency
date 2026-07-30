@@ -11,6 +11,7 @@ Virtual trading endpoints:
   PATCH /trading/orders/{id}/protection → change SL / target on an open order
   PATCH /trading/orders/{id}/exit-limit → place / edit / cancel a LIMIT exit
   POST /trading/orders/{id}/close → close an open position manually
+  POST /trading/positions/emergency-exit → close standalone BUY positions
   GET  /trading/positions         → all open positions with live P&L
   GET  /trading/sessions/today    → today's trading session state
 
@@ -49,6 +50,7 @@ from app.schemas.pending_order import (
 from app.schemas.virtual_account import AccountSummaryResponse, VirtualAccountResponse
 from app.schemas.virtual_order import (
     CloseOrderResponse,
+    EmergencyExitResponse,
     OrderListResponse,
     OrderResponse,
     PlaceOrderRequest,
@@ -69,6 +71,7 @@ from app.services.trading_session_service import (
 )
 from app.services.virtual_order_service import (
     close_position,
+    emergency_exit_buy_positions,
     get_open_positions,
     place_order,
     update_order_exit_limit,
@@ -424,6 +427,58 @@ def close_order(
         order=OrderResponse.model_validate(order),
         net_pnl=order.pnl or Decimal("0"),
         message=f"Position closed. Net P&L: ₹{order.pnl}",
+    )
+
+
+@router.post(
+    "/positions/emergency-exit",
+    response_model=EmergencyExitResponse,
+)
+def emergency_exit_positions(
+    current_user: CurrentUser,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Exit every open standalone BUY option position at market.
+
+    Strategy legs and standalone SELL positions are intentionally untouched.
+    All eligible closes share one transaction: either the complete eligible set
+    is settled, journalled, and audited, or none of it is committed.
+    """
+    closed = emergency_exit_buy_positions(db, current_user)
+    net_pnl = sum(
+        (order.pnl or Decimal("0") for order in closed),
+        Decimal("0"),
+    )
+    audit_service.record(
+        db,
+        action=AuditAction.EMERGENCY_EXIT,
+        user_id=current_user.id,
+        tenant_id=current_user.tenant_id,
+        detail={
+            "closed_count": len(closed),
+            "order_ids": [str(order.id) for order in closed],
+            "net_pnl": str(net_pnl),
+            "scope": "standalone_buy_positions",
+        },
+        ip_address=audit_service.client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.commit()
+    for order in closed:
+        db.refresh(order)
+
+    if closed:
+        publish(current_user.id, TradingEvent.ORDER_CLOSED)
+
+    count = len(closed)
+    noun = "position" if count == 1 else "positions"
+    return EmergencyExitResponse(
+        closed_orders=[OrderResponse.model_validate(order) for order in closed],
+        closed_count=count,
+        net_pnl=net_pnl,
+        message=f"{count} standalone BUY {noun} exited at market.",
     )
 
 

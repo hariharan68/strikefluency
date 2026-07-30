@@ -16,6 +16,7 @@ from app.core.constants import (
     DisciplineRuleCode,
     ExitReason,
     LEVERAGE_MULTIPLIER,
+    OrderAction,
     OrderStatus,
     ProductType,
 )
@@ -551,6 +552,57 @@ def close_position(
     )
 
     return order
+
+
+def emergency_exit_buy_positions(
+    db: Session,
+    user: User,
+) -> list[VirtualOrder]:
+    """
+    Close every open standalone BUY option position in one transaction.
+
+    The account lock is acquired before eligibility is read. Every single-order
+    mutation path uses that account as its serialization point, so the set
+    cannot change under this emergency action. Strategy legs are represented
+    by strategy positions and mirrored orders with ``strategy_id``; both are
+    deliberately excluded.
+    """
+    core_utils.require_market_open()
+
+    db.query(VirtualAccount).filter(
+        VirtualAccount.user_id == user.id
+    ).with_for_update().first()
+
+    order_ids = [
+        row.id
+        for row in (
+            db.query(VirtualOrder.id)
+            .join(
+                VirtualPosition,
+                VirtualPosition.order_id == VirtualOrder.id,
+            )
+            .filter(
+                VirtualOrder.user_id == user.id,
+                VirtualOrder.status == OrderStatus.OPEN,
+                VirtualOrder.action == OrderAction.BUY,
+                VirtualOrder.strategy_id.is_(None),
+                VirtualPosition.user_id == user.id,
+                VirtualPosition.is_open == True,
+            )
+            .order_by(VirtualOrder.created_at.asc(), VirtualOrder.id.asc())
+            .all()
+        )
+    ]
+
+    return [
+        close_position(
+            db=db,
+            user=user,
+            order_id=order_id,
+            exit_reason=ExitReason.EMERGENCY_EXIT,
+        )
+        for order_id in order_ids
+    ]
 
 
 def get_open_positions(db: Session, user: User) -> list:

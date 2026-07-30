@@ -12,6 +12,7 @@ import {
   Plus,
   RefreshCw,
   ScrollText,
+  ShieldAlert,
   ShieldCheck,
   Table2,
   Wallet,
@@ -19,6 +20,7 @@ import {
 import {
   cancelPendingOrder,
   closeOrder,
+  emergencyExitPositions,
   getAccount,
   getOrders,
   getPendingOrders,
@@ -35,6 +37,7 @@ import usePreferencesStore from '../../store/preferencesStore'
 import useTradingStore from '../../store/tradingStore'
 import { livePnl, ltpFromChain } from '../../utils/livePnl'
 import { getApiErrorMessage } from '../../utils/apiError'
+import EmergencyExitPanel from './EmergencyExitPanel'
 import PositionActionPanel from './PositionActionPanel'
 import './PositionsWorkspace.css'
 
@@ -269,6 +272,9 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
   const [modifyingId, setModifyingId] = useState(null)
   const [positionPanel, setPositionPanel] = useState(null)
   const [positionPanelError, setPositionPanelError] = useState('')
+  const [emergencyExitOpen, setEmergencyExitOpen] = useState(false)
+  const [emergencyExitBusy, setEmergencyExitBusy] = useState(false)
+  const [emergencyExitError, setEmergencyExitError] = useState('')
 
   const load = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) setLoading(true)
@@ -582,6 +588,16 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
   const wsLive = brokerQuotesLive
     && lastUpdate != null
     && Date.now() - lastUpdate < 4000
+  const emergencyPositions = positions
+    .filter(position => (
+      position.is_open !== false
+      && position.action === 'BUY'
+      && orderById.get(String(position.order_id))?.strategy_id == null
+    ))
+    .map(position => ({
+      ...position,
+      live_pnl: liveForPosition(position).pnl,
+    }))
 
   const counts = {
     positions: positions.length + strategies.length,
@@ -666,6 +682,41 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
       toastError(message)
     } finally {
       setClosingId(null)
+    }
+  }
+
+  const openEmergencyExit = () => {
+    if (!emergencyPositions.length || emergencyExitBusy) return
+    setEmergencyExitError('')
+    setEmergencyExitOpen(true)
+  }
+
+  const closeEmergencyExit = () => {
+    if (emergencyExitBusy) return
+    setEmergencyExitOpen(false)
+    setEmergencyExitError('')
+  }
+
+  const handleEmergencyExit = async () => {
+    setEmergencyExitError('')
+    setEmergencyExitBusy(true)
+    try {
+      const response = await emergencyExitPositions()
+      const count = asNumber(response.data?.closed_count)
+      success(
+        `${count} standalone BUY position${count === 1 ? '' : 's'} exited`,
+      )
+      await load({ quiet: true })
+      setEmergencyExitOpen(false)
+    } catch (requestError) {
+      const message = getApiErrorMessage(
+        requestError,
+        'Could not complete the emergency exit.',
+      )
+      setEmergencyExitError(message)
+      toastError(message)
+    } finally {
+      setEmergencyExitBusy(false)
     }
   }
 
@@ -1172,6 +1223,19 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
     <div className={`positions-page${embedded ? ' embedded' : ''}`}>
       <section className="positions-page-toolbar">
         <div className="positions-page-actions">
+          <button
+            type="button"
+            className="positions-emergency-button"
+            onClick={openEmergencyExit}
+            disabled={!emergencyPositions.length || emergencyExitBusy}
+            title={
+              emergencyPositions.length
+                ? `Exit ${emergencyPositions.length} standalone BUY position${emergencyPositions.length === 1 ? '' : 's'}`
+                : 'No standalone BUY positions are open'
+            }
+          >
+            <ShieldAlert size={15} /> EM Exit
+          </button>
           <button type="button" className="positions-secondary-button" onClick={handleExport}>
             <Download size={14} /> Export CSV
           </button>
@@ -1352,6 +1416,16 @@ export default function PositionsWorkspace({ embedded = false, onNewTrade }) {
           </article>
         </aside>
       </section>
+
+      {emergencyExitOpen && (
+        <EmergencyExitPanel
+          positions={emergencyPositions}
+          busy={emergencyExitBusy}
+          error={emergencyExitError}
+          onClose={closeEmergencyExit}
+          onConfirm={handleEmergencyExit}
+        />
+      )}
 
       {positionPanel && selectedPosition && selectedOrder && (
         <PositionActionPanel

@@ -39,7 +39,7 @@ is registered. Every HTTP and WebSocket route must be either:
 - **declared public** — an entry in `PUBLIC_ROUTES` with a written reason.
 
 Anything else raises `RuntimeError` and **the process never binds a port**.
-Current audit: **100 authenticated, 12 declared public**.
+Current audit: **101 authenticated, 12 declared public**.
 
 To add an endpoint, just take `CurrentUser`:
 
@@ -86,7 +86,7 @@ npm run build
 
 # Tests
 cd backend
-pytest              # 416 tests; integration tests self-skip without Postgres
+pytest              # 419 tests; integration tests self-skip without Postgres
 ```
 
 **Never commit** `.env`, `fyers_token.json`, `access_token.txt`, or `fyers_logs/`.
@@ -101,7 +101,7 @@ token, starts the market scheduler and auth maintenance; shutdown reverses it.
 CORS and the cookie `Origin` check both read `settings.trusted_origins` — one
 list, so they cannot drift.
 
-### Routers (13, all under `/api/v1`, 112 routes)
+### Routers (13, all under `/api/v1`, 113 routes)
 
 | Prefix | Purpose |
 |---|---|
@@ -164,9 +164,10 @@ Capital tiers: TIER_1 ₹1,00,000 · TIER_2 ₹5,00,000 · TIER_3 ₹10,00,000.
 
 There is **no** `MARKET_HOURS` discipline rule. The environment-independent
 execution boundary is `core.utils.require_market_open()`: MARKET entries,
-LIMIT placement/fills, strategy execution, manual exits, SL/target/limit exits and
-EOD/expiry exits all fail closed outside 09:15–15:30 IST. Development/mock mode
-may show off-hours quotes but never bypasses this execution boundary.
+LIMIT placement/fills, strategy execution, manual/emergency exits,
+SL/target/limit exits and EOD/expiry exits all fail closed outside
+09:15–15:30 IST. Development/mock mode may show off-hours quotes but never
+bypasses this execution boundary.
 
 A **strategy counts as one trade**. Only the three strategy-level rules apply
 (`STRATEGY_DISCIPLINE_RULES`): setup tag, max trades/day, max daily loss. Per-leg
@@ -199,6 +200,12 @@ either, keep them in step.
 slippage → gross P&L → exit brokerage → update order/position → release margin,
 apply net P&L → update session → cooldown on `SL_HIT` → discipline score →
 auto journal entry.
+
+**Emergency exit** (`POST /trading/positions/emergency-exit`) — locks the
+account, selects every OPEN standalone BUY order joined to an open
+`VirtualPosition`, and reuses `close_position()` for the complete set in one
+transaction. Standalone SELL positions and every strategy leg are excluded by
+server-side predicates, not frontend convention.
 
 Notes:
 
