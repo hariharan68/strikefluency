@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.config import settings
 from app.core.exceptions import InvalidCredentialsError, UserAlreadyExistsError
+from app.core.origin import check_origin
 from app.core.security import create_access_token
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_auth
@@ -27,10 +28,9 @@ COOKIE_NAME = "refresh_token"
 COOKIE_PATH = "/api/v1/auth"
 
 
-def _check_origin(request: Request) -> None:
-    origin = request.headers.get("origin") or request.headers.get("referer")
-    if not origin or not any(origin.rstrip("/").startswith(value) for value in settings.trusted_origins):
-        raise HTTPException(status_code=403, detail="Untrusted origin")
+# Shared with the OAuth router; see app/core/origin.py for why exact matching
+# replaced the old startswith test.
+_check_origin = check_origin
 
 
 def _set_refresh_cookie(response: Response, raw_token: str, remember_me: bool) -> None:

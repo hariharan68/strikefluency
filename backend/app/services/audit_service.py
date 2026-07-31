@@ -49,6 +49,7 @@ class AuditAction:
     # Auth
     LOGIN = "LOGIN"
     LOGIN_FAILED = "LOGIN_FAILED"
+    OAUTH_LOGIN = "OAUTH_LOGIN"
     LOGOUT = "LOGOUT"
     LOGOUT_ALL = "LOGOUT_ALL"
     REGISTER = "REGISTER"

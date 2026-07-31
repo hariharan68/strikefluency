@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Boolean, DateTime, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
@@ -13,6 +13,14 @@ class OAuthTransaction(Base):
     provider: Mapped[str] = mapped_column(String(20), nullable=False)
     state: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     pkce_verifier: Mapped[str] = mapped_column(String(128), nullable=False)
+    # OIDC nonce echoed back inside Google's id_token. Nullable only so rows
+    # written before the column existed still load; the verifier rejects NULL.
+    nonce: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Set when this flow exists to re-authenticate an account-link challenge
+    # rather than to sign in normally.
+    link_challenge_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("link_challenges.id", ondelete="CASCADE"), nullable=True
+    )
     remember_me: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

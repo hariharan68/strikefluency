@@ -25,6 +25,10 @@ class User(Base):
     # against a live users table.
     plan: Mapped[str] = mapped_column(String(20), default="free", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # False for accounts created through an OAuth provider: hashed_password holds
+    # a random value nobody knows, so password login and password-confirmation
+    # must both refuse rather than compare against an unguessable secret.
+    has_usable_password: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     token_version: Mapped[int] = mapped_column(default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         server_default=func.now(), nullable=False

@@ -76,7 +76,7 @@ PUBLIC_ROUTES: dict[tuple[str, str], str] = {
     # ── OAuth (browser redirects cannot carry a Bearer header) ──
     ("GET", "/api/v1/oauth/{provider}/start"): "OAuth initiation; creates server-side transaction",
     ("GET", "/api/v1/oauth/{provider}/callback"): "provider redirect target; state+PKCE verified",
-    ("POST", "/api/v1/oauth/link/{challenge_id}/confirm"): "account-link proof; requires account password",
+    ("POST", "/api/v1/oauth/link/{challenge_id}/confirm"): "account-link proof; account password, Origin-checked, 5-attempt cap",
 
     # ── Fyers broker callback (external redirect, no Bearer possible) ──
     ("GET", "/api/v1/auth/fyers/callback"): "Fyers popup redirect; carries one-time auth_code only",

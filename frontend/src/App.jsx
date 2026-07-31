@@ -4,7 +4,7 @@ import { ToastProvider } from './components/common/Toast'
 import ProtectedRoute from './components/layout/ProtectedRoute'
 import AppLayout from './components/layout/AppLayout'
 import AdminRoute from './components/layout/AdminRoute'
-import * as authApi from './api/auth'
+import { restoreSession } from './api/session'
 import useAuthStore, { getAccessToken } from './store/authStore'
 
 const LandingPage = lazy(() => import('./pages/LandingPage'))
@@ -41,7 +41,8 @@ const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'))
 // session the first call just restored — logging the user out on reload. This
 // module-scoped promise is created once per page load (the module re-imports on
 // a real reload), so both effect invocations share the same result.
-let sessionRestore = null
+// The promise itself now lives in api/session.js so the OAuth callback page can
+// share it instead of starting a second, racing refresh.
 
 function AuthBootstrap() {
   const setAuth = useAuthStore(s => s.setAuth)
@@ -49,13 +50,8 @@ function AuthBootstrap() {
   const setInitialized = useAuthStore(s => s.setInitialized)
 
   useEffect(() => {
-    if (!sessionRestore) {
-      sessionRestore = authApi.refresh()
-        .then(() => authApi.getMe())
-        .then(({ data }) => ({ user: data, token: getAccessToken() }))
-    }
     let active = true
-    sessionRestore
+    restoreSession()
       .then(({ user, token }) => { if (active) setAuth(user, token) })
       .catch(() => {
         // A user may complete a manual login while the initial cookie refresh

@@ -113,6 +113,32 @@ def _ensure_strategy_schema(conn) -> None:
     for model in (PSORM, PLORM):
         if not inspect(conn).has_table(model.__tablename__):
             model.__table__.create(conn)
+    # OAuth tables (migration 20260711) — create if not yet applied. link_challenges
+    # must exist before oauth_transactions, which now carries an FK to it.
+    from app.models.link_challenge import LinkChallenge as LCORM
+    from app.models.oauth_identity import OAuthIdentity as OIORM
+    from app.models.oauth_transaction import OAuthTransaction as OTORM
+    from app.models.security_notification import SecurityNotification as SNORM
+    for model in (LCORM, OIORM, OTORM, SNORM):
+        if not inspect(conn).has_table(model.__tablename__):
+            model.__table__.create(conn)
+    # OAuth completion columns (migration 20260803) — add if not yet applied.
+    if "has_usable_password" not in u_cols:
+        conn.execute(text(
+            "ALTER TABLE users ADD COLUMN has_usable_password BOOLEAN NOT NULL DEFAULT TRUE"))
+    ot_cols = {c["name"] for c in inspect(conn).get_columns("oauth_transactions")}
+    if "nonce" not in ot_cols:
+        conn.execute(text("ALTER TABLE oauth_transactions ADD COLUMN nonce VARCHAR(128) NULL"))
+    if "link_challenge_id" not in ot_cols:
+        conn.execute(text(
+            "ALTER TABLE oauth_transactions ADD COLUMN link_challenge_id UUID NULL "
+            "REFERENCES link_challenges (id) ON DELETE CASCADE"))
+    lc_cols = {c["name"] for c in inspect(conn).get_columns("link_challenges")}
+    if "attempts" not in lc_cols:
+        conn.execute(text(
+            "ALTER TABLE link_challenges ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0"))
+    if "verify_provider" not in lc_cols:
+        conn.execute(text("ALTER TABLE link_challenges ADD COLUMN verify_provider VARCHAR(20) NULL"))
 
 
 @pytest.fixture

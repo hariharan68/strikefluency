@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import * as authApi from '../../api/auth'
-import useAuthStore, { getAccessToken } from '../../store/authStore'
+import { restoreSession } from '../../api/session'
+import useAuthStore from '../../store/authStore'
 
 export default function OAuthCallbackPage() {
   const navigate = useNavigate()
@@ -9,10 +9,12 @@ export default function OAuthCallbackPage() {
   const clearAuth = useAuthStore(s => s.clearAuth)
 
   useEffect(() => {
-    authApi.refresh()
-      .then(() => authApi.getMe())
-      .then(({ data }) => {
-        setAuth(data, getAccessToken())
+    // Shares AuthBootstrap's promise rather than starting a second refresh:
+    // AuthBootstrap is mounted globally and runs on this route too, and the
+    // refresh cookie is single-use.
+    restoreSession()
+      .then(({ user, token }) => {
+        setAuth(user, token)
         navigate('/dashboard', { replace: true })
       })
       .catch(() => {
@@ -29,11 +31,11 @@ export default function OAuthCallbackPage() {
     }}>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       <div style={{
-        width: 44, height: 44, border: '3px solid #DBEAFE',
-        borderTopColor: '#2563EB', borderRadius: '50%',
+        width: 44, height: 44, border: '3px solid var(--border)',
+        borderTopColor: 'var(--primary)', borderRadius: '50%',
         animation: 'spin 0.75s linear infinite'
       }} />
-      <p style={{ color: 'var(--text-muted)', fontSize: 14, fontFamily: 'Poppins,sans-serif' }}>
+      <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
         Signing you in…
       </p>
     </div>

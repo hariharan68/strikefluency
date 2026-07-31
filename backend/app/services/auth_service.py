@@ -151,6 +151,13 @@ def authenticate_user(db: Session, email: str, password: str) -> User:
         verify_password(password, _DUMMY_PASSWORD_HASH)
         raise InvalidCredentialsError("Invalid email or password")
 
+    if not user.has_usable_password:
+        # OAuth-created account: hashed_password holds a random value nobody
+        # knows. Compare against the dummy hash anyway so the timing matches the
+        # wrong-password path and this does not become an account-type oracle.
+        verify_password(password, _DUMMY_PASSWORD_HASH)
+        raise InvalidCredentialsError("Invalid email or password")
+
     if not verify_password(password, user.hashed_password):
         raise InvalidCredentialsError("Invalid email or password")
 

@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { AlertCircle, Check, Eye, EyeOff, Lock, Mail, TrendingUp } from 'lucide-react'
 import { useLogin } from '../hooks/useAuth'
-import { oauthStartUrl, confirmOAuthLink } from '../api/oauth'
-import useAuthStore, { getAccessToken } from '../store/authStore'
-import * as authApi from '../api/auth'
+import { confirmOAuthLink } from '../api/oauth'
+import GoogleAuthButton from '../components/auth/GoogleAuthButton'
+import OrDivider from '../components/auth/OrDivider'
+import useAuthStore from '../store/authStore'
 import { useNavigate } from 'react-router-dom'
 import { getApiErrorMessage } from '../utils/apiError'
 
@@ -20,17 +21,6 @@ function Feature({ children }) {
   )
 }
 
-// ── Social provider icons ─────────────────────────────────────────
-const GoogleIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-    <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908C16.658 14.013 17.64 11.705 17.64 9.2Z" fill="#4285F4"/>
-    <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18Z" fill="#34A853"/>
-    <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332Z" fill="#FBBC05"/>
-    <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58Z" fill="#EA4335"/>
-  </svg>
-)
-
-
 // ── OAuth error messages ──────────────────────────────────────────
 const OAUTH_ERRORS = {
   invalid_state: 'OAuth session expired. Please try again.',
@@ -40,10 +30,13 @@ const OAUTH_ERRORS = {
   auth_failed: 'Authentication failed. Please log in with your password.',
   inactive: 'Your account is inactive. Contact support.',
   server_error: 'A server error occurred. Please try again.',
+  cancelled: 'Sign-in was cancelled.',
+  link_failed: 'That confirmation link is no longer valid. Please try again.',
+  link_unavailable: 'This account cannot be linked automatically. Contact support.',
 }
 
 // ── Link challenge banner ─────────────────────────────────────────
-function LinkChallengeBanner({ challengeId, provider, onSuccess }) {
+function LinkChallengeBanner({ challengeId, provider, verifyProvider }) {
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -71,16 +64,33 @@ function LinkChallengeBanner({ challengeId, provider, onSuccess }) {
     }
   }
 
+  const verifyLabel = verifyProvider
+    ? verifyProvider.charAt(0).toUpperCase() + verifyProvider.slice(1)
+    : ''
+
   return (
     <div style={{
-      background: '#EFF6FF', border: '1px solid #BFDBFE',
+      background: 'var(--primary-bg)', border: '1px solid var(--primary-border)',
       borderRadius: 14, padding: '18px 20px', marginBottom: 20
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <span style={{ fontSize: 18 }}>🔗</span>
-        <span style={{ fontWeight: 700, fontSize: 14, color: '#0B1437' }}>Link your {providerLabel} account</span>
+        <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Link your {providerLabel} account</span>
       </div>
-      <p style={{ fontSize: 13, color: '#374151', marginBottom: 14, lineHeight: 1.5 }}>
+      {/* An account with no password (it was created through a provider) proves
+          ownership by re-authenticating the provider it already has, not by
+          typing a password it never had. */}
+      {verifyProvider ? (
+        <>
+          <p style={{ fontSize: 13, color: 'var(--text-sub)', marginBottom: 14, lineHeight: 1.5 }}>
+            An account with this email already exists and signs in with {verifyLabel}.
+            Continue with {verifyLabel} to confirm it is you, and {providerLabel} will be added.
+          </p>
+          <GoogleAuthButton label={`Continue with ${verifyLabel} to confirm`} linkChallenge={challengeId} />
+        </>
+      ) : (
+      <>
+      <p style={{ fontSize: 13, color: 'var(--text-sub)', marginBottom: 14, lineHeight: 1.5 }}>
         An account with this email already exists. Enter your password to link it with {providerLabel}.
       </p>
       <form onSubmit={handleLink} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -103,7 +113,7 @@ function LinkChallengeBanner({ challengeId, provider, onSuccess }) {
           </button>
         </div>
         {error && (
-          <p style={{ fontSize: 12, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <p style={{ fontSize: 12, color: 'var(--loss-text)', display: 'flex', alignItems: 'center', gap: 5 }}>
             <AlertCircle size={13} /> {error}
           </p>
         )}
@@ -111,39 +121,8 @@ function LinkChallengeBanner({ challengeId, provider, onSuccess }) {
           {loading ? 'Linking…' : `Link ${providerLabel} Account`}
         </button>
       </form>
-    </div>
-  )
-}
-
-// ── OAuth buttons row ─────────────────────────────────────────────
-function OAuthButtons({ rememberMe }) {
-  return (
-    <button
-      type="button"
-      onClick={() => { window.location.href = oauthStartUrl('google', rememberMe) }}
-      style={{
-        width: '100%', height: 50, border: '1px solid #DBEAFE',
-        borderRadius: 14, background: '#fff', cursor: 'pointer',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
-        fontSize: 14, fontWeight: 600, color: '#0B1437', fontFamily: 'Poppins,sans-serif',
-        transition: 'border-color 0.15s, box-shadow 0.15s',
-      }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = '#93C5FD'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.10)' }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = '#DBEAFE'; e.currentTarget.style.boxShadow = 'none' }}
-    >
-      <GoogleIcon />
-      Continue with Google
-    </button>
-  )
-}
-
-// ── Divider ───────────────────────────────────────────────────────
-function OrDivider() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0' }}>
-      <div style={{ flex: 1, height: 1, background: '#DBEAFE' }} />
-      <span style={{ color: '#8B93A7', fontSize: 12, fontWeight: 500 }}>or</span>
-      <div style={{ flex: 1, height: 1, background: '#DBEAFE' }} />
+      </>
+      )}
     </div>
   )
 }
@@ -171,6 +150,9 @@ export default function LoginPage() {
   const oauthError = searchParams.get('oauth_error')
   const oauthLink = searchParams.get('oauth_link')
   const oauthProvider = searchParams.get('provider')
+  // Present when the existing account has no password and must confirm by
+  // re-authenticating the provider it already linked.
+  const oauthVerify = searchParams.get('verify')
 
   const validate = () => {
     const nextErrors = { email: '', password: '' }
@@ -233,19 +215,22 @@ export default function LoginPage() {
 
           {/* Link challenge (from OAuth) */}
           {oauthLink && (
-            <LinkChallengeBanner challengeId={oauthLink} provider={oauthProvider} />
+            <LinkChallengeBanner challengeId={oauthLink} provider={oauthProvider} verifyProvider={oauthVerify} />
           )}
 
           {/* OAuth error */}
           {oauthError && (
-            <div className="mb-5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-800">
+            <div
+              className="mb-5 flex items-start gap-2 rounded-xl px-3 py-2.5 text-xs leading-5"
+              style={{ border: '1px solid var(--warn)', background: 'var(--warn-bg)', color: 'var(--warn)' }}
+            >
               <AlertCircle size={15} className="mt-0.5 shrink-0" />
               <span>{OAUTH_ERRORS[oauthError] || 'Sign-in failed. Please try again.'}</span>
             </div>
           )}
 
           {/* OAuth social buttons */}
-          <OAuthButtons rememberMe={rememberMe} />
+          <GoogleAuthButton rememberMe={rememberMe} />
 
           <OrDivider />
 
@@ -268,7 +253,7 @@ export default function LoginPage() {
                   placeholder="name@example.com"
                 />
               </div>
-              {errors.email && <p className="mt-1.5 text-xs text-[#dc2626]">{errors.email}</p>}
+              {errors.email && <p className="mt-1.5 text-xs" style={{ color: 'var(--loss-text)' }}>{errors.email}</p>}
             </div>
 
             <div>
@@ -298,7 +283,7 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
               </div>
-              {errors.password && <p className="mt-1.5 text-xs text-[#dc2626]">{errors.password}</p>}
+              {errors.password && <p className="mt-1.5 text-xs" style={{ color: 'var(--loss-text)' }}>{errors.password}</p>}
             </div>
 
             <div className="flex items-center justify-between gap-4">
@@ -310,13 +295,19 @@ export default function LoginPage() {
                 />
                 Remember me
               </label>
-              <a href="#forgot-password" className="rounded-lg text-sm font-semibold text-[var(--primary)] hover:text-[var(--primary-dark)]">
-                Forgot password?
-              </a>
+              {/* No password-reset flow exists yet, so this must not promise one.
+                  Google-created accounts have no password at all and should use
+                  Continue with Google above. */}
+              <span className="text-xs text-[var(--text-muted)]">
+                Signed up with Google? Use the button above.
+              </span>
             </div>
 
             {error && (
-              <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700">
+              <div
+                className="flex items-start gap-2 rounded-xl px-3 py-2 text-xs leading-5"
+                style={{ border: '1px solid var(--loss)', background: 'var(--loss-bg)', color: 'var(--loss-text)' }}
+              >
                 <AlertCircle size={15} className="mt-0.5 shrink-0" />
                 <span>{error}</span>
               </div>
