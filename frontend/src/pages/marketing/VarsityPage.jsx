@@ -47,7 +47,7 @@ const levelStyles = {
 const perks = [
   { icon: PlayCircle, title: 'Learn then do', text: 'Each chapter links straight into the virtual desk so you practice the concept immediately.' },
   { icon: Award, title: 'Discipline-first', text: 'Every module is framed around process quality, not tips or predictions.' },
-  { icon: GraduationCap, title: 'Free, always', text: 'The entire curriculum is free — no paywalls, no upsells, no real money required.' },
+  { icon: GraduationCap, title: 'Included, always', text: 'The entire curriculum comes with your plan — no course fees, no upsells, no real money required.' },
 ]
 
 export default function VarsityPage() {
@@ -64,14 +64,14 @@ export default function VarsityPage() {
                 <GraduationCap size={14} /> Strike Varsity
               </span>
               <h1 className="sf-serif mt-5 max-w-2xl text-4xl font-bold leading-[1.05] md:text-5xl">
-                Learn to trade options with discipline — for free.
+                Learn to trade options with discipline.
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-8 text-[#B8CDEE]">
                 A structured curriculum that takes you from option basics to a repeatable, rule-checked process. Read a chapter, then practice it in the virtual desk the same day.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link to="/register" className="sf-btn-primary h-11 px-5">
-                  Start learning free <ArrowRight size={16} />
+                  Start learning <ArrowRight size={16} />
                 </Link>
                 <a href="#modules" className="sf-btn-outline h-11 border-white/20 bg-white/5 px-5 text-white hover:bg-white/10">
                   Browse modules
@@ -80,7 +80,7 @@ export default function VarsityPage() {
               <div className="mt-8 flex flex-wrap gap-6 text-sm text-[#B8CDEE]">
                 <span><strong className="num text-white">{modules.length}</strong> modules</span>
                 <span><strong className="num text-white">{totalChapters}</strong> chapters</span>
-                <span><strong className="num text-white">100%</strong> free</span>
+                <span><strong className="num text-white">₹299</strong> / month</span>
               </div>
             </div>
             <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
@@ -142,10 +142,10 @@ export default function VarsityPage() {
             <div className="mt-10 flex flex-col items-center gap-4 rounded-[24px] border border-[var(--border)] bg-[var(--color-surface)] p-8 text-center shadow-[var(--shadow)]">
               <h2 className="sf-serif text-2xl font-bold text-[var(--text)]">Ready to turn theory into a habit?</h2>
               <p className="max-w-xl text-sm leading-7 text-[var(--text-sub)]">
-                Open a free virtual account, read a chapter, and place your first rule-checked trade today.
+                Open your virtual account, read a chapter, and place your first rule-checked trade today.
               </p>
               <Link to="/register" className="sf-btn-primary h-11 px-6">
-                Create free account <ArrowRight size={16} />
+                Create account <ArrowRight size={16} />
               </Link>
             </div>
           </div>

@@ -12,7 +12,7 @@ const ProductPage = lazy(() => import('./pages/marketing/ProductPage'))
 const DisciplineInfoPage = lazy(() => import('./pages/marketing/DisciplineInfoPage'))
 const ScopePage = lazy(() => import('./pages/marketing/ScopePage'))
 const DocsPage = lazy(() => import('./pages/marketing/DocsPage'))
-const BlogPage = lazy(() => import('./pages/marketing/BlogPage'))
+const DocsLayout = lazy(() => import('./components/docs/DocsLayout'))
 const VarsityPage = lazy(() => import('./pages/marketing/VarsityPage'))
 const PricingPage = lazy(() => import('./pages/marketing/PricingPage'))
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'))
@@ -161,13 +161,17 @@ export default function App() {
               <Route path="/product" element={<ProductPage />} />
               <Route path="/discipline-engine" element={<DisciplineInfoPage />} />
               <Route path="/scope" element={<ScopePage />} />
-              <Route path="/docs" element={<DocsPage />} />
-              <Route path="/blog" element={<BlogPage />} />
               <Route path="/varsity" element={<VarsityPage />} />
               <Route path="/pricing" element={<PricingPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/auth/oauth-callback" element={<OAuthCallbackPage />} />
+            </Route>
+            {/* Docs sits outside PublicTransitionLayout: that layout is keyed by
+                pathname and would remount the whole shell on every page click. */}
+            <Route path="/docs" element={<DocsLayout />}>
+              <Route index element={<DocsPage />} />
+              <Route path=":slug" element={<DocsPage />} />
             </Route>
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>

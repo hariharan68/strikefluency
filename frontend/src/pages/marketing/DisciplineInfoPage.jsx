@@ -4,11 +4,12 @@ import {
   Tag, Quote, ToggleRight, Sliders, Check, Flame, TrendingUp, ClipboardCheck,
 } from 'lucide-react'
 import { LandingNav, SiteFooter } from '../../components/marketing/SiteChrome'
+import TraderJourney from '../../components/marketing/TraderJourney'
 
 const stats = [
   { value: '7', label: 'Rules enforced' },
   { value: '100%', label: 'Orders checked before placement' },
-  { value: '₹0', label: 'Free, forever' },
+  { value: '₹299', label: 'Per month, one plan' },
   { value: '1:1', label: 'Every violation logged' },
 ]
 
@@ -62,7 +63,7 @@ export default function DisciplineInfoPage() {
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link to="/register" className="sf-btn-primary h-11 px-5">
-                Start free practice <ArrowRight size={16} />
+                Get started <ArrowRight size={16} />
               </Link>
               <a href="#rules" className="sf-btn-outline h-11 px-5">
                 See the seven rules
@@ -224,6 +225,9 @@ export default function DisciplineInfoPage() {
           </div>
         </section>
 
+        {/* The five stages of trader growth */}
+        <TraderJourney />
+
         {/* Discipline score & streaks */}
         <section className="mx-auto max-w-7xl px-5 py-16 md:px-8 md:py-20">
           <div className="max-w-2xl">
@@ -256,8 +260,8 @@ export default function DisciplineInfoPage() {
               </div>
               <h3 className="text-base font-bold text-[var(--text)]">Capital tiers</h3>
               <p className="mt-2 text-sm leading-6 text-[var(--text-sub)]">
-                Disciplined streaks unlock higher simulation tiers over time, so more capital is something you earn — not
-                a slider you drag.
+                Three simulation tiers — ₹1L, ₹5L and ₹10L — with a streak counter tracking consecutive rule-clean
+                trades against the next one. Progress is measured by behaviour you repeat, not a slider you drag.
               </p>
             </div>
           </div>
@@ -277,12 +281,12 @@ export default function DisciplineInfoPage() {
                   </div>
                   <h2 className="sf-serif text-2xl font-bold text-[var(--text)] md:text-3xl">Build disciplined streaks on a virtual account.</h2>
                   <p className="mt-3 text-sm leading-7 text-[var(--text-sub)]">
-                    Free, forever. Trust the process — and let the process become your progress.
+                    One plan, everything included. Trust the process — and let the process become your progress.
                   </p>
                 </div>
                 <div className="flex flex-shrink-0 flex-wrap gap-3">
                   <Link to="/register" className="sf-btn-primary h-11 px-5">
-                    Create free account <ArrowRight size={16} />
+                    Create account <ArrowRight size={16} />
                   </Link>
                   <Link to="/product" className="sf-btn-outline h-11 px-5">
                     Explore the product

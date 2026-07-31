@@ -518,7 +518,7 @@ function AccountSection({ clearAuth }) {
     <Card>
       <SectionHeader icon={Shield} title="Account" subtitle="Manage your account and session" />
       <SettingRow label="Account Type" description="Your current plan">
-        <span className="badge-primary" style={{ fontSize: 11 }}>Free Beta</span>
+        <span className="badge-primary" style={{ fontSize: 11 }}>Full Access</span>
       </SettingRow>
       <SettingRow label="Data & Privacy" description="Your trade data is stored locally and on server" noBorder>
         <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Encrypted</span>

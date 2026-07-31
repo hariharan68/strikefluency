@@ -20,36 +20,36 @@ const reasons = [
   {
     icon: Heart,
     title: 'Built to help, not to upsell',
-    text: 'StrikeFluency exists to help Indian retail traders build discipline before risking real money. Charging for that would defeat the point.',
+    text: 'StrikeFluency exists to help Indian retail traders build discipline before risking real money. One price, one plan, nothing dangled behind a higher tier.',
   },
   {
     icon: ShieldCheck,
-    title: 'No paywalls on discipline',
-    text: 'The features that protect you — rules, journaling, analytics — are exactly the ones a paywall would gate. So none of them are gated.',
+    title: 'No paywalls inside the product',
+    text: 'The features that protect you — rules, journaling, analytics — are exactly the ones a tiered plan would gate. Your subscription includes every one of them.',
   },
   {
     icon: CreditCard,
-    title: 'No card, no catch',
-    text: 'There is no trial timer, no “premium” tier hidden behind a checkout, and no credit card required to use everything.',
+    title: 'Less than one bad trade',
+    text: 'A single undisciplined entry costs more than a month of practice. That is the whole pricing argument.',
   },
 ]
 
 const faqs = [
   {
-    q: 'Is it really free?',
-    a: 'Yes — every feature is free with no time limit. You do not pay to place virtual trades, use the discipline engine, journal, or view analytics.',
+    q: 'What does ₹299 a month include?',
+    a: 'Everything in the product — the virtual trading desk, all 7 discipline rules, the strategy builder, journaling, analytics, and capital tiers. There is no higher tier holding features back.',
   },
   {
-    q: 'Do I need to enter a card?',
-    a: 'No. Creating an account takes an email and password. There is no card field anywhere in signup or usage.',
+    q: 'Am I paying to trade with real money?',
+    a: 'No. StrikeFluency is a practice simulator. Your subscription pays for the practice environment — there are no real-money orders and no advisory of any kind.',
   },
   {
-    q: 'Will you add paid plans later?',
-    a: 'The current build is 100% free and there are no paid tiers planned. If that ever changed, everything you rely on today would stay free — you would never lose access to what you already use.',
+    q: 'Can I cancel anytime?',
+    a: 'Yes. It is a monthly subscription with no lock-in period and no cancellation fee. Your journal and analytics history stays intact on your account.',
   },
   {
-    q: 'What’s the catch?',
-    a: 'There isn’t one. It is a practice environment, not a broker — there are no real-money orders, no advisory, and nothing to sell you.',
+    q: 'Are there other tiers or add-ons?',
+    a: 'No. There is a single plan at a single price. If that ever changed, everything you rely on today would stay in the plan you are already on.',
   },
   {
     q: 'Do I need a broker account?',
@@ -73,11 +73,11 @@ export default function PricingPage() {
               <Sparkles size={13} /> Pricing
             </span>
             <h1 className="sf-serif mx-auto mt-5 max-w-3xl text-4xl font-bold leading-[1.05] text-[var(--text)] md:text-6xl">
-              Everything. Free. Forever.
+              One plan. Everything included.
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-[var(--text-sub)] md:text-lg">
-              StrikeFluency has one plan, and it costs nothing. Every feature — the discipline engine, strategy builder,
-              journal, and analytics — is included at no cost, with no card and no catch.
+              StrikeFluency has a single plan at ₹299 a month. Every feature — the discipline engine, strategy builder,
+              journal, and analytics — is included. No tiers, no add-ons, no upsells.
             </p>
           </div>
         </section>
@@ -91,16 +91,14 @@ export default function PricingPage() {
             <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
               <div>
                 <span className="inline-flex items-center gap-2 rounded-full bg-[var(--primary-bg)] px-3 py-1 text-xs font-bold text-[var(--primary)]">
-                  <Heart size={13} /> Free plan
+                  <Heart size={13} /> Full access
                 </span>
-                <h2 className="sf-serif mt-4 text-2xl font-bold text-[var(--text)]">The only plan you’ll ever need</h2>
               </div>
               <div className="text-right">
                 <div className="flex items-end gap-1">
-                  <span className="sf-serif text-5xl font-bold text-[var(--text)]">₹0</span>
-                  <span className="mb-1.5 text-sm font-semibold text-[var(--text-muted)]">/ forever</span>
+                  <span className="sf-serif text-5xl font-bold text-[var(--text)]">₹299</span>
+                  <span className="mb-1.5 text-sm font-semibold text-[var(--text-muted)]">/ month</span>
                 </div>
-                <p className="text-xs text-[var(--text-muted)]">No card required</p>
               </div>
             </div>
 
@@ -122,7 +120,7 @@ export default function PricingPage() {
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link to="/register" className="sf-btn-primary h-12 flex-1 text-sm">
-                Start free — no card <ArrowRight size={16} />
+                Get started <ArrowRight size={16} />
               </Link>
               <Link to="/product" className="sf-btn-outline h-12 flex-1 text-sm">
                 See what’s included
@@ -130,19 +128,19 @@ export default function PricingPage() {
             </div>
           </div>
           <p className="mt-6 text-center text-xs text-[var(--text-muted)]">
-            No trials, no tiers, no upsells — just one free account with everything unlocked.
+            No tiers, no add-ons, no upsells — one account with everything unlocked.
           </p>
         </section>
 
-        {/* Why it's free */}
+        {/* Why one plan */}
         <section className="border-y border-[var(--border)] bg-[var(--color-surface2)] py-16 md:py-20">
           <div className="mx-auto max-w-7xl px-5 md:px-8">
             <div className="mx-auto max-w-2xl text-center">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--primary)]">Why it’s free</p>
-              <h2 className="sf-serif mt-3 text-3xl font-bold text-[var(--text)]">A practice tool shouldn’t cost you</h2>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--primary)]">Why one plan</p>
+              <h2 className="sf-serif mt-3 text-3xl font-bold text-[var(--text)]">Priced to stay out of the way</h2>
               <p className="mt-3 text-sm leading-7 text-[var(--text-sub)]">
-                The whole point is to build good habits before real money is on the line. Putting a price on that would
-                get in the way.
+                The whole point is to build good habits before real money is on the line. A tiered plan that gates the
+                rules you need most would get in the way.
               </p>
             </div>
             <div className="mt-10 grid gap-4 md:grid-cols-3">
@@ -189,14 +187,14 @@ export default function PricingPage() {
             >
               <div className="mx-auto max-w-xl">
                 <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[var(--primary-bg)] px-3 py-1 text-xs font-bold text-[var(--primary)]">
-                  <Wallet size={14} /> ₹0 to start
+                  <Wallet size={14} /> ₹299 / month
                 </div>
-                <h2 className="sf-serif text-2xl font-bold text-[var(--text)] md:text-3xl">Nothing to buy. Everything to practice.</h2>
+                <h2 className="sf-serif text-2xl font-bold text-[var(--text)] md:text-3xl">One plan. Everything to practice.</h2>
                 <p className="mt-3 text-sm leading-7 text-[var(--text-sub)]">
-                  Create a free virtual account and place your first rule-checked trade today.
+                  Create your virtual account and place your first rule-checked trade today.
                 </p>
                 <Link to="/register" className="sf-btn-primary mt-6 h-12 px-6 text-sm">
-                  Start free practice <ArrowRight size={16} />
+                  Get started <ArrowRight size={16} />
                 </Link>
               </div>
             </div>

@@ -10,7 +10,7 @@ const stats = [
   { value: 'Phase 1', label: 'Current build' },
   { value: '3', label: 'Indices supported' },
   { value: 'Mock-first', label: 'Safe by default' },
-  { value: '₹0', label: 'Free, forever' },
+  { value: '₹299', label: 'Per month, one plan' },
 ]
 
 const inScope = [
@@ -93,7 +93,7 @@ export default function ScopePage() {
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link to="/register" className="sf-btn-primary h-11 px-5">
-                Start free practice <ArrowRight size={16} />
+                Get started <ArrowRight size={16} />
               </Link>
               <a href="#roadmap" className="sf-btn-outline h-11 px-5">
                 See the roadmap
@@ -120,7 +120,7 @@ export default function ScopePage() {
             <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--primary)]">Live today</p>
             <h2 className="sf-serif mt-3 text-3xl font-bold text-[var(--text)]">Everything in scope right now</h2>
             <p className="mt-3 text-sm leading-7 text-[var(--text-sub)]">
-              These aren’t promises — every capability below is running in the current build on a free virtual account.
+              These aren’t promises — every capability below is running in the current build on a standard virtual account.
             </p>
           </div>
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -297,12 +297,12 @@ export default function ScopePage() {
                   </div>
                   <h2 className="sf-serif text-2xl font-bold text-[var(--text)] md:text-3xl">Everything above runs today.</h2>
                   <p className="mt-3 text-sm leading-7 text-[var(--text-sub)]">
-                    Open a free virtual account and put the current scope to work — no card, no cost, no waiting.
+                    Open a virtual account and put the current scope to work — no real money, no waiting.
                   </p>
                 </div>
                 <div className="flex flex-shrink-0 flex-wrap gap-3">
                   <Link to="/register" className="sf-btn-primary h-11 px-5">
-                    Start free practice <ArrowRight size={16} />
+                    Get started <ArrowRight size={16} />
                   </Link>
                   <Link to="/product" className="sf-btn-outline h-11 px-5">
                     Explore the product

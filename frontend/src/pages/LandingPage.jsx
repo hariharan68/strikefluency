@@ -149,7 +149,7 @@ export default function LandingPage() {
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link to={isAuthenticated ? '/dashboard' : '/register'} className="sf-btn-primary h-11 px-5">
-                {isAuthenticated ? 'Open Dashboard' : 'Start free practice'}
+                {isAuthenticated ? 'Open Dashboard' : 'Get started'}
                 <ArrowRight size={16} />
               </Link>
               <Link to="/login" className="sf-btn-outline h-11 px-5">Log in</Link>

@@ -8,7 +8,7 @@ import { LandingNav, SiteFooter } from '../../components/marketing/SiteChrome'
 
 const stats = [
   { value: '7', label: 'Pre-trade discipline rules' },
-  { value: '₹0', label: '100% free, forever' },
+  { value: '₹299', label: 'per month, all features' },
   { value: '3', label: 'Indices — NIFTY, BANKNIFTY, SENSEX' },
   { value: '∞', label: 'Unlimited practice sessions' },
 ]
@@ -77,7 +77,7 @@ const isList = [
   'A practice workspace to rehearse process quality',
   'Rule-enforced simulated execution with real option-chain data',
   'A journal and analytics system built around your habits',
-  'Free virtual capital with disciplined tiers and streaks',
+  'Virtual capital with disciplined tiers and streaks',
 ]
 
 const isntList = [
@@ -111,7 +111,7 @@ export default function ProductPage() {
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link to="/register" className="sf-btn-primary h-11 px-5">
-                Start free practice <ArrowRight size={16} />
+                Get started <ArrowRight size={16} />
               </Link>
               <Link to="/discipline-engine" className="sf-btn-outline h-11 px-5">
                 Explore the discipline engine
@@ -304,16 +304,16 @@ export default function ProductPage() {
               <div className="flex flex-col items-start gap-6 md:flex-row md:items-center md:justify-between">
                 <div className="max-w-xl">
                   <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-[var(--primary-bg)] px-3 py-1 text-xs font-bold text-[var(--primary)]">
-                    <Wallet size={14} /> 100% free
+                    <Wallet size={14} /> One plan, everything included
                   </div>
                   <h2 className="sf-serif text-2xl font-bold text-[var(--text)] md:text-3xl">Rehearse the process, then trade for real.</h2>
                   <p className="mt-3 text-sm leading-7 text-[var(--text-sub)]">
-                    Open a free virtual account and place your first rule-checked trade — no card, no cost, no pressure.
+                    Open a virtual account and place your first rule-checked trade — no real money, no pressure.
                   </p>
                 </div>
                 <div className="flex flex-shrink-0 flex-wrap gap-3">
                   <Link to="/register" className="sf-btn-primary h-11 px-5">
-                    Start free practice <ArrowRight size={16} />
+                    Get started <ArrowRight size={16} />
                   </Link>
                   <Link to="/scope" className="sf-btn-outline h-11 px-5">
                     See the roadmap

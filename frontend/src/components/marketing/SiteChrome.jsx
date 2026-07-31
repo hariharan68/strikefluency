@@ -13,10 +13,9 @@ const PAGES = [
   { to: '/product', label: 'Product' },
   { to: '/discipline-engine', label: 'Discipline' },
   { to: '/scope', label: 'Scope' },
-  { to: '/docs', label: 'Docs' },
-  { to: '/blog', label: 'Blogs' },
   { to: '/varsity', label: 'Strike Varsity' },
   { to: '/pricing', label: 'Pricing' },
+  { to: '/docs', label: 'Docs' },
 ]
 
 // Smooth-scrolls to the hash target after the landing page mounts (covers
@@ -61,7 +60,7 @@ export function LandingNav() {
   ) : (
     <>
       <Link to="/login" className="sf-btn-outline h-9 px-4 text-xs">Log in</Link>
-      <Link to="/register" className="sf-btn-primary h-9 px-4 text-xs">Start free</Link>
+      <Link to="/register" className="sf-btn-primary h-9 px-4 text-xs">Get started</Link>
     </>
   )
 
@@ -150,7 +149,7 @@ export function LandingNav() {
                 ) : (
                   <>
                     <Link to="/login" className="sf-btn-outline h-11 w-full">Log in</Link>
-                    <Link to="/register" className="sf-btn-primary h-11 w-full">Start free</Link>
+                    <Link to="/register" className="sf-btn-primary h-11 w-full">Get started</Link>
                   </>
                 )}
               </div>
@@ -175,9 +174,8 @@ const footerColumns = [
   {
     title: 'Learn',
     links: [
-      { label: 'Docs', to: '/docs' },
-      { label: 'Blogs', to: '/blog' },
       { label: 'Strike Varsity', to: '/varsity' },
+      { label: 'Docs', to: '/docs' },
     ],
   },
   {
@@ -225,7 +223,7 @@ export function SiteFooter() {
             </div>
             <div className="mt-4 h-px w-full bg-[var(--footer-divider)]" />
             <p className="mt-4 max-w-xl text-sm leading-6 text-[var(--footer-muted)]">
-              StrikeFluency is a free virtual options trading simulator for Indian retail traders. It combines option-chain practice, discipline enforcement, journaling, analytics, and broker-ready market data workflows in one product.
+              StrikeFluency is a virtual options trading simulator for Indian retail traders. It combines option-chain practice, discipline enforcement, journaling, analytics, and broker-ready market data workflows in one product.
             </p>
             <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--footer-muted)]">
               The goal is deliberate practice: learn the process, review the evidence, and build consistency before moving to real capital.
