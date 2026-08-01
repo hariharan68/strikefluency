@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import CheckConstraint, String, Boolean, ForeignKey, UniqueConstraint, Index, func
+from sqlalchemy import CheckConstraint, String, Text, Boolean, ForeignKey, UniqueConstraint, Index, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
@@ -18,6 +18,18 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Optional contact number shown on the Profile page. Free-form (country code
+    # + digits) and never used for auth, so it stays nullable with no format
+    # constraint at the DB level — light validation lives in ProfileUpdate.
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Profile photo held as a small `data:image/...;base64,...` URI (client is
+    # center-cropped to 256×256). Delivered inside UserProfile because API auth
+    # is a bearer token, so an <img src=endpoint> can't be authenticated.
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Chosen preset illustration (key like "men_3"); the image itself lives in
+    # the frontend. Independent of the uploaded photo — when both are set the UI
+    # alternates between them. NULL means no preset chosen.
+    avatar_preset: Mapped[str | None] = mapped_column(String(20), nullable=True)
     role: Mapped[str] = mapped_column(String(20), default="trader", nullable=False)
     # Subscription seam. The app is free, so everyone is on "free" and nothing
     # gates on this yet — see app/core/plans.py. The column exists so that

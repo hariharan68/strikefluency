@@ -4,54 +4,18 @@ import {
   Scale, ShieldCheck, Target, TrendingDown, TrendingUp, Wallet,
 } from 'lucide-react'
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart,
-  Legend, Line, Pie, PieChart, ReferenceLine, ResponsiveContainer,
-  Tooltip, XAxis, YAxis,
-} from 'recharts'
+  CategoryBars, DailyPnlChart, DisciplineChart, equityDelta,
+  OutcomeSummary, PerformanceBars, PerformanceChart,
+} from '../../components/charts/AdvancedCharts'
 import { getAdvancedAnalytics } from '../../api/analytics'
 import useTradingStore from '../../store/tradingStore'
 import { getApiErrorMessage } from '../../utils/apiError'
 import { MISTAKE_LABELS, RULE_LABELS } from '../../utils/constants'
-import { formatCurrency } from '../../utils/formatters'
+import { asNumber, signedMoney } from '../../utils/chartFormat'
+import { formatCurrency, formatDuration } from '../../utils/formatters'
 import './AdvancedDashboard.css'
 
 const PERIODS = [7, 30, 90]
-const OUTCOME_COLORS = ['var(--gain)', 'var(--loss)', 'var(--text-muted)']
-const TOOLTIP_STYLE = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--border)',
-  borderRadius: 9,
-  boxShadow: 'var(--shadow-md)',
-  color: 'var(--text)',
-  fontSize: 11,
-}
-
-const asNumber = value => {
-  const number = Number(value)
-  return Number.isFinite(number) ? number : 0
-}
-
-const signedMoney = value => {
-  const number = asNumber(value)
-  if (number === 0) return formatCurrency(0)
-  return `${number > 0 ? '+' : '-'}${formatCurrency(Math.abs(number))}`
-}
-
-const compactMoney = value => new Intl.NumberFormat('en-IN', {
-  style: 'currency',
-  currency: 'INR',
-  notation: 'compact',
-  maximumFractionDigits: 1,
-}).format(asNumber(value))
-
-const dateLabel = value => {
-  if (!value) return ''
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value)
-  return new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-  })
-}
 
 const normalizeAdvancedAnalytics = payload => {
   const source = payload && typeof payload === 'object' ? payload : {}
@@ -70,13 +34,6 @@ const normalizeAdvancedAnalytics = payload => {
   }
 }
 
-const formatDuration = minutes => {
-  if (minutes == null) return '—'
-  const value = Math.round(asNumber(minutes))
-  if (value < 60) return `${value}m`
-  return `${Math.floor(value / 60)}h ${value % 60}m`
-}
-
 function DashboardSkeleton() {
   return (
     <div className="advanced-skeleton" aria-label="Loading advanced analytics">
@@ -85,16 +42,6 @@ function DashboardSkeleton() {
         {Array.from({ length: 6 }, (_, index) => <div key={index} />)}
       </div>
       <div className="advanced-skeleton-chart" />
-    </div>
-  )
-}
-
-function EmptyChart({ icon: Icon = BarChart3, title, description }) {
-  return (
-    <div className="advanced-empty-chart">
-      <span><Icon size={20} /></span>
-      <strong>{title}</strong>
-      <p>{description}</p>
     </div>
   )
 }
@@ -124,195 +71,6 @@ function MetricCard({ icon: Icon, label, value, note, tone = 'neutral' }) {
         <p>{note}</p>
       </div>
     </article>
-  )
-}
-
-function AmountTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="advanced-tooltip">
-      <span>{dateLabel(label) || label}</span>
-      {payload.map(item => (
-        <div key={item.dataKey || item.name}>
-          <i style={{ background: item.color }} />
-          <small>{item.name}</small>
-          <strong className="num">
-            {['discipline_score', 'win_rate'].includes(item.dataKey)
-              ? `${asNumber(item.value).toFixed(1)}%`
-              : ['violation_count', 'trade_count'].includes(item.dataKey)
-                ? Math.round(asNumber(item.value))
-                : signedMoney(item.value)}
-          </strong>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function PerformanceChart({ data, source }) {
-  if (!data.length) {
-    return (
-      <EmptyChart
-        icon={TrendingUp}
-        title="No closed-trade curve yet"
-        description="Close a paper trade to begin building your performance history."
-      />
-    )
-  }
-
-  return (
-    <div className="advanced-performance-chart">
-      <ResponsiveContainer width="100%" height={260}>
-        <AreaChart data={data} margin={{ top: 10, right: 18, left: 2, bottom: 0 }}>
-          <defs>
-            <linearGradient id="advancedEquityFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.28} />
-              <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid stroke="var(--border-light)" vertical={false} />
-          <XAxis dataKey="date" tickFormatter={dateLabel} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} minTickGap={22} />
-          <YAxis tickFormatter={compactMoney} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} width={62} />
-          <Tooltip content={<AmountTooltip />} />
-          <Area name={source === 'portfolio_snapshots' ? 'EOD equity' : 'Realized equity proxy'} type="monotone" dataKey="equity" stroke="var(--primary)" strokeWidth={2.2} fill="url(#advancedEquityFill)" dot={false} activeDot={{ r: 4 }} />
-        </AreaChart>
-      </ResponsiveContainer>
-      <div className="advanced-drawdown-chart">
-        <span>Drawdown</span>
-        <ResponsiveContainer width="100%" height={82}>
-          <AreaChart data={data} margin={{ top: 5, right: 18, left: 2, bottom: 0 }}>
-            <defs>
-              <linearGradient id="advancedDrawdownFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--loss)" stopOpacity={0.06} />
-                <stop offset="100%" stopColor="var(--loss)" stopOpacity={0.3} />
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="date" hide />
-            <YAxis hide domain={['dataMin', 0]} />
-            <ReferenceLine y={0} stroke="var(--border)" />
-            <Tooltip content={<AmountTooltip />} />
-            <Area name="Drawdown" type="stepAfter" dataKey="drawdown" stroke="var(--loss)" fill="url(#advancedDrawdownFill)" strokeWidth={1.4} dot={false} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  )
-}
-
-function OutcomeChart({ data }) {
-  const visible = data.filter(item => asNumber(item.count) > 0)
-  const total = visible.reduce((sum, item) => sum + asNumber(item.count), 0)
-  if (!visible.length) {
-    return <EmptyChart icon={Target} title="No outcomes yet" description="Closed trades will appear as wins, losses, or breakeven." />
-  }
-  return (
-    <div className="advanced-outcome-wrap">
-      <ResponsiveContainer width="100%" height={205}>
-        <PieChart>
-          <Pie data={visible} dataKey="count" nameKey="label" innerRadius={58} outerRadius={82} paddingAngle={3} stroke="none">
-            {visible.map((item, index) => <Cell key={item.label} fill={OUTCOME_COLORS[index % OUTCOME_COLORS.length]} />)}
-          </Pie>
-          <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(value, name, item) => [`${value} trades · ${signedMoney(item.payload.net_pnl)}`, name]} />
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="advanced-donut-total">
-        <strong className="num">{total}</strong>
-        <span>trades</span>
-      </div>
-      <div className="advanced-outcome-legend">
-        {visible.map((item, index) => (
-          <div key={item.label}>
-            <i style={{ background: OUTCOME_COLORS[index % OUTCOME_COLORS.length] }} />
-            <span>{item.label}</span>
-            <strong className="num">{item.count}</strong>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function DailyPnlChart({ data }) {
-  const visible = data.filter(item => item.trade_count > 0)
-  if (!visible.length) {
-    return <EmptyChart icon={BarChart3} title="No daily results" description="This range has no closed paper trades." />
-  }
-  return (
-    <ResponsiveContainer width="100%" height={260}>
-      <BarChart data={visible} margin={{ top: 12, right: 12, left: 0, bottom: 0 }}>
-        <CartesianGrid stroke="var(--border-light)" vertical={false} />
-        <XAxis dataKey="date" tickFormatter={dateLabel} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} minTickGap={18} />
-        <YAxis tickFormatter={compactMoney} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} width={58} />
-        <ReferenceLine y={0} stroke="var(--border)" />
-        <Tooltip content={<AmountTooltip />} cursor={{ fill: 'var(--primary-bg)' }} />
-        <Bar name="Daily net P&L" dataKey="net_pnl" radius={[4, 4, 2, 2]} maxBarSize={34}>
-          {visible.map(item => <Cell key={item.date} fill={asNumber(item.net_pnl) >= 0 ? 'var(--gain)' : 'var(--loss)'} />)}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  )
-}
-
-function DisciplineChart({ data }) {
-  const visible = data.filter(item => item.discipline_score != null)
-  if (!visible.length) {
-    return <EmptyChart icon={ShieldCheck} title="No discipline trend yet" description="Scores appear after disciplined sessions are analyzed." />
-  }
-  return (
-    <ResponsiveContainer width="100%" height={260}>
-      <ComposedChart data={visible} margin={{ top: 12, right: 10, left: 0, bottom: 0 }}>
-        <CartesianGrid stroke="var(--border-light)" vertical={false} />
-        <XAxis dataKey="date" tickFormatter={dateLabel} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} minTickGap={18} />
-        <YAxis yAxisId="score" domain={[0, 100]} tickFormatter={value => `${value}%`} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} width={42} />
-        <YAxis yAxisId="violations" orientation="right" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} width={26} />
-        <ReferenceLine yAxisId="score" y={80} stroke="var(--gain)" strokeDasharray="4 4" />
-        <Tooltip content={<AmountTooltip />} />
-        <Bar yAxisId="violations" name="Violations" dataKey="violation_count" fill="var(--loss)" opacity={0.22} radius={[3, 3, 0, 0]} maxBarSize={20} />
-        <Line yAxisId="score" name="Discipline score" type="monotone" dataKey="discipline_score" stroke="var(--primary)" strokeWidth={2.2} dot={{ r: 2.5, fill: 'var(--primary)', strokeWidth: 0 }} activeDot={{ r: 4 }} />
-      </ComposedChart>
-    </ResponsiveContainer>
-  )
-}
-
-function PerformanceBars({ data, emptyTitle }) {
-  const visible = data.slice(0, 8)
-  if (!visible.length || !visible.some(item => item.trade_count > 0)) {
-    return <EmptyChart icon={Scale} title={emptyTitle} description="More closed trades are needed for a meaningful comparison." />
-  }
-  return (
-    <ResponsiveContainer width="100%" height={Math.max(220, visible.length * 38)}>
-      <BarChart data={visible} layout="vertical" margin={{ top: 6, right: 16, left: 8, bottom: 0 }}>
-        <CartesianGrid stroke="var(--border-light)" horizontal={false} />
-        <XAxis type="number" tickFormatter={compactMoney} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} />
-        <YAxis type="category" dataKey="label" width={88} tick={{ fill: 'var(--text-sub)', fontSize: 10 }} tickLine={false} axisLine={false} />
-        <ReferenceLine x={0} stroke="var(--border)" />
-        <Tooltip content={<AmountTooltip />} cursor={{ fill: 'var(--primary-bg)' }} />
-        <Bar name="Net P&L" dataKey="net_pnl" radius={[0, 4, 4, 0]} maxBarSize={20}>
-          {visible.map(item => <Cell key={item.label} fill={asNumber(item.net_pnl) >= 0 ? 'var(--gain)' : 'var(--loss)'} />)}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  )
-}
-
-function CategoryBars({ data, labels, emptyTitle, color = 'var(--primary)' }) {
-  if (!data.length) {
-    return <EmptyChart icon={Activity} title={emptyTitle} description="Nothing has been recorded in this period." />
-  }
-  const visible = data.slice(0, 7).map(item => ({
-    ...item,
-    label: labels[item.key]?.label || labels[item.key] || item.key.replaceAll('_', ' ').toLowerCase(),
-  }))
-  return (
-    <ResponsiveContainer width="100%" height={Math.max(220, visible.length * 38)}>
-      <BarChart data={visible} layout="vertical" margin={{ top: 6, right: 16, left: 8, bottom: 0 }}>
-        <CartesianGrid stroke="var(--border-light)" horizontal={false} />
-        <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} />
-        <YAxis type="category" dataKey="label" width={116} tick={{ fill: 'var(--text-sub)', fontSize: 10 }} tickLine={false} axisLine={false} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={value => [`${value} occurrence${value === 1 ? '' : 's'}`, 'Count']} />
-        <Bar dataKey="count" fill={color} radius={[0, 4, 4, 0]} maxBarSize={20} />
-      </BarChart>
-    </ResponsiveContainer>
   )
 }
 
@@ -382,6 +140,9 @@ export default function AdvancedDashboard() {
   const netPnl = asNumber(summary?.net_pnl)
   const winRate = asNumber(summary?.win_rate)
   const disciplineScore = summary?.avg_discipline_score
+  // Shown on the equity card: its y axis is zoomed to the data range, so the
+  // period change has to be stated outright rather than inferred from the slope.
+  const periodChange = equityDelta(data?.portfolio_series)
 
   return (
     <div className="advanced-dashboard">
@@ -451,13 +212,13 @@ export default function AdvancedDashboard() {
           subtitle={data?.equity_source === 'portfolio_snapshots'
             ? 'True end-of-day equity from portfolio snapshots'
             : 'Realized P&L proxy until two end-of-day snapshots are available'}
-          badge={data?.equity_source === 'portfolio_snapshots' ? 'EOD equity' : 'Realized history'}
+          badge={periodChange || (data?.equity_source === 'portfolio_snapshots' ? 'EOD equity' : 'Realized history')}
         >
           <PerformanceChart data={data?.portfolio_series || []} source={data?.equity_source} />
         </ChartCard>
 
         <ChartCard className="span-4" title="Trade outcomes" subtitle="Strategies count as one decision">
-          <OutcomeChart data={data?.outcome_breakdown || []} />
+          <OutcomeSummary data={data?.outcome_breakdown || []} summary={summary} />
         </ChartCard>
 
         <ChartCard className="span-6" title="Daily net P&L" subtitle="Booked result by closing day">
@@ -481,11 +242,11 @@ export default function AdvancedDashboard() {
         </ChartCard>
 
         <ChartCard className="span-6" title="Rule pressure points" subtitle="Discipline rules most often tested">
-          <CategoryBars data={data?.rule_breakdown || []} labels={RULE_LABELS} emptyTitle="No discipline violations" color="var(--loss)" />
+          <CategoryBars data={data?.rule_breakdown || []} labels={RULE_LABELS} emptyTitle="No discipline violations" tone="loss" />
         </ChartCard>
 
         <ChartCard className="span-12" title="Journal mistake patterns" subtitle="Review tags expose recurring execution errors">
-          <CategoryBars data={data?.mistake_breakdown || []} labels={MISTAKE_LABELS} emptyTitle="No journal mistakes recorded" color="var(--warn)" />
+          <CategoryBars data={data?.mistake_breakdown || []} labels={MISTAKE_LABELS} emptyTitle="No journal mistakes recorded" tone="warn" />
         </ChartCard>
       </div>
     </div>

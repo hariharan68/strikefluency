@@ -8,13 +8,13 @@ from sqlalchemy.exc import IntegrityError
 from app.config import settings
 from app.core.exceptions import InvalidCredentialsError, UserAlreadyExistsError
 from app.core.origin import check_origin
-from app.core.security import create_access_token
+from app.core.security import create_access_token, hash_password, verify_password
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_auth
 from app.models.refresh_token import RefreshToken
 from app.schemas.session import SessionSummary
 from app.models.user import User
-from app.schemas.auth import LoginRequest, ProfileUpdate, RegisterRequest, UserProfile
+from app.schemas.auth import LoginRequest, PasswordChange, ProfileUpdate, RegisterRequest, UserProfile
 from app.schemas.common import SuccessResponse
 from app.schemas.token import AccessTokenResponse, TokenResponse
 from app.services import audit_service
@@ -131,9 +131,31 @@ def get_me(current_user: CurrentUser):
 @router.put("/me", response_model=UserProfile)
 def update_me(data: ProfileUpdate, current_user: CurrentUser, db: Session = Depends(get_db)):
     current_user.full_name = data.full_name
+    # Only touch phone when the client actually sent the field — a request that
+    # omits it (e.g. the Settings name-only save) must not wipe a stored number.
+    if "phone" in data.model_fields_set:
+        current_user.phone = data.phone
     db.commit()
     db.refresh(current_user)
     return UserProfile.model_validate(current_user)
+
+
+@router.post("/change-password", response_model=SuccessResponse)
+def change_password(data: PasswordChange, current_user: CurrentUser, db: Session = Depends(get_db)):
+    # OAuth-only accounts have no password to change (hashed_password holds an
+    # unguessable random value); refuse rather than pretend to succeed.
+    if not current_user.has_usable_password:
+        raise HTTPException(status_code=400, detail="This account signs in with Google; a password change isn't available.")
+    if not verify_password(data.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    current_user.hashed_password = hash_password(data.new_password)
+    # A password change invalidates every refresh session for safety. The current
+    # access token stays valid until it naturally expires (it is short-lived and
+    # token_version is untouched); the next refresh then requires re-login with
+    # the new password.
+    revoke_all_user_tokens(db, current_user.id)
+    db.commit()
+    return SuccessResponse(message="Password changed successfully")
 
 
 @router.get("/sessions", response_model=list[SessionSummary])

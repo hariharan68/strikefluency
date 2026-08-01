@@ -834,15 +834,51 @@ input:focus, select:focus, textarea:focus { outline: none; }
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
 }
 .sf-profile-dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
-  padding: 8px 9px 10px;
+  padding: 8px 9px 12px;
   margin-bottom: 5px;
   border-bottom: 1px solid var(--border);
 }
-.sf-profile-dropdown-header strong,
-.sf-profile-dropdown-header span { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.sf-profile-dropdown-header strong { color: var(--text); font-size: 12px; font-weight: 700; }
-.sf-profile-dropdown-header span { margin-top: 2px; color: var(--text-muted); font-size: 10px; }
+.sf-profile-dropdown-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 15px;
+  font-weight: 700;
+}
+/* When an avatar carries an uploaded photo, the <img> fills the coloured
+   circle/square and inherits its radius; the letter styling simply goes unused. */
+.sf-avatar { overflow: hidden; }
+.sf-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
+}
+.sf-profile-dropdown-id { min-width: 0; }
+.sf-profile-dropdown-id strong,
+.sf-profile-dropdown-id span,
+.sf-profile-dropdown-id em { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sf-profile-dropdown-id strong { color: var(--text); font-size: 12px; font-weight: 700; }
+.sf-profile-dropdown-id span { margin-top: 2px; color: var(--text-muted); font-size: 10px; }
+.sf-profile-dropdown-plan {
+  margin-top: 4px;
+  color: var(--primary);
+  font-size: 9.5px;
+  font-weight: 700;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 .sf-profile-menu-item {
   min-height: 38px;
   display: flex;
@@ -856,6 +892,22 @@ input:focus, select:focus, textarea:focus { outline: none; }
   text-decoration: none;
 }
 .sf-profile-menu-item:hover { background: var(--primary-bg); color: var(--primary); }
+.sf-profile-menu-signout {
+  width: 100%;
+  margin-top: 5px;
+  padding-top: 10px;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 8px 8px;
+  background: transparent;
+  color: var(--loss-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.sf-profile-menu-signout:hover { background: var(--loss-bg); color: var(--loss-text); }
 .sf-empty-workspace {
   min-height: calc(100vh - 122px);
   display: flex;

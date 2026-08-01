@@ -90,7 +90,7 @@ function ProfileSection({ user }) {
     if (!name) { error('Full name cannot be empty'); return }
     setSaving(true)
     try {
-      const r = await updateProfile(name)
+      const r = await updateProfile({ full_name: name })
       setUser(r.data)          // refresh name app-wide (sidebar/topbar)
       success('Profile updated')
     } catch (err) {

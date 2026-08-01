@@ -12,7 +12,7 @@
       // Apply the saved theme before React paints to avoid a palette flash.
       (function () {
         var t = localStorage.getItem('sf-theme') || 'dark';
-        if (t !== 'dark' && t !== 'light' && t !== 'forest-light') t = 'dark';
+        if (['dark', 'light', 'forest-light', 'aqua-light'].indexOf(t) === -1) t = 'dark';
         document.documentElement.classList.add(t);
         document.documentElement.dataset.theme = t;
 

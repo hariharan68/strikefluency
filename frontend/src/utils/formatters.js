@@ -29,9 +29,12 @@ export function formatDate(isoString) {
 }
 
 export function formatDuration(minutes) {
-  if (!minutes) return '-'
-  if (minutes < 60) return `${minutes}m`
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+  if (minutes == null || isNaN(minutes)) return '—'
+  // Round before splitting: averaged durations arrive fractional, and the
+  // modulo would otherwise surface the float as "14h 12.399999999999997m".
+  const total = Math.round(Number(minutes))
+  if (total < 60) return `${total}m`
+  return `${Math.floor(total / 60)}h ${total % 60}m`
 }
 
 export function nearestThursday() {

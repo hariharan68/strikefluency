@@ -1,0 +1,486 @@
+.console-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ── Header + range control ─────────────────────────────────────── */
+.console-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.console-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.console-header h2 {
+  margin: 6px 0 2px;
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+}
+.console-header p { color: var(--text-muted); font-size: 13px; }
+
+.console-range {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.console-range-presets {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--color-surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.console-range-presets button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.console-range-presets button:hover { color: var(--text-sub); }
+.console-range-presets button.active {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.console-range-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.console-range-custom .sf-input { width: auto; padding: 7px 10px; font-size: 12px; }
+.console-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--color-surface);
+  color: var(--text-sub);
+  cursor: pointer;
+}
+.console-refresh:hover { color: var(--primary); border-color: var(--primary-border); }
+
+/* ── Tabs ───────────────────────────────────────────────────────── */
+.console-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.console-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.console-tabs button:hover { color: var(--text-sub); }
+.console-tabs button.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* ── Sections ───────────────────────────────────────────────────── */
+.console-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: opacity 0.2s;
+}
+.console-section.is-refreshing { opacity: 0.55; }
+.console-error {
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--loss-bg);
+  color: var(--loss-text);
+  font-size: 13px;
+}
+
+/* ── Filter row ─────────────────────────────────────────────────── */
+.console-filter-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.console-field-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.console-filter-view { width: 180px; max-width: 100%; }
+.console-filter-instrument { width: 200px; max-width: 100%; }
+.console-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+  padding: 0 14px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-muted);
+}
+.console-search input {
+  flex: 1;
+  height: 42px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+.console-generate {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 18px;
+  height: 44px;
+  border: none;
+  border-radius: 10px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s;
+  flex: none;
+}
+.console-generate:hover { filter: brightness(1.06); }
+
+/* ── Build-a-report empty state ─────────────────────────────────── */
+.console-report-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 52px 24px 56px;
+}
+.console-report-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  height: 68px;
+  margin-bottom: 6px;
+  border-radius: 18px;
+  background: var(--primary-bg);
+  color: var(--primary);
+}
+.console-report-empty h3 { color: var(--text); font-size: 18px; font-weight: 700; }
+.console-report-empty p { color: var(--text-muted); font-size: 13px; max-width: 360px; line-height: 1.5; }
+.console-report-empty p strong { color: var(--text-sub); font-weight: 600; }
+
+/* ── P&L Report form (self-contained date range) ────────────────── */
+.pnl-report-form { padding: 18px 20px; }
+.pnl-report-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.pnl-report-field { display: flex; flex-direction: column; }
+.pnl-report-daterange { gap: 0; }
+.pnl-report-field .console-field-label,
+.pnl-report-daterange .console-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.pnl-report-range-inputs {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+.pnl-report-range-inputs .sf-input {
+  width: auto;
+  padding: 8px 10px;
+  font-size: 12.5px;
+}
+.pnl-report-presets {
+  display: inline-flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.pnl-report-presets button {
+  padding: 4px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.pnl-report-presets button:hover { color: var(--text-sub); border-color: var(--primary-border); }
+.pnl-report-presets button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+.pnl-report-search-field { flex: 1; min-width: 200px; }
+.pnl-report-search-field .console-search { width: 100%; }
+.pnl-report-range-warn {
+  margin-top: 10px;
+  color: var(--loss-text);
+  font-size: 12px;
+}
+
+/* ── Card headers shared ────────────────────────────────────────── */
+.console-page .sf-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.console-page .sf-card-header h3 { color: var(--text); font-size: 14px; font-weight: 600; }
+.console-page .sf-card-header p { color: var(--text-muted); font-size: 11.5px; margin-top: 2px; }
+
+/* ── Heatmap (Zerodha-style month blocks) ───────────────────────── */
+.console-heatmap-body { padding: 18px 20px 20px; }
+.console-heatmap-scroll { overflow-x: auto; padding-bottom: 6px; }
+.console-heatmap-months {
+  display: flex;
+  align-items: flex-start;
+  gap: 22px;
+  min-width: min-content;
+}
+.console-heatmap-month {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.console-heatmap-weeks {
+  display: flex;
+  gap: 3px;
+}
+.console-heatmap-week {
+  display: grid;
+  grid-template-rows: repeat(7, 1fr);
+  gap: 3px;
+}
+.console-heatmap-month-label {
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.console-heatmap-cell {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+.console-heatmap-cell.is-pad {
+  background: transparent;
+  border-color: transparent;
+}
+.console-heatmap-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: 12px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+}
+.console-heatmap-legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+/* ── Summary tiles ──────────────────────────────────────────────── */
+.console-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.console-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+}
+.console-tile.strong { border-color: var(--primary-border); }
+.console-tile-label {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.console-tile-value { font-size: 22px; font-weight: 700; color: var(--text); }
+.console-tile-value.gain, .num.gain { color: var(--gain-text); }
+.console-tile-value.loss, .num.loss { color: var(--loss-text); }
+.console-tile-value.flat { color: var(--text-sub); }
+
+/* ── Tables ─────────────────────────────────────────────────────── */
+.console-table-header, .console-fund-summary .sf-card-header { align-items: center; }
+.console-table-scroll { overflow-x: auto; }
+.console-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.console-table th {
+  position: sticky;
+  top: 0;
+  padding: 10px 14px;
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: var(--color-surface2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.console-table td {
+  padding: 11px 14px;
+  color: var(--text-sub);
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+}
+.console-table tbody tr:hover td { background: color-mix(in srgb, var(--primary-bg) 50%, transparent); }
+.console-table .num-col { text-align: right; font-variant-numeric: tabular-nums; }
+.console-table-empty {
+  text-align: center;
+  padding: 32px 14px !important;
+  color: var(--text-muted);
+}
+.console-desc { white-space: normal; max-width: 280px; }
+.console-action {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.console-action.buy { color: var(--gain-text); }
+.console-action.sell { color: var(--loss-text); }
+
+.console-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--color-surface);
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.console-download:hover:not(:disabled) { color: var(--primary); border-color: var(--primary-border); }
+.console-download:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Funds ──────────────────────────────────────────────────────── */
+.console-fund-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+.console-fund-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+}
+.console-fund-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px;
+  padding: 16px 18px;
+}
+.console-fund-summary-grid > div { display: flex; flex-direction: column; gap: 4px; }
+.console-fund-summary-grid span { color: var(--text-muted); font-size: 11px; }
+.console-fund-summary-grid strong { font-size: 15px; font-weight: 600; }
+.console-fund-summary-grid .strong strong { color: var(--text); }
+
+/* ── Account ────────────────────────────────────────────────────── */
+.console-account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+.console-account-list { padding: 8px 18px 16px; margin: 0; }
+.console-account-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.console-account-list > div:last-child { border-bottom: none; }
+.console-account-list dt { color: var(--text-muted); font-size: 12.5px; }
+.console-account-list dd { margin: 0; color: var(--text); font-size: 12.5px; font-weight: 500; }
+.console-session-list { list-style: none; margin: 0; padding: 8px 18px 16px; display: flex; flex-direction: column; gap: 4px; }
+.console-session-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.console-session-list li:last-child { border-bottom: none; }
+.console-session-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--primary-bg);
+  color: var(--primary);
+  flex: none;
+}
+.console-session-list li div { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.console-session-list strong { color: var(--text); font-size: 12.5px; font-weight: 600; }
+.console-session-list span { color: var(--text-muted); font-size: 11px; }
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .console-header { flex-direction: column; }
+  .console-range { width: 100%; }
+  .console-filter-instrument { width: 100%; }
+  .console-tabs { overflow-x: auto; }
+}

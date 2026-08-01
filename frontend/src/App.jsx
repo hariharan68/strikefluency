@@ -32,7 +32,8 @@ const AnalyticsPage = lazy(() => import('./pages/analytics/AnalyticsPage'))
 const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'))
 const AdminPage = lazy(() => import('./pages/admin/AdminPage'))
 const ApiKeyPage = lazy(() => import('./pages/account/ApiKeyPage'))
-const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'))
+const ConsolePage = lazy(() => import('./pages/console/ConsolePage'))
+const ProfilePage = lazy(() => import('./pages/profile/ProfilePage'))
 
 // Deduped so a single page load restores the session with exactly ONE
 // /auth/refresh call. React.StrictMode double-invokes effects in dev, and our
@@ -189,7 +190,8 @@ export default function App() {
                   <Route path="/admin" element={<AdminPage />} />
                 </Route>
                 <Route path="/api-key" element={<ApiKeyPage />} />
-                <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/console" element={<ConsolePage />} />
+                <Route path="/profile" element={<ProfilePage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

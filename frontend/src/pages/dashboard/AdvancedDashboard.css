@@ -316,130 +316,165 @@
   text-transform: uppercase;
 }
 
+/* Lowered from 270px: the bar charts now size themselves to their row count, so
+   a tall floor here only added slack under short charts. Charts that want more
+   set an explicit height. */
 .advanced-chart-body {
-  min-height: 270px;
+  min-height: 200px;
   padding: 8px 10px 10px;
 }
 
 .advanced-performance-card .advanced-chart-body {
-  min-height: 355px;
+  min-height: 360px;
 }
 
-.advanced-performance-chart {
+.sf-echart {
   min-width: 0;
 }
 
-.advanced-drawdown-chart {
+/* Multi-panel charts (equity + drawdown, score + violations). The lower panel is
+   a second grid inside the same ECharts instance — which is what makes the two
+   plots share an x scale and one crosshair — so its label floats over the canvas
+   instead of living in a separate container. */
+.advanced-panel-chart {
   position: relative;
-  padding-top: 4px;
-  border-top: 1px solid var(--border-light);
+  min-width: 0;
 }
 
-.advanced-drawdown-chart > span {
+/* Right-aligned on purpose: the left edge of the lower panel is the y-axis
+   gutter, where the label printed straight over the topmost tick. Both lower
+   panels (drawdown falling, violation bars rising from zero) leave the
+   top-right corner empty. */
+.advanced-panel-label {
   position: absolute;
   z-index: 1;
-  top: 8px;
-  left: 12px;
-  color: var(--loss-text);
+  right: 22px;
+  color: var(--text-muted);
   font-size: 8.5px;
   font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-}
-
-.advanced-outcome-wrap {
-  position: relative;
-  min-height: 260px;
-}
-
-.advanced-donut-total {
-  position: absolute;
-  top: 74px;
-  left: 50%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  transform: translateX(-50%);
   pointer-events: none;
 }
 
-.advanced-donut-total strong {
-  color: var(--text);
-  font-size: 22px;
+/* Sits just above the bottom grid's `top` in stackedGrids(). */
+.advanced-panel-label-bottom {
+  top: 63%;
 }
 
-.advanced-donut-total span {
+/* Trade outcomes: a win-rate figure plus a proportion bar. Replaces a two-slice
+   donut, which was a worse rendering of a single number. */
+/* Distributed rather than top-clustered: this card sits beside the taller
+   performance card, so without this the content bunches at the top and leaves
+   the dead space the old donut had. */
+.advanced-outcome {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  height: 100%;
+  min-height: 300px;
+  padding: 14px 12px 10px;
+}
+
+.advanced-outcome-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.advanced-outcome-hero strong {
+  color: var(--text);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  /* Proportional figures: tabular-nums reads loose at display sizes. */
+  font-variant-numeric: proportional-nums;
+}
+
+.advanced-outcome-hero small {
+  margin-left: 2px;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 17px;
+  font-weight: 600;
 }
 
-.advanced-outcome-legend {
-  padding: 0 10px;
-  display: grid;
-  gap: 7px;
-}
-
-.advanced-outcome-legend > div {
-  display: grid;
-  grid-template-columns: 8px 1fr auto;
-  align-items: center;
-  gap: 7px;
-}
-
-.advanced-outcome-legend i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-
-.advanced-outcome-legend span {
-  color: var(--text-sub);
-  font-size: 10px;
-}
-
-.advanced-outcome-legend strong {
-  color: var(--text);
-  font-size: 10.5px;
-}
-
-.advanced-tooltip {
-  min-width: 150px;
-  padding: 9px 11px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: var(--color-surface);
-  box-shadow: var(--shadow-md);
-}
-
-.advanced-tooltip > span {
-  display: block;
-  margin-bottom: 6px;
+.advanced-outcome-hero span {
   color: var(--text-muted);
-  font-size: 9.5px;
+  font-size: 11px;
 }
 
-.advanced-tooltip > div {
+/* 2px surface-coloured gaps between segments rather than borders. */
+.advanced-outcome-bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+}
+
+.advanced-outcome-bar i {
+  flex-basis: 0;
+  min-width: 5px;
+  border-radius: 3px;
+}
+
+.advanced-outcome-bar i.gain,
+.advanced-outcome-rows i.gain { background: var(--gain); }
+.advanced-outcome-bar i.loss,
+.advanced-outcome-rows i.loss { background: var(--loss); }
+.advanced-outcome-bar i.neutral,
+.advanced-outcome-rows i.neutral { background: var(--text-muted); }
+
+.advanced-outcome-rows {
   display: grid;
-  grid-template-columns: 7px 1fr auto;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.advanced-outcome-rows li {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 7px;
-  margin-top: 4px;
+  column-gap: 9px;
+  row-gap: 2px;
 }
 
-.advanced-tooltip i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+.advanced-outcome-rows i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
 }
 
-.advanced-tooltip small {
+.advanced-outcome-rows span {
   color: var(--text-sub);
-  font-size: 9.5px;
+  font-size: 11.5px;
 }
 
-.advanced-tooltip strong {
-  color: var(--text);
+.advanced-outcome-rows em {
+  color: var(--text-muted);
   font-size: 10px;
+  font-style: normal;
 }
+
+.advanced-outcome-rows b {
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+/* Signed net P&L on its own line under each row: the gain/loss hues are close to
+   indistinguishable under red-green colour blindness in the light themes, so the
+   sign carries the meaning. */
+.advanced-outcome-rows strong {
+  grid-column: 2 / -1;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.advanced-outcome-rows strong.gain { color: var(--gain-text); }
+.advanced-outcome-rows strong.loss { color: var(--loss-text); }
+.advanced-outcome-rows strong.neutral { color: var(--text-muted); }
 
 .advanced-empty-chart {
   min-height: 250px;

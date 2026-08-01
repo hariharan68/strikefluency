@@ -3,11 +3,14 @@ import { useLocation, Link } from 'react-router-dom'
 import useMarketStore from '../../store/marketStore'
 import { getMode } from '../../api/discipline'
 import {
-  AlertTriangle, ChevronDown, FileBarChart, Moon,
-  Settings, Shield, ShieldOff, Sun,
+  AlertTriangle, ChevronDown, LogOut, Moon,
+  Settings, Shield, ShieldOff, Sun, Terminal, UserRound,
 } from 'lucide-react'
 import useTheme from '../../hooks/useTheme'
+import Avatar from '../common/Avatar'
+import { presetSrc } from '../../utils/presetAvatars'
 import useAuthStore from '../../store/authStore'
+import { logout as logoutApi } from '../../api/auth'
 import { isAdminRole } from './AdminRoute'
 
 const PAGE_META = {
@@ -24,7 +27,8 @@ const PAGE_META = {
   '/discipline-mode': { title: 'Discipline Mode', subtitle: 'Master switch for the rules that gate your trades — and free-play capital.' },
   '/settings': { title: 'Settings', subtitle: 'Manage profile, broker integration, preferences, and account controls.' },
   '/api-key': { title: 'API Key', subtitle: 'Manage application credentials and API access.' },
-  '/reports': { title: 'Reports', subtitle: 'Review generated trading and account reports.' },
+  '/console': { title: 'Console', subtitle: 'P&L, funds, and account overview.' },
+  '/profile': { title: 'Profile', subtitle: 'Your account profile.' },
   '/admin': { title: 'Administration', subtitle: 'Read-only operator view: audit trail, users, funds ledger, and system health.' },
 }
 
@@ -34,6 +38,7 @@ export default function TopBar() {
   const marketStatus = useMarketStore(s => s.status)
   const brokerStatus = useMarketStore(s => s.brokerStatus)
   const user = useAuthStore(s => s.user)
+  const clearAuth = useAuthStore(s => s.clearAuth)
   const meta = PAGE_META[location.pathname] || { title: 'StrikeFluency', subtitle: 'Virtual options trading dashboard.' }
   const { isDark, toggleTheme } = useTheme()
   const [time, setTime] = useState('')
@@ -45,7 +50,15 @@ export default function TopBar() {
     && ['connecting', 'reconnect_required', 'feed_reconnecting', 'stale', 'unavailable'].includes(providerStatus?.state)
   const isAdmin = isAdminRole(user?.role)
   const profileName = user?.full_name || user?.email || 'Trader'
-  const profileInitial = profileName.charAt(0).toUpperCase()
+
+  // Revoke the server-side refresh-token family / HttpOnly cookie first so the
+  // session can't silently refresh back in; then clear local state and leave.
+  const handleSignOut = async () => {
+    setProfileOpen(false)
+    try { await logoutApi() } catch (_) { /* offline — local clear still signs out */ }
+    clearAuth()
+    window.location.href = '/login'
+  }
 
   // Reflect the master Discipline Mode state globally; re-check on navigation
   // so toggling it on any page updates the pill.
@@ -150,16 +163,24 @@ export default function TopBar() {
             aria-expanded={profileOpen}
             onClick={() => setProfileOpen(open => !open)}
           >
-            <span className="sf-profile-avatar" aria-hidden="true">{profileInitial}</span>
+            <Avatar name={profileName} photoSrc={user?.avatar_url} presetSrc={presetSrc(user?.avatar_preset)} className="sf-profile-avatar" />
             <ChevronDown size={13} className={profileOpen ? 'open' : ''} />
           </button>
 
           {profileOpen && (
             <div className="sf-profile-dropdown" role="menu" aria-label="Profile navigation">
               <div className="sf-profile-dropdown-header">
-                <strong>{user?.full_name || 'Trader'}</strong>
-                <span>{user?.email || 'StrikeFluency account'}</span>
+                <Avatar name={profileName} photoSrc={user?.avatar_url} presetSrc={presetSrc(user?.avatar_preset)} className="sf-profile-dropdown-avatar" />
+                <div className="sf-profile-dropdown-id">
+                  <strong>{user?.full_name || 'Trader'}</strong>
+                  <span>{user?.email || 'StrikeFluency account'}</span>
+                  <em className="sf-profile-dropdown-plan">{String(user?.plan || 'free').replace(/^\w/, c => c.toUpperCase())} plan</em>
+                </div>
               </div>
+              <Link to="/profile" className="sf-profile-menu-item" role="menuitem">
+                <UserRound size={16} />
+                <span>Profile</span>
+              </Link>
               {isAdmin && (
                 <Link to="/admin" className="sf-profile-menu-item" role="menuitem">
                   <Shield size={16} />
@@ -170,10 +191,19 @@ export default function TopBar() {
                 <Settings size={16} />
                 <span>Settings</span>
               </Link>
-              <Link to="/reports" className="sf-profile-menu-item" role="menuitem">
-                <FileBarChart size={16} />
-                <span>Reports</span>
+              <Link to="/console" className="sf-profile-menu-item" role="menuitem">
+                <Terminal size={16} />
+                <span>Console</span>
               </Link>
+              <button
+                type="button"
+                className="sf-profile-menu-item sf-profile-menu-signout"
+                role="menuitem"
+                onClick={handleSignOut}
+              >
+                <LogOut size={16} />
+                <span>Sign out</span>
+              </button>
             </div>
           )}
         </div>

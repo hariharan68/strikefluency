@@ -84,7 +84,7 @@ app.add_middleware(AuthRateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 # ── All routers ───────────────────────────────────────────────
-from app.routers import admin, auth, market, trading, discipline, journal, analytics, broker, kite, oauth, strategy, options, settings as settings_router
+from app.routers import admin, auth, market, trading, discipline, journal, analytics, broker, kite, oauth, strategy, options, console, profile, settings as settings_router
 
 app.include_router(auth.router,        prefix="/api/v1")
 app.include_router(market.router,      prefix="/api/v1")
@@ -92,6 +92,8 @@ app.include_router(trading.router,     prefix="/api/v1")
 app.include_router(discipline.router,  prefix="/api/v1")
 app.include_router(journal.router,     prefix="/api/v1")
 app.include_router(analytics.router,   prefix="/api/v1")
+app.include_router(console.router,     prefix="/api/v1")
+app.include_router(profile.router,     prefix="/api/v1")
 app.include_router(broker.router,      prefix="/api/v1")
 app.include_router(kite.router,        prefix="/api/v1")
 app.include_router(strategy.router,    prefix="/api/v1")

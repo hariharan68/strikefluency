@@ -82,6 +82,15 @@ def _ensure_strategy_schema(conn) -> None:
     if "plan" not in u_cols:
         conn.execute(text(
             "ALTER TABLE users ADD COLUMN plan VARCHAR(20) NOT NULL DEFAULT 'free'"))
+    # Profile contact number (migration 20260804) — add if not yet applied.
+    if "phone" not in u_cols:
+        conn.execute(text("ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL"))
+    # Profile photo (migration 20260805) — add if not yet applied.
+    if "avatar_url" not in u_cols:
+        conn.execute(text("ALTER TABLE users ADD COLUMN avatar_url TEXT NULL"))
+    # Preset avatar choice (migration 20260806) — add if not yet applied.
+    if "avatar_preset" not in u_cols:
+        conn.execute(text("ALTER TABLE users ADD COLUMN avatar_preset VARCHAR(20) NULL"))
     va_cols = {c["name"] for c in insp.get_columns("virtual_accounts")}
     if "discipline_mode_enabled" not in va_cols:
         conn.execute(text(

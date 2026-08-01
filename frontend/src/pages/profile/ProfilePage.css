@@ -1,0 +1,316 @@
+.profile-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Identity hero ──────────────────────────────────────────────── */
+.profile-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 22px 24px;
+}
+.profile-hero-main {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+}
+.profile-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 28px;
+  font-weight: 700;
+  box-shadow: 0 0 0 4px var(--primary-bg);
+}
+.profile-avatar-wrap {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.profile-avatar-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 148px;
+}
+.profile-avatar-controls .sf-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  font-size: 12px;
+  width: 100%;
+}
+.profile-avatar-removes {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.profile-avatar-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.profile-avatar-remove:hover { color: var(--loss-text); }
+.profile-avatar-remove:disabled { opacity: 0.5; cursor: default; }
+.profile-avatar-hint {
+  max-width: 150px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+/* ── Avatar picker modal ────────────────────────────────────────── */
+.avatar-picker { display: flex; flex-direction: column; gap: 16px; }
+.avatar-picker-tabs {
+  display: inline-flex;
+  align-self: center;
+  padding: 3px;
+  gap: 2px;
+  background: var(--color-surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.avatar-picker-tabs button {
+  padding: 7px 22px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.avatar-picker-tabs button.active { background: var(--primary); color: var(--on-primary); }
+.avatar-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+.avatar-picker-item {
+  position: relative;
+  padding: 0;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  background: var(--color-surface2);
+  cursor: pointer;
+  overflow: hidden;
+  aspect-ratio: 1;
+  transition: border-color 0.15s, transform 0.1s;
+}
+.avatar-picker-item img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.avatar-picker-item:hover { border-color: var(--primary-border); transform: translateY(-2px); }
+.avatar-picker-item.selected { border-color: var(--primary); }
+.avatar-picker-item:disabled { cursor: default; opacity: 0.6; }
+.avatar-picker-check {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+@media (max-width: 520px) {
+  .avatar-picker-grid { grid-template-columns: repeat(3, 1fr); }
+}
+.profile-hero-id { min-width: 0; }
+.profile-hero-id h2 {
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.profile-hero-email {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.profile-hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.profile-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.profile-badge.plan { background: var(--primary-bg); color: var(--primary); }
+.profile-badge.active { background: var(--gain-bg); color: var(--gain-text); }
+.profile-badge.inactive { background: var(--loss-bg); color: var(--loss-text); }
+.profile-badge.muted { background: var(--color-surface2); color: var(--text-muted); }
+
+.profile-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.profile-hero-actions .sf-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+.profile-oauth-note {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+.profile-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--loss) 40%, transparent);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--loss-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.profile-logout:hover { background: var(--loss-bg); }
+
+/* ── Two-column body ────────────────────────────────────────────── */
+.profile-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 16px;
+  align-items: start;
+}
+.profile-section-title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+/* Account details */
+.profile-details { padding: 20px 22px; }
+.profile-detail-list { display: flex; flex-direction: column; gap: 2px; margin: 0; }
+.profile-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+.profile-detail:last-child { border-bottom: none; }
+.profile-detail dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+.profile-detail dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.profile-detail dd.muted { color: var(--text-muted); font-weight: 400; font-style: italic; }
+
+/* Paper-trading stats */
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.profile-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 16px 18px;
+}
+.profile-stat.strong { border-color: var(--primary-border); }
+.profile-stat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--primary-bg);
+  color: var(--primary);
+  margin-bottom: 2px;
+}
+.profile-stat-label { color: var(--text-muted); font-size: 11.5px; font-weight: 500; }
+.profile-stat-value { font-size: 20px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.profile-stat-value.gain { color: var(--gain-text); }
+.profile-stat-value.loss { color: var(--loss-text); }
+.profile-stat-value.flat { color: var(--text); }
+
+/* ── Modal forms ────────────────────────────────────────────────── */
+.profile-form { display: flex; flex-direction: column; gap: 14px; }
+.profile-field { display: flex; flex-direction: column; gap: 6px; }
+.profile-field > span { color: var(--text-sub); font-size: 12px; font-weight: 600; }
+.profile-form-error {
+  color: var(--loss-text);
+  background: var(--loss-bg);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.profile-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+.profile-form-actions .sf-btn-primary,
+.profile-form-actions .sf-btn-outline { height: 40px; padding: 0 18px; font-size: 13px; }
+
+/* ── Responsive ─────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .profile-columns { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .profile-hero { flex-direction: column; align-items: flex-start; }
+  .profile-hero-actions { width: 100%; }
+  .profile-stats { grid-template-columns: 1fr; }
+}
