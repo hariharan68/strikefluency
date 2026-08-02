@@ -46,12 +46,10 @@ htmlcov/
 coverage.xml
 *.cover
 .hypothesis/
-Docm
-securitydocs
-archidocs
 
-# MyPy / type checkers
+# Linters / type checkers
 .mypy_cache/
+.ruff_cache/
 .dmypy.json
 dmypy.json
 .pytype/
@@ -68,20 +66,31 @@ frontend/dist/
 frontend/dist-ssr/
 frontend/.vite/
 frontend/coverage/
-graphify-out
+
 # Local env files (Vite convention)
 *.local
-.claude
 
 # ── Logs ──────────────────────────────────────────
 logs/
 *.log
 log/
 
+# ── Local databases / dumps ───────────────────────
+*.sqlite
+*.sqlite3
+*.db
+*.sql.gz
+*.dump
 
-.codex
+# ── Agent / tooling workspaces (local only) ───────
 .claude
+.codex
 .agents
+graphify-out
+Docm
+securitydocs
+archidocs
+
 # ── IDE / Editor ──────────────────────────────────
 .vscode/
 !.vscode/extensions.json
